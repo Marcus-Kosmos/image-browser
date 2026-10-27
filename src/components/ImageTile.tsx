@@ -16,10 +16,11 @@ interface ImageTileProps {
   /** Position within its row, used to stagger the reveal. */
   order: number;
   root: HTMLElement | null;
+  settingsKey: string;
   settings: ImageSettings;
   onOpen: (index: number) => void;
   onTrash: (index: number) => void;
-  onChange: (name: string, change: ImageSettings) => void;
+  onChange: (key: string, change: ImageSettings) => void;
 }
 
 const SIZE_KEYS: Record<string, ImageSize> = { "1": "small", "2": "medium", "3": "large" };
@@ -30,6 +31,7 @@ export const ImageTile = memo(function ImageTile({
   reveal,
   order,
   root,
+  settingsKey,
   settings,
   onOpen,
   onTrash,
@@ -73,7 +75,7 @@ export const ImageTile = memo(function ImageTile({
             onTrash(box.index);
           } else if (SIZE_KEYS[e.key]) {
             e.preventDefault();
-            onChange(image.name, { size: SIZE_KEYS[e.key] });
+            onChange(settingsKey, { size: SIZE_KEYS[e.key] });
           }
         }}
         aria-label={image.name}
@@ -96,7 +98,7 @@ export const ImageTile = memo(function ImageTile({
       <ImageMenu
         name={image.name}
         settings={settings}
-        onChange={(change) => onChange(image.name, change)}
+        onChange={(change) => onChange(settingsKey, change)}
         onOpenChange={setMenuOpen}
       />
       <button

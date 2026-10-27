@@ -15,7 +15,7 @@ export interface FolderSettings {
   viewMode: ViewMode;
   reveal: Reveal;
   showPageNumbers: boolean;
-  /** Keyed by file name, so settings survive the folder being moved. */
+  /** Keyed by file name for a single folder (so settings survive moving it), by path for several folders. */
   images: Record<string, ImageSettings>;
 }
 
@@ -56,7 +56,7 @@ function saveSettings(folder: string, settings: FolderSettings) {
   }
 }
 
-/** Per-folder view settings, remembered between sessions. */
+/** View settings for a folder, or a set of folders opened together, remembered between sessions. */
 export function useFolderSettings(folder: string | null) {
   const [settings, setSettings] = useState<FolderSettings>(DEFAULT_SETTINGS);
 
@@ -76,10 +76,10 @@ export function useFolderSettings(folder: string | null) {
   );
 
   const updateImage = useCallback(
-    (name: string, change: ImageSettings) => {
+    (key: string, change: ImageSettings) => {
       setSettings((prev) => {
-        const merged = { ...prev.images[name], ...change };
-        const images = { ...prev.images, [name]: merged };
+        const merged = { ...prev.images[key], ...change };
+        const images = { ...prev.images, [key]: merged };
         const next = { ...prev, images };
         if (folder) saveSettings(folder, next);
         return next;

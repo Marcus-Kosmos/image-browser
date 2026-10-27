@@ -4,7 +4,7 @@ import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "
 import { cn, folderName } from "@/lib/utils";
 
 interface ToolbarProps {
-  folder: string | null;
+  folders: string[];
   imageCount: number;
   rowHeight: number;
   onRowHeightChange: (value: number) => void;
@@ -19,7 +19,7 @@ export const ROW_HEIGHT_MIN = 100;
 export const ROW_HEIGHT_MAX = 420;
 
 export function Toolbar({
-  folder,
+  folders,
   imageCount,
   rowHeight,
   onRowHeightChange,
@@ -31,11 +31,11 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
-      <Button variant="outline" size="sm" onClick={onOpenFolder} title="Öppna mapp (⌘O)">
+      <Button variant="outline" size="sm" onClick={onOpenFolder} title="Öppna en eller flera mappar (⌘O). Håll ⌘ för att markera flera.">
         <FolderOpen />
         Öppna mapp
       </Button>
-      {folder && (
+      {folders.length > 0 && (
         <>
           <Button
             variant="ghost"
@@ -50,8 +50,10 @@ export function Toolbar({
           <Button variant="ghost" size="icon-sm" onClick={onRefresh} title="Läs in igen (⌘R)" aria-label="Läs in igen">
             <RefreshCw />
           </Button>
-          <div className="ml-1 min-w-0" title={folder}>
-            <div className="truncate text-sm font-semibold">{folderName(folder)}</div>
+          <div className="ml-1 min-w-0" title={folders.join("\n")}>
+            <div className="truncate text-sm font-semibold">
+              {folders.length === 1 ? folderName(folders[0]) : `${folders.length} mappar`}
+            </div>
             <div className="text-xs text-muted-foreground">
               {imageCount} {imageCount === 1 ? "bild" : "bilder"}
             </div>
@@ -59,7 +61,7 @@ export function Toolbar({
         </>
       )}
       <div className="flex-1" />
-      {folder && (
+      {folders.length > 0 && (
         <>
           <div role="radiogroup" aria-label="Visning" className="flex items-center rounded-md bg-muted p-0.5">
             <ModeButton

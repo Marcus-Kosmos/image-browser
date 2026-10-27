@@ -8,7 +8,11 @@ import type { FolderSettings, ImageSettings } from "@/lib/settings";
 import { ImageTile } from "./ImageTile";
 
 interface GalleryProps {
+  /** Changes when another folder or set of folders is opened. */
+  viewKey: string;
   images: ImageEntry[];
+  /** Key under which an image's settings are stored. */
+  imageKey: (image: ImageEntry) => string;
   rowHeight: number;
   settings: FolderSettings;
   onOpen: (index: number) => void;
@@ -24,7 +28,7 @@ const PAGE_NUMBER_SPACE = 24;
 /** Content this far outside the viewport stays mounted, so thumbnails are ready before they scroll in. */
 const OVERSCAN = 800;
 
-export function Gallery({ images, rowHeight, settings, onOpen, onTrash, onChangeImage }: GalleryProps) {
+export function Gallery({ viewKey, images, imageKey, rowHeight, settings, onOpen, onTrash, onChangeImage }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [scrollTop, setScrollTop] = useState(0);
@@ -45,9 +49,9 @@ export function Gallery({ images, rowHeight, settings, onOpen, onTrash, onChange
     () =>
       images.map((img) => ({
         aspectRatio: img.width / img.height,
-        size: settings.images[img.name]?.size,
+        size: settings.images[imageKey(img)]?.size,
       })),
-    [images, settings.images],
+    [images, imageKey, settings.images],
   );
 
   const pageBottom = PAGE_PADDING_Y + (settings.showPageNumbers ? PAGE_NUMBER_SPACE : 0);
@@ -108,11 +112,10 @@ export function Gallery({ images, rowHeight, settings, onOpen, onTrash, onChange
   }, [layout, pages, root]);
 
   // A new folder starts at the top.
-  const folderKey = images[0]?.path.replace(/[^/\\]*$/, "");
   useEffect(() => {
     anchor.current = 0;
     if (root) root.scrollTop = 0;
-  }, [folderKey, root]);
+  }, [viewKey, root]);
 
   const goToPage = useCallback(
     (page: number) => root?.scrollTo({ top: page * pageHeight, behavior: "smooth" }),
@@ -121,7 +124,8 @@ export function Gallery({ images, rowHeight, settings, onOpen, onTrash, onChange
 
   const renderTile = (box: LayoutBox, offsetX: number, offsetY: number) => {
     const image = images[box.index];
-    const imageSettings = settings.images[image.name] ?? {};
+    const key = imageKey(image);
+    const imageSettings = settings.images[key] ?? {};
     return (
       <ImageTile
         key={image.path}
@@ -130,6 +134,7 @@ export function Gallery({ images, rowHeight, settings, onOpen, onTrash, onChange
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index])}
         order={placement.order[box.index]}
         root={root}
+        settingsKey={key}
         settings={imageSettings}
         onOpen={onOpen}
         onTrash={onTrash}
