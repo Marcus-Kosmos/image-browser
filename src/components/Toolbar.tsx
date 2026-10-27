@@ -1,4 +1,5 @@
 import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { Button } from "@/components/ui/button";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
@@ -148,6 +149,7 @@ export function Toolbar({
               ))}
             </select>
           </label>
+          <AppearanceMenu settings={settings} onChange={onSettingsChange} />
           <div className="mx-1 h-6 w-px bg-border" aria-hidden />
         </>
       )}

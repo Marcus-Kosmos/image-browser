@@ -4,7 +4,7 @@ import type { ImageEntry } from "@/lib/api";
 import type { LayoutBox } from "@/lib/layout";
 import type { Series } from "@/lib/library";
 import { useRevealOnView } from "@/lib/reveal";
-import type { ImageSettings, ImageSize, Reveal } from "@/lib/settings";
+import type { Frame, ImageSettings, ImageSize, Reveal, Shadow } from "@/lib/settings";
 import { GRID_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn } from "@/lib/utils";
 import { ImageMenu } from "./ImageMenu";
@@ -19,6 +19,8 @@ interface ImageTileProps {
   /** Drawn with a ring, to show where the image last viewed full screen is. */
   marked?: boolean;
   favorite: boolean;
+  frame: Frame;
+  shadow: Shadow;
   /** All saved series, so the menu can add the image to one or take it out. */
   series: Series[];
   root: HTMLElement | null;
@@ -31,6 +33,25 @@ interface ImageTileProps {
   onToggleSeries: (id: string, index: number) => void;
 }
 
+/** Padding and color of each frame; the padding grows with the picture, like a real mat. */
+function frameStyle(frame: Frame, width: number, height: number): React.CSSProperties {
+  const short = Math.min(width, height);
+  switch (frame) {
+    case "line":
+      return { border: "1px solid color-mix(in oklab, var(--foreground) 35%, transparent)" };
+    case "mat":
+      return {
+        padding: Math.max(6, Math.round(short * 0.05)),
+        background: "#fbfaf7",
+        border: "1px solid rgb(0 0 0 / 0.08)",
+      };
+    case "black":
+      return { padding: Math.max(4, Math.round(short * 0.03)), background: "#111" };
+    default:
+      return {};
+  }
+}
+
 const SIZE_KEYS: Record<string, ImageSize> = { "1": "small", "2": "medium", "3": "large" };
 
 export const ImageTile = memo(function ImageTile({
@@ -40,6 +61,8 @@ export const ImageTile = memo(function ImageTile({
   order,
   marked = false,
   favorite,
+  frame,
+  shadow,
   series,
   root,
   settingsKey,
@@ -64,6 +87,7 @@ export const ImageTile = memo(function ImageTile({
 
   // Wait for the thumbnail too, so the effect plays on the picture rather than an empty box.
   const shown = inView && (loaded || reveal === "none");
+  const framing = frameStyle(frame, box.width, box.height);
 
   return (
     <div
@@ -71,8 +95,10 @@ export const ImageTile = memo(function ImageTile({
       data-index={box.index}
       data-reveal={reveal}
       data-shown={shown ? "" : undefined}
-      className={cn("group reveal absolute overflow-hidden rounded-sm", reveal === "none" && "bg-muted")}
+      className={cn("group reveal absolute overflow-hidden rounded-sm", reveal === "none" && frame === "none" && "bg-muted")}
       style={{
+        ...framing,
+        boxShadow: shadow === "drop" ? "0 12px 24px -8px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.2)" : undefined,
         left: box.x,
         top: box.y,
         width: box.width,
@@ -112,6 +138,13 @@ export const ImageTile = memo(function ImageTile({
           />
         )}
       </button>
+      {shadow === "inset" && (
+        <div
+          className="pointer-events-none absolute"
+          style={{ inset: framing.padding ?? 0, boxShadow: "inset 0 0 24px rgb(0 0 0 / 0.6), inset 0 0 4px rgb(0 0 0 / 0.4)" }}
+          aria-hidden
+        />
+      )}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
         {image.name}
       </div>

@@ -33,6 +33,12 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   lägg till eller ta bort bilder via bildens inställningar; byt namn eller ta bort serien i panelen
 - Favoriter och serier finns kvar efter omstart; en bild som slängs försvinner ur dem
 
+## Funktioner (steg 4, del 1)
+
+- Utseende (palettknappen): bakgrundsfärg, ram (tunn linje, vitt passepartout, svart) och skugga (under eller inåt)
+- Knappar, menyer och sidopanel tar färg efter bakgrunden och byter mellan mörk och ljus text för läsbarhet
+- Sparas per mapp, favoriter eller serie
+
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken

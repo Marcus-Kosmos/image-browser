@@ -184,6 +184,8 @@ export function Gallery({
         order={placement.order[box.index]}
         marked={marked === box.index}
         favorite={favorites.has(image.path)}
+        frame={settings.frame}
+        shadow={settings.shadow}
         series={series}
         root={root}
         settingsKey={key}

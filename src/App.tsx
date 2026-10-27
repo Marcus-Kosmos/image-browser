@@ -20,6 +20,7 @@ import {
   type LibraryView,
 } from "@/lib/library";
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
+import { useBackgroundTheme } from "@/lib/theme";
 import { folderName, parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
@@ -86,6 +87,7 @@ export default function App() {
   const { settings, update: updateSettings, updateImage } = useFolderSettings(
     inFolders ? (listing ? viewKey : null) : viewKey,
   );
+  useBackgroundTheme(settings.background);
   // File names can repeat across folders: one folder keys settings by the path inside it
   // (just the name for its own files), several folders and the library by full path.
   const imageKey = useCallback(
