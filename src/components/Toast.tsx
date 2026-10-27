@@ -7,7 +7,8 @@ export interface ToastMessage {
   tone: "success" | "error";
 }
 
-export function Toast({ toast, onDone }: { toast: ToastMessage | null; onDone: () => void }) {
+/** `raised` lifts it above the selection bar. */
+export function Toast({ toast, onDone, raised = false }: { toast: ToastMessage | null; onDone: () => void; raised?: boolean }) {
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(onDone, toast.tone === "error" ? 6000 : 3000);
@@ -19,7 +20,7 @@ export function Toast({ toast, onDone }: { toast: ToastMessage | null; onDone: (
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-1/2 z-[60] flex max-w-md -translate-x-1/2 items-center gap-2 rounded-lg border bg-popover px-4 py-2.5 text-sm shadow-lg"
+      className={`fixed ${raised ? "bottom-20" : "bottom-4"} left-1/2 z-[60] flex max-w-md -translate-x-1/2 items-center gap-2 rounded-lg border bg-popover px-4 py-2.5 text-sm shadow-lg`}
     >
       <Icon className={`size-4 shrink-0 ${toast.tone === "error" ? "text-destructive" : "text-muted-foreground"}`} />
       {toast.text}

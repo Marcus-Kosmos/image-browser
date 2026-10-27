@@ -186,7 +186,7 @@ export function Toolbar({
           step={10}
           value={rowHeight}
           onChange={(e) => onRowHeightChange(Number(e.target.value))}
-          className="w-36 accent-[var(--primary)]"
+          className="size-slider w-36"
         />
       </label>
       <Button variant="ghost" size="icon-sm" onClick={onShowShortcuts} title="Kortkommandon (?)" aria-label="Kortkommandon">

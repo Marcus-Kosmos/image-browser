@@ -24,6 +24,16 @@ const GROUPS: Array<{ title: string; keys: Array<[string[], string]> }> = [
     ],
   },
   {
+    title: "Markera flera bilder",
+    keys: [
+      [["⌘", "klick"], "Markera eller avmarkera en bild"],
+      [["⇧", "klick"], "Markera alla bilder fram till den"],
+      [["⇧", "dra"], "Markera med en ruta (eller dra i tomrummet)"],
+      [["⌘", "A"], "Markera alla"],
+      [["Esc"], "Avmarkera"],
+    ],
+  },
+  {
     title: "Helskärm",
     keys: [
       [["←", "→"], "Föregående eller nästa bild"],
@@ -38,7 +48,7 @@ const GROUPS: Array<{ title: string; keys: Array<[string[], string]> }> = [
 
 export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Dialog open={open} onClose={onClose} labelledBy="shortcuts-title" className="max-w-lg">
+    <Dialog open={open} onClose={onClose} labelledBy="shortcuts-title" className="max-h-[90vh] max-w-lg overflow-y-auto">
       <div className="flex items-center justify-between">
         <h2 id="shortcuts-title" className="text-lg font-semibold">
           Kortkommandon

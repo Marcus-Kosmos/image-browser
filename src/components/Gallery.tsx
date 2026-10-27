@@ -38,8 +38,14 @@ interface GalleryProps {
   onEditHeading: (index: number, kind: HeadingKind) => void;
   /** Given in a series: images can be dragged to a new place. `to` is the index to land before. */
   onMove?: (from: number, to: number) => void;
-  /** An image dropped on Favoriter or a series in the sidebar (rows marked with data-drop-target). */
-  onDropOnLibrary: (index: number, target: string) => void;
+  /**
+   * Images dropped on Favoriter or a series in the sidebar (rows marked with data-drop-target):
+   * the dragged one, or all selected ones when it is part of the selection.
+   */
+  onDropOnLibrary: (indices: number[], target: string) => void;
+  /** Paths of the selected images. */
+  selected: Set<string>;
+  onSelectionChange: (paths: Set<string>) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
 }
@@ -69,6 +75,16 @@ interface DragState {
   bar: { left: number; top: number; height: number } | null;
   /** Sidebar row under the pointer, e.g. "favorites" or "series:<id>". */
   drop: string | null;
+  /** How many images are dragged: more than one when the dragged image is selected. */
+  count: number;
+}
+
+/** Rectangle dragged out over the gallery to select the images it touches, in viewport coordinates. */
+interface Marquee {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 export function Gallery({
@@ -88,6 +104,8 @@ export function Gallery({
   onEditHeading,
   onMove,
   onDropOnLibrary,
+  selected,
+  onSelectionChange,
   highlight,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -219,12 +237,20 @@ export function Gallery({
   // reserves for files dropped from Finder.
   const [drag, setDrag] = useState<DragState | null>(null);
   const [settling, setSettling] = useState(false);
-  const live = useRef({ root, onMove, onDropOnLibrary, pagesMode, pageHeight });
-  live.current = { root, onMove, onDropOnLibrary, pagesMode, pageHeight };
+  const live = useRef({ root, onMove, onDropOnLibrary, pagesMode, pageHeight, images, selected, onSelectionChange });
+  live.current = { root, onMove, onDropOnLibrary, pagesMode, pageHeight, images, selected, onSelectionChange };
+
+  /** The dragged image, or every selected image in order when it is one of them. */
+  const draggedIndices = (from: number) => {
+    const { images, selected } = live.current;
+    if (!selected.has(images[from]?.path)) return [from];
+    return images.flatMap((img, i) => (selected.has(img.path) ? [i] : []));
+  };
   const suppressClick = useRef(false);
 
   const startReorder = useCallback((from: number, start: React.PointerEvent) => {
-    if (start.button !== 0) return;
+    // Shift + drag selects with a rectangle instead.
+    if (start.button !== 0 || start.shiftKey) return;
     const tile = (start.currentTarget as HTMLElement).closest<HTMLElement>("[data-index]");
     const thumb = tile?.querySelector("img")?.getAttribute("src") ?? null;
     let state: DragState | null = null;
@@ -245,7 +271,8 @@ export function Gallery({
       const row = under.map((e) => e.closest<HTMLElement>("[data-drop-target]")).find(Boolean) ?? null;
       markDrop(row);
       if (row) return { to: from, bar: null, drop: row.dataset.dropTarget ?? null };
-      if (!live.current.onMove) return { to: from, bar: null, drop: null };
+      // Several selected images go to the sidebar together; only a single one can be moved in place.
+      if (!live.current.onMove || (state?.count ?? 1) > 1) return { to: from, bar: null, drop: null };
       const el = under
         .map((e) => e.closest<HTMLElement>("[data-index]"))
         .find((e) => e && live.current.root?.contains(e));
@@ -302,7 +329,7 @@ export function Gallery({
       const { to, drop } = state;
       state = null;
       setDrag(null);
-      if (commit && drop) live.current.onDropOnLibrary(from, drop);
+      if (commit && drop) live.current.onDropOnLibrary(draggedIndices(from), drop);
       else if (commit && to !== from && to !== from + 1) {
         setSettling(true);
         setTimeout(() => setSettling(false), 400);
@@ -315,7 +342,7 @@ export function Gallery({
       pointer = { x: e.clientX, y: e.clientY };
       if (!state) {
         if (Math.hypot(e.clientX - start.clientX, e.clientY - start.clientY) < DRAG_THRESHOLD) return;
-        state = { from, to: from, ...pointer, thumb, bar: null, drop: null };
+        state = { from, to: from, ...pointer, thumb, bar: null, drop: null, count: draggedIndices(from).length };
         document.body.classList.add("reordering");
         frame = requestAnimationFrame(tick);
       }
@@ -342,6 +369,101 @@ export function Gallery({
     move(index, step < 0 ? index - 1 : index + 2);
   }, []);
 
+  // Selecting: ⌘-click adds or removes one image, Shift-click a run of images from the last one
+  // clicked, and dragging over the empty space between images selects the ones the rectangle touches.
+  const lastClicked = useRef<number | null>(null);
+  const clickTile = (index: number, e: React.MouseEvent) => {
+    const path = images[index].path;
+    if (e.metaKey || e.ctrlKey) {
+      const next = new Set(selected);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      onSelectionChange(next);
+      lastClicked.current = index;
+    } else if (e.shiftKey) {
+      const from = lastClicked.current ?? index;
+      const [a, b] = from < index ? [from, index] : [index, from];
+      onSelectionChange(new Set([...selected, ...images.slice(a, b + 1).map((img) => img.path)]));
+      lastClicked.current = index;
+    } else {
+      onOpen(index);
+    }
+  };
+
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
+  const startMarquee = (start: React.PointerEvent<HTMLDivElement>) => {
+    const r = root;
+    if (start.button !== 0 || !r) return;
+    // From the empty space between images, or from an image while holding Shift (a plain drag on
+    // an image moves it instead). Headings and buttons keep their own behavior.
+    const target = start.target as HTMLElement;
+    const onTile = !!target.closest("[data-index]");
+    if (onTile ? !start.shiftKey : target.closest("[data-index], button, a, input, [role=button]")) return;
+    const keep = start.metaKey || start.ctrlKey || start.shiftKey ? new Set(selected) : new Set<string>();
+    const origin = { x: start.clientX, y: start.clientY + r.scrollTop };
+    let pointer = { x: start.clientX, y: start.clientY };
+    let active = false;
+    let frame = 0;
+
+    const update = () => {
+      const top = Math.min(origin.y - r.scrollTop, pointer.y);
+      const bottom = Math.max(origin.y - r.scrollTop, pointer.y);
+      const rect = {
+        left: Math.min(origin.x, pointer.x),
+        top,
+        width: Math.abs(pointer.x - origin.x),
+        height: bottom - top,
+      };
+      setMarquee(rect);
+      const next = new Set(keep);
+      for (const el of r.querySelectorAll<HTMLElement>("[data-index]")) {
+        const b = el.getBoundingClientRect();
+        const hit = b.right > rect.left && b.left < rect.left + rect.width && b.bottom > rect.top && b.top < bottom;
+        const img = live.current.images[Number(el.dataset.index)];
+        if (hit && img) next.add(img.path);
+      }
+      live.current.onSelectionChange(next);
+    };
+    // Scrolls while the pointer is held near the top or bottom edge, so a selection can span rows out of view.
+    const tick = () => {
+      const rect = r.getBoundingClientRect();
+      const dir = pointer.y < rect.top + EDGE ? -1 : pointer.y > rect.bottom - EDGE ? 1 : 0;
+      if (dir !== 0 && !live.current.pagesMode) {
+        r.scrollTop += dir * 12;
+        update();
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      if (!active) {
+        if (Math.hypot(e.clientX - start.clientX, e.clientY - start.clientY) < DRAG_THRESHOLD) return;
+        active = true;
+        document.body.classList.add("selecting");
+        frame = requestAnimationFrame(tick);
+      }
+      update();
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      cancelAnimationFrame(frame);
+      document.body.classList.remove("selecting");
+      setMarquee(null);
+      if (active) {
+        // The press ended a selection, so the click that follows must not open or select an image.
+        suppressClick.current = true;
+        setTimeout(() => (suppressClick.current = false), 0);
+      }
+      // A plain click on the empty space clears the selection, as in Finder.
+      if (!active && keep.size === 0 && live.current.selected.size > 0) live.current.onSelectionChange(new Set());
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  };
+
   const renderTile = (box: LayoutBox, offsetX: number, offsetY: number) => {
     const image = images[box.index];
     const key = imageKey(image);
@@ -354,6 +476,7 @@ export function Gallery({
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index], box.index)}
         order={placement.order[box.index]}
         marked={marked === box.index}
+        selected={selected.has(image.path)}
         favorite={favorites.has(image.path)}
         tags={tags.get(image.path)}
         frame={settings.frame}
@@ -362,7 +485,7 @@ export function Gallery({
         root={root}
         settingsKey={key}
         settings={imageSettings}
-        onOpen={onOpen}
+        onOpen={clickTile}
         onTrash={onTrash}
         onChange={onChangeImage}
         onToggleFavorite={onToggleFavorite}
@@ -398,6 +521,7 @@ export function Gallery({
         className={cn("absolute inset-0 overflow-y-auto bg-canvas", settling && "settling")}
         style={pagesMode ? { scrollSnapType: "y mandatory" } : undefined}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
+        onPointerDown={startMarquee}
         onClickCapture={(e) => {
           if (suppressClick.current) {
             e.stopPropagation();
@@ -462,11 +586,26 @@ export function Gallery({
         />
       )}
       {drag?.thumb && (
-        <img
-          src={drag.thumb}
-          alt=""
-          className="pointer-events-none fixed z-50 w-28 translate-x-3 translate-y-3 rotate-2 rounded-sm opacity-90 shadow-xl ring-1 ring-black/10"
-          style={{ left: drag.x, top: drag.y }}
+        <div className="pointer-events-none fixed z-50 translate-x-3 translate-y-3" style={{ left: drag.x, top: drag.y }} aria-hidden>
+          {drag.count > 1 && (
+            <div className="absolute top-1 left-1 h-full w-28 rotate-6 rounded-sm bg-muted shadow-lg ring-1 ring-black/10" />
+          )}
+          <img
+            src={drag.thumb}
+            alt=""
+            className="relative w-28 rotate-2 rounded-sm opacity-90 shadow-xl ring-1 ring-black/10"
+          />
+          {drag.count > 1 && (
+            <span className="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow">
+              {drag.count}
+            </span>
+          )}
+        </div>
+      )}
+      {marquee && (
+        <div
+          className="pointer-events-none fixed z-40 rounded-sm border border-primary bg-primary/15"
+          style={marquee}
           aria-hidden
         />
       )}
