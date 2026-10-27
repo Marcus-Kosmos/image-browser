@@ -81,6 +81,22 @@ export function toggleInSeries(library: Library, id: string, image: ImageEntry):
   }));
 }
 
+/**
+ * Moves the image at `from` so that it lands before the image now at `to`;
+ * `to` equal to the length moves it last.
+ */
+export function moveInSeries(library: Library, id: string, from: number, to: number): Library {
+  return updateSeries(library, id, (s) => {
+    if (from < 0 || from >= s.images.length) return s;
+    const target = Math.max(0, Math.min(to, s.images.length)) - (to > from ? 1 : 0);
+    if (target === from) return s;
+    const images = [...s.images];
+    const [moved] = images.splice(from, 1);
+    images.splice(target, 0, moved);
+    return { ...s, images };
+  });
+}
+
 /** Forgets an image everywhere, e.g. after it was moved to the trash. */
 export function removeImage(library: Library, path: string): Library {
   return {

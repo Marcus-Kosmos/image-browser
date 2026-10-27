@@ -105,8 +105,25 @@ body {
   transform: translateX(80px);
 }
 
+/* Tiles glide to their new places after a drag in a series. */
+.settling .reveal {
+  transition:
+    opacity 1.2s ease-out,
+    transform 1.6s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.35s ease-out,
+    top 0.35s ease-out,
+    width 0.35s ease-out,
+    height 0.35s ease-out;
+}
+body.reordering,
+body.reordering * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
+  .reveal,
+  .settling .reveal {
     transition: opacity 0.2s linear;
     transform: none !important;
   }

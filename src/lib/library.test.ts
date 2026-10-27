@@ -4,6 +4,7 @@ import {
   EMPTY_LIBRARY,
   createSeries,
   deleteSeries,
+  moveInSeries,
   removeImage,
   renameSeries,
   toggleFavorite,
@@ -49,6 +50,16 @@ describe("library", () => {
     lib = removeImage(lib, a.path);
     expect(lib.favorites).toEqual([]);
     expect(lib.series.map((s) => s.images.length)).toEqual([1, 0]);
+  });
+
+  it("moves an image to a new place in a series", () => {
+    const lib = createSeries(EMPTY_LIBRARY, "s1", "Resa", [a, b, c]);
+    const order = (l: typeof lib) => l.series[0].images.map((i) => i.path);
+    expect(order(moveInSeries(lib, "s1", 0, 2))).toEqual([b.path, a.path, c.path]);
+    expect(order(moveInSeries(lib, "s1", 0, 3))).toEqual([b.path, c.path, a.path]);
+    expect(order(moveInSeries(lib, "s1", 2, 0))).toEqual([c.path, a.path, b.path]);
+    expect(moveInSeries(lib, "s1", 1, 1).series[0]).toBe(lib.series[0]);
+    expect(order(moveInSeries(lib, "s1", 1, 2))).toEqual([a.path, b.path, c.path]);
   });
 
   it("numbers new series names that are already taken", () => {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/settings";
 import type { HeadingKind } from "./HeadingDialog";
 import { HeadingText } from "./HeadingText";
+import { cn } from "@/lib/utils";
 import { ImageTile } from "./ImageTile";
 
 interface GalleryProps {
@@ -32,6 +33,8 @@ interface GalleryProps {
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
   onEditHeading: (index: number, kind: HeadingKind) => void;
+  /** Given in a series: images can be dragged to a new place. `to` is the index to land before. */
+  onMove?: (from: number, to: number) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
 }
@@ -43,6 +46,23 @@ const PAGE_PADDING_Y = 28;
 const PAGE_NUMBER_SPACE = 24;
 /** Content this far outside the viewport stays mounted, so thumbnails are ready before they scroll in. */
 const OVERSCAN = 800;
+/** Pointer travel before a press turns into a drag rather than a click. */
+const DRAG_THRESHOLD = 6;
+/** Distance from the top or bottom edge that scrolls while dragging. */
+const EDGE = 64;
+/** How long to hold at an edge in pages mode before turning the page. */
+const PAGE_TURN_DELAY = 600;
+
+interface DragState {
+  from: number;
+  /** Index the image lands before; equal to `from` or `from + 1` leaves it in place. */
+  to: number;
+  x: number;
+  y: number;
+  thumb: string | null;
+  /** Insertion line, in viewport coordinates. */
+  bar: { left: number; top: number; height: number } | null;
+}
 
 export function Gallery({
   viewKey,
@@ -58,6 +78,7 @@ export function Gallery({
   onToggleFavorite,
   onToggleSeries,
   onEditHeading,
+  onMove,
   highlight,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -185,6 +206,118 @@ export function Gallery({
     [root, pageHeight],
   );
 
+  // Dragging to reorder. Pointer events rather than HTML drag and drop, which the app window
+  // reserves for files dropped from Finder.
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [settling, setSettling] = useState(false);
+  const live = useRef({ root, onMove, pagesMode, pageHeight });
+  live.current = { root, onMove, pagesMode, pageHeight };
+  const suppressClick = useRef(false);
+
+  const startReorder = useCallback((from: number, start: React.PointerEvent) => {
+    if (!live.current.onMove || start.button !== 0) return;
+    const tile = (start.currentTarget as HTMLElement).closest<HTMLElement>("[data-index]");
+    const thumb = tile?.querySelector("img")?.getAttribute("src") ?? null;
+    let state: DragState | null = null;
+    let pointer = { x: start.clientX, y: start.clientY };
+    let frame = 0;
+    let edgeSince = 0;
+
+    const target = (x: number, y: number, prev: DragState | null): Pick<DragState, "to" | "bar"> => {
+      const el = document
+        .elementsFromPoint(x, y)
+        .map((e) => e.closest<HTMLElement>("[data-index]"))
+        .find((e) => e && live.current.root?.contains(e));
+      if (!el) return prev ? { to: prev.to, bar: prev.bar } : { to: from, bar: null };
+      const index = Number(el.dataset.index);
+      const rect = el.getBoundingClientRect();
+      const before = x < rect.left + rect.width / 2;
+      const to = before ? index : index + 1;
+      if (to === from || to === from + 1) return { to: from, bar: null };
+      return { to, bar: { left: (before ? rect.left : rect.right) + (before ? -GAP / 2 : GAP / 2), top: rect.top, height: rect.height } };
+    };
+
+    const update = () => {
+      if (!state) return;
+      state = { ...state, ...pointer, ...target(pointer.x, pointer.y, state) };
+      setDrag(state);
+    };
+
+    // Scrolls while the pointer is held near the top or bottom edge.
+    const tick = (time: number) => {
+      const r = live.current.root;
+      if (!state || !r) return;
+      const rect = r.getBoundingClientRect();
+      const dir = pointer.y < rect.top + EDGE ? -1 : pointer.y > rect.bottom - EDGE ? 1 : 0;
+      if (dir === 0) edgeSince = 0;
+      else if (live.current.pagesMode) {
+        if (!edgeSince) edgeSince = time;
+        else if (time - edgeSince > PAGE_TURN_DELAY) {
+          const page = Math.round(r.scrollTop / live.current.pageHeight) + dir;
+          r.scrollTo({ top: page * live.current.pageHeight, behavior: "smooth" });
+          edgeSince = time;
+        }
+      } else {
+        const depth = dir < 0 ? rect.top + EDGE - pointer.y : pointer.y - (rect.bottom - EDGE);
+        r.scrollTop += dir * Math.min(24, 4 + depth / 3);
+      }
+      if (dir !== 0) update();
+      frame = requestAnimationFrame(tick);
+    };
+
+    const finish = (commit: boolean) => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey, true);
+      cancelAnimationFrame(frame);
+      document.body.classList.remove("reordering");
+      if (!state) return;
+      // The press ended a drag, so the click that follows must not open the viewer.
+      suppressClick.current = true;
+      setTimeout(() => (suppressClick.current = false), 0);
+      const { to } = state;
+      state = null;
+      setDrag(null);
+      if (commit && to !== from && to !== from + 1) {
+        setSettling(true);
+        setTimeout(() => setSettling(false), 400);
+        live.current.onMove?.(from, to);
+        setMarked(to > from ? to - 1 : to);
+        setTimeout(() => setMarked(null), 1500);
+      }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      if (!state) {
+        if (Math.hypot(e.clientX - start.clientX, e.clientY - start.clientY) < DRAG_THRESHOLD) return;
+        state = { from, to: from, ...pointer, thumb, bar: null };
+        document.body.classList.add("reordering");
+        frame = requestAnimationFrame(tick);
+      }
+      update();
+    };
+    const onPointerUp = () => finish(true);
+    const onCancel = () => finish(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && state) {
+        e.stopPropagation();
+        finish(false);
+      }
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey, true);
+  }, []);
+
+  /** Alt + arrow left or right moves the focused image one step. */
+  const reorderByKey = useCallback((index: number, step: -1 | 1) => {
+    const move = live.current.onMove;
+    if (!move) return;
+    move(index, step < 0 ? index - 1 : index + 2);
+  }, []);
+
   const renderTile = (box: LayoutBox, offsetX: number, offsetY: number) => {
     const image = images[box.index];
     const key = imageKey(image);
@@ -210,6 +343,10 @@ export function Gallery({
         onToggleFavorite={onToggleFavorite}
         onToggleSeries={onToggleSeries}
         onEditHeading={onEditHeading}
+        reorderable={!!onMove}
+        dragging={drag?.from === box.index}
+        onReorderStart={startReorder}
+        onReorderKey={reorderByKey}
       />
     );
   };
@@ -233,9 +370,15 @@ export function Gallery({
     <div className="relative min-h-0 flex-1">
       <div
         ref={setRoot}
-        className="absolute inset-0 overflow-y-auto bg-canvas"
+        className={cn("absolute inset-0 overflow-y-auto bg-canvas", settling && "settling")}
         style={pagesMode ? { scrollSnapType: "y mandatory" } : undefined}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
+        onClickCapture={(e) => {
+          if (suppressClick.current) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }}
       >
         {pagesMode ? (
           <div className="relative" style={{ height: pages.length * pageHeight }}>
@@ -286,6 +429,22 @@ export function Gallery({
           </div>
         )}
       </div>
+      {drag?.bar && (
+        <div
+          className="pointer-events-none fixed z-40 w-1 -translate-x-1/2 rounded-full bg-primary shadow"
+          style={{ left: drag.bar.left, top: drag.bar.top, height: drag.bar.height }}
+          aria-hidden
+        />
+      )}
+      {drag?.thumb && (
+        <img
+          src={drag.thumb}
+          alt=""
+          className="pointer-events-none fixed z-50 w-28 -translate-x-1/2 -translate-y-1/2 rotate-2 rounded-sm opacity-90 shadow-xl ring-1 ring-black/10"
+          style={{ left: drag.x, top: drag.y }}
+          aria-hidden
+        />
+      )}
       {pagesMode && pages.length > 1 && (
         <div className="absolute right-4 bottom-4 flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur">
           <Button

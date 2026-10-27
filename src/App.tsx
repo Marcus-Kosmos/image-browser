@@ -12,6 +12,7 @@ import { pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import {
   createSeries,
   deleteSeries,
+  moveInSeries,
   removeImage,
   renameSeries,
   toggleFavorite,
@@ -212,6 +213,13 @@ export default function App() {
     [changeLibrary, images],
   );
 
+  const onMoveImage = useCallback(
+    (from: number, to: number) => {
+      if (series) changeLibrary((lib) => moveInSeries(lib, series.id, from, to));
+    },
+    [changeLibrary, series],
+  );
+
   const newSeries = () => {
     const id = crypto.randomUUID();
     const base =
@@ -323,6 +331,7 @@ export default function App() {
               onToggleFavorite={onToggleFavorite}
               onToggleSeries={onToggleSeries}
               onEditHeading={(index, kind) => setHeadingEdit({ index, kind })}
+              onMove={series ? onMoveImage : undefined}
               highlight={highlight}
             />
           ) : (
