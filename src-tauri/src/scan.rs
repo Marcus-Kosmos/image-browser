@@ -84,8 +84,11 @@ pub fn scan_folder(dir: &Path) -> Result<FolderListing, String> {
 }
 
 fn display_dimensions(path: &Path) -> Option<(u32, u32)> {
-    let size = imagesize::size(path).ok()?;
-    let (w, h) = (size.width as u32, size.height as u32);
+    // imagesize only reads the header; fall back to a full decoder for unusual files.
+    let (w, h) = match imagesize::size(path) {
+        Ok(size) => (size.width as u32, size.height as u32),
+        Err(_) => image::image_dimensions(path).ok()?,
+    };
     if w == 0 || h == 0 {
         return None;
     }
@@ -153,5 +156,24 @@ mod tests {
         assert!(is_image(Path::new("a/B.HEIC")));
         assert!(is_image(Path::new("photo.jpeg")));
         assert!(!is_image(Path::new("notes.txt")));
+    }
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    #[test]
+    fn scans_png_and_webp() {
+        let dir = std::env::temp_dir().join(format!("ib-scan-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let img = image::RgbaImage::from_pixel(300, 200, image::Rgba([10, 200, 10, 128]));
+        img.save(dir.join("a.png")).unwrap();
+        image::DynamicImage::ImageRgba8(img.clone()).save(dir.join("b.webp")).unwrap();
+        img.save(dir.join("C.PNG")).unwrap();
+        let listing = scan_folder(&dir).unwrap();
+        let names: Vec<_> = listing.images.iter().map(|i| (i.name.as_str(), i.width, i.height)).collect();
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(names, vec![("a.png", 300, 200), ("b.webp", 300, 200), ("C.PNG", 300, 200)]);
     }
 }
