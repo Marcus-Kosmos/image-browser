@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Image Browser",
+  "productName": "Imagime",
   "version": "0.1.0",
   "identifier": "se.kosmos.imagebrowser",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Image Browser",
+        "title": "Imagime",
         "width": 1280,
         "height": 860,
         "minWidth": 640,

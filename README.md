@@ -1,4 +1,4 @@
-# Image Browser
+# Imagime
 
 En lätt bildbläddrare för Mac. Välj en mapp så visas bilderna som förhandsvisningar
 i en pussel-layout där bilder i olika format fyller raderna jämnt.
