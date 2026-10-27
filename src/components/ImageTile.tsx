@@ -34,6 +34,12 @@ interface ImageTileProps {
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
   onEditHeading: (index: number, kind: HeadingKind) => void;
+  /** In a series, where the image can be dragged to a new place. */
+  reorderable: boolean;
+  /** This image is being dragged. */
+  dragging: boolean;
+  onReorderStart: (index: number, e: React.PointerEvent) => void;
+  onReorderKey: (index: number, step: -1 | 1) => void;
 }
 
 /** Padding and color of each frame; the padding grows with the picture, like a real mat. */
@@ -76,6 +82,10 @@ export const ImageTile = memo(function ImageTile({
   onToggleFavorite,
   onToggleSeries,
   onEditHeading,
+  reorderable,
+  dragging,
+  onReorderStart,
+  onReorderKey,
 }: ImageTileProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -126,14 +136,19 @@ export const ImageTile = memo(function ImageTile({
           // Outlines are drawn outside the clipped box, so the ring isn't cut off.
           outline: `3px solid ${marked ? "var(--primary)" : "transparent"}`,
           outlineOffset: 3,
-          transition: "outline-color 0.6s ease-out",
+          opacity: dragging ? 0.35 : undefined,
+          transition: "outline-color 0.6s ease-out, opacity 0.15s ease-out",
         }}
       >
         <button
           className="block size-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           onClick={() => onOpen(box.index)}
+          onPointerDown={reorderable ? (e) => onReorderStart(box.index, e) : undefined}
           onKeyDown={(e) => {
-            if (e.key === "Delete" || e.key === "Backspace") {
+            if (reorderable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+              e.preventDefault();
+              onReorderKey(box.index, e.key === "ArrowLeft" ? -1 : 1);
+            } else if (e.key === "Delete" || e.key === "Backspace") {
               e.preventDefault();
               onTrash(box.index);
             } else if (SIZE_KEYS[e.key]) {
@@ -145,7 +160,7 @@ export const ImageTile = memo(function ImageTile({
             }
           }}
           aria-label={image.name}
-          title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit`}
+          title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit${reorderable ? "\nDra till en ny plats, eller Alt + pil vänster/höger" : ""}`}
         >
           {url && (
             <img

@@ -31,6 +31,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
   lägg till eller ta bort bilder via bildens inställningar; byt namn eller ta bort serien i panelen
+- Ändra ordning i en serie: dra en bild till en ny plats (en linje visar var den hamnar), eller
+  markera bilden och tryck Alt + pil vänster/höger. Håll bilden vid kanten för att bläddra.
+  Ordningen sparas och gäller i flöde, sidläge och helskärm
 - Favoriter och serier finns kvar efter omstart; en bild som slängs försvinner ur dem
 
 ## Funktioner (steg 4, del 1)
