@@ -9,11 +9,11 @@ export function EmptyState({ hasFolder, onOpenFolder }: { hasFolder: boolean; on
         <Icon className="size-6 text-muted-foreground" aria-hidden />
       </div>
       <div>
-        <h1 className="text-base font-semibold">{hasFolder ? "Inga bilder i den här mappen" : "Välj en bildmapp"}</h1>
+        <h1 className="text-base font-semibold">{hasFolder ? "Inga bilder i den här mappen" : "Välj en eller flera bildmappar"}</h1>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           {hasFolder
             ? "Öppna en annan mapp eller välj en undermapp ovan."
-            : "Bilderna i mappen visas som förhandsvisningar som passar ihop som ett pussel."}
+            : "Håll ⌘ för att markera flera mappar. Bilderna visas som förhandsvisningar som passar ihop som ett pussel."}
         </p>
       </div>
       <Button onClick={onOpenFolder}>

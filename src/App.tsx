@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
-import { ImageGrid } from "@/components/ImageGrid";
+import { Gallery } from "@/components/Gallery";
 import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { Viewer } from "@/components/Viewer";
-import { pickFolder, scanFolder, trashFile, type FolderListing } from "@/lib/api";
-import { parentFolder } from "@/lib/utils";
+import { pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
+import { useFolderSettings } from "@/lib/settings";
+import { folderName, parentFolder } from "@/lib/utils";
 
-const STORAGE_FOLDER = "image-browser:last-folder";
+const STORAGE_FOLDERS = "image-browser:last-folders";
+const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
+
+/** The images of one or more folders opened together. */
+interface Collection {
+  folders: string[];
+  images: ImageEntry[];
+  subfolders: string[];
+}
 const STORAGE_ROW_HEIGHT = "image-browser:row-height";
 
 function readStored(key: string): string | null {
@@ -29,66 +38,105 @@ function store(key: string, value: string) {
 }
 
 export default function App() {
-  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [listing, setListing] = useState<Collection | null>(null);
   const [rowHeight, setRowHeight] = useState(() => {
     const stored = Number(readStored(STORAGE_ROW_HEIGHT));
     return stored >= ROW_HEIGHT_MIN && stored <= ROW_HEIGHT_MAX ? stored : 220;
   });
+  const [includeSubfolders, setIncludeSubfolders] = useState(() => readStored(STORAGE_SUBFOLDERS) !== "false");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const folders = listing?.folders ?? [];
+  const multiple = folders.length > 1;
+  const viewKey = folders.join("\n");
+  const { settings, update: updateSettings, updateImage } = useFolderSettings(listing ? viewKey : null);
+  // File names can repeat across folders: one folder keys settings by the path inside it
+  // (just the name for its own files), several folders by full path.
+  const imageKey = useCallback(
+    (image: ImageEntry) => (multiple ? image.path : image.path.slice(folders[0].replace(/[\\/]+$/, "").length + 1)),
+    [multiple, folders],
+  );
 
   const showToast = useCallback((text: string, tone: ToastMessage["tone"] = "success") => {
     setToast({ id: Date.now(), text, tone });
   }, []);
 
-  const loadFolder = useCallback(
-    async (path: string) => {
-      try {
-        const result = await scanFolder(path);
-        setListing(result);
-        setViewerIndex(null);
-        store(STORAGE_FOLDER, path);
-      } catch (err) {
-        showToast(typeof err === "string" ? err : "Kunde inte öppna mappen.", "error");
+  const loadFolders = useCallback(
+    async (paths: string[], recursive = includeSubfolders) => {
+      const sorted = [...new Set(paths)].sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
+      const results = await Promise.allSettled(sorted.map((p) => scanFolder(p, recursive)));
+      const loaded = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      const failed = sorted.filter((_, i) => results[i].status === "rejected");
+      if (loaded.length === 0) {
+        const first = results[0];
+        const reason = first?.status === "rejected" && typeof first.reason === "string" ? first.reason : null;
+        showToast(reason ?? "Kunde inte öppna mappen.", "error");
+        return;
       }
+      if (failed.length > 0) {
+        showToast(`Kunde inte öppna ${failed.map(folderName).join(", ")}.`, "error");
+      }
+      const opened = loaded.map((l) => l.path);
+      setListing({
+        folders: opened,
+        // A folder and one of its subfolders may both be open; show each image once.
+        images: [...new Map(loaded.flatMap((l) => l.images).map((img) => [img.path, img])).values()],
+        // Folders that are already open don't need a shortcut.
+        subfolders: loaded.flatMap((l) => l.subfolders).filter((p) => !opened.includes(p)),
+      });
+      setViewerIndex(null);
+      store(STORAGE_FOLDERS, JSON.stringify(opened));
     },
-    [showToast],
+    [showToast, includeSubfolders],
   );
 
-  const openFolder = useCallback(async () => {
-    const path = await pickFolder();
-    if (path) await loadFolder(path);
-  }, [loadFolder]);
+  const toggleSubfolders = () => {
+    const next = !includeSubfolders;
+    setIncludeSubfolders(next);
+    store(STORAGE_SUBFOLDERS, String(next));
+    if (listing) void loadFolders(listing.folders, next);
+  };
+
+  const openFolders = useCallback(async () => {
+    const paths = await pickFolders();
+    if (paths.length > 0) await loadFolders(paths);
+  }, [loadFolders]);
 
   useEffect(() => {
-    const last = readStored(STORAGE_FOLDER);
-    if (last) void loadFolder(last);
-  }, [loadFolder]);
+    try {
+      const last = JSON.parse(readStored(STORAGE_FOLDERS) ?? "[]");
+      if (Array.isArray(last) && last.length > 0) void loadFolders(last);
+    } catch {
+      // Ignore a corrupt value; the user just picks a folder again.
+    }
+    // Only on start; later loads are triggered by the user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const parent = listing ? parentFolder(listing.path) : null;
-  const goToParent = parent ? () => void loadFolder(parent) : null;
+  const parent = folders.length === 1 ? parentFolder(folders[0]) : null;
+  const goToParent = parent ? () => void loadFolders([parent]) : null;
   const refresh = useCallback(() => {
-    if (listing) void loadFolder(listing.path);
-  }, [listing, loadFolder]);
+    if (listing) void loadFolders(listing.folders);
+  }, [listing, loadFolders]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "o") {
         e.preventDefault();
-        void openFolder();
+        void openFolders();
       } else if (e.key === "r") {
         e.preventDefault();
         refresh();
       } else if (e.key === "ArrowUp" && parent && viewerIndex === null) {
         e.preventDefault();
-        void loadFolder(parent);
+        void loadFolders([parent]);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openFolder, refresh, parent, viewerIndex, loadFolder]);
+  }, [openFolders, refresh, parent, viewerIndex, loadFolders]);
 
   const confirmTrash = async () => {
     if (!listing || trashIndex === null) return;
@@ -114,22 +162,35 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <Toolbar
-        folder={listing?.path ?? null}
+        folders={folders}
         imageCount={images.length}
         rowHeight={rowHeight}
         onRowHeightChange={(value) => {
           setRowHeight(value);
           store(STORAGE_ROW_HEIGHT, String(value));
         }}
-        onOpenFolder={() => void openFolder()}
+        onOpenFolder={() => void openFolders()}
         onParent={goToParent}
         onRefresh={refresh}
+        includeSubfolders={includeSubfolders}
+        onToggleSubfolders={toggleSubfolders}
+        settings={settings}
+        onSettingsChange={updateSettings}
       />
-      {listing && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolder(p)} />}
+      {listing && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />}
       {images.length > 0 ? (
-        <ImageGrid images={images} rowHeight={rowHeight} onOpen={setViewerIndex} onTrash={setTrashIndex} />
+        <Gallery
+          viewKey={viewKey}
+          images={images}
+          imageKey={imageKey}
+          rowHeight={rowHeight}
+          settings={settings}
+          onOpen={setViewerIndex}
+          onTrash={setTrashIndex}
+          onChangeImage={updateImage}
+        />
       ) : (
-        <EmptyState hasFolder={listing !== null} onOpenFolder={() => void openFolder()} />
+        <EmptyState hasFolder={listing !== null} onOpenFolder={() => void openFolders()} />
       )}
       {viewerIndex !== null && images[viewerIndex] && (
         <Viewer

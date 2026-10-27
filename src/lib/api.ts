@@ -19,15 +19,22 @@ export interface FolderListing {
 /** Outside Tauri (plain `npm run dev` in a browser) the app runs against generated demo images. */
 const demo = !isTauri();
 
-export async function pickFolder(): Promise<string | null> {
-  if (demo) return "/Demo/Bilder";
-  const result = await open({ directory: true, multiple: false, title: "Välj bildmapp" });
-  return typeof result === "string" ? result : null;
+/** Lets the user pick one or more folders (⌘-click in the dialog). */
+export async function pickFolders(): Promise<string[]> {
+  if (demo) return ["/Demo/Bilder", "/Demo/Bilder/Studio"];
+  const result = await open({ directory: true, multiple: true, title: "Välj en eller flera bildmappar" });
+  if (result === null) return [];
+  return Array.isArray(result) ? result : [result];
 }
 
-export async function scanFolder(path: string): Promise<FolderListing> {
-  if (demo) return demoListing(path);
-  return invoke<FolderListing>("scan_folder", { path });
+/** Lists a folder's images; with `recursive`, those in all its subfolders too. */
+export async function scanFolder(path: string, recursive: boolean): Promise<FolderListing> {
+  if (demo) {
+    const listing = demoListing(path);
+    if (recursive) listing.images.push(...listing.subfolders.flatMap((s) => demoListing(s).images));
+    return listing;
+  }
+  return invoke<FolderListing>("scan_folder", { path, recursive });
 }
 
 /** Returns a URL the webview can load for a thumbnail with the given longest side. */
@@ -49,7 +56,8 @@ const demoTrashed = new Set<string>();
 const demoRatios = [1.5, 0.667, 1, 1.778, 0.75, 1.333, 2.4, 0.8, 1.5, 1.5, 0.667, 1.25];
 
 function demoListing(path: string): FolderListing {
-  const images: ImageEntry[] = Array.from({ length: 64 }, (_, i) => {
+  const count = path === "/Demo/Bilder" ? 64 : 12;
+  const images: ImageEntry[] = Array.from({ length: count }, (_, i) => {
     const ratio = demoRatios[i % demoRatios.length];
     return {
       path: `${path}/IMG_${String(i + 1).padStart(4, "0")}.jpg`,
@@ -65,7 +73,7 @@ function demoListing(path: string): FolderListing {
 }
 
 function demoImage(image: ImageEntry): string {
-  const hue = (parseInt(image.name.replace(/\D/g, ""), 10) * 47) % 360;
+  const hue = (parseInt(image.name.replace(/\D/g, ""), 10) * 47 + image.path.length * 13) % 360;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="hsl(${hue} 45% 62%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 38%)"/>

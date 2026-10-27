@@ -31,9 +31,20 @@ pub fn thumbnail(src: &Path, size: u32, cache_dir: &Path) -> Result<PathBuf, Str
 }
 
 /// macOS ships `sips`, which reads every format Preview can open (HEIC, RAW, ...)
-/// and keeps the EXIF orientation that WebKit then honours.
+/// and keeps the EXIF orientation that WebKit then honours. Files it can't convert
+/// fall back to the built-in decoder.
 #[cfg(target_os = "macos")]
 fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
+    render_with_sips(src, size, out).or_else(|_| render_with_image(src, size, out))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
+    render_with_image(src, size, out)
+}
+
+#[cfg(target_os = "macos")]
+fn render_with_sips(src: &Path, size: u32, out: &Path) -> Result<(), String> {
     let status = std::process::Command::new("/usr/bin/sips")
         .args(["-Z", &size.to_string(), "-s", "format", "jpeg", "-s", "formatOptions", "80"])
         .arg(src)
@@ -50,8 +61,7 @@ fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
+fn render_with_image(src: &Path, size: u32, out: &Path) -> Result<(), String> {
     let img = image::open(src).map_err(|e| e.to_string())?;
     img.thumbnail(size, size)
         .to_rgb8()

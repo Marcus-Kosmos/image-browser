@@ -10,8 +10,20 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Öppna en mapp (⌘O), gå till överordnad mapp (⌘↑) och undermappar, läs in igen (⌘R)
 - Pussel-layout med reglage för storlek på förhandsvisningar
 - Snabba miniatyrer som cachas; på macOS skapas de med `sips`, så HEIC och RAW fungerar
-- Klicka på en bild för att visa den stort, bläddra med ← och →, stäng med Esc
+- Klicka på en bild för att visa den stort, bläddra med ← och → (mjuk övertoning), stäng med Esc
 - Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse
+
+## Funktioner (steg 2)
+
+- Två visningslägen: **Flöde** (kontinuerlig scroll) och **Sidor**, där varje sida fyller fönstret
+  utan att man scrollar, med valfria sidnummer och bläddring sida för sida
+- Storlek per bild: **Stor** tar två rader med andra bilder bredvid, två **Små** i följd staplas
+  på varandra (tangenterna 1, 2, 3 på markerad bild)
+- Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis,
+  för hela mappen eller per bild
+- Öppna flera mappar på en gång (⌘-klick i dialogen) och se alla bilderna tillsammans
+- Bilder i undermappar visas också (kan slås av med mappträd-knappen)
+- Inställningarna sparas per mapp, eller per kombination av mappar
 
 ## Installera
 
