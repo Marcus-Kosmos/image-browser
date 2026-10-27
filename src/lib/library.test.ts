@@ -9,6 +9,7 @@ import {
   moveInSeries,
   privacyOf,
   setPrivacy,
+  removeFromFavorites,
   removeImage,
   renameSeries,
   toggleFavorite,
@@ -28,6 +29,14 @@ describe("library", () => {
     expect(lib.favorites.map((i) => i.path)).toEqual([b.path, a.path]);
     lib = toggleFavorite(lib, b);
     expect(lib.favorites.map((i) => i.path)).toEqual([a.path]);
+  });
+
+  it("takes several images out of the favorites at once", () => {
+    let lib = toggleFavorite(EMPTY_LIBRARY, a);
+    lib = toggleFavorite(lib, b);
+    lib = toggleFavorite(lib, c);
+    lib = removeFromFavorites(lib, [a, c, img("/z/not-a-favorite.jpg")]);
+    expect(lib.favorites.map((i) => i.path)).toEqual([b.path]);
   });
 
   it("creates, renames and deletes series", () => {

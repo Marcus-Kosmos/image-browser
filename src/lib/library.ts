@@ -85,6 +85,12 @@ export function addToFavorites(library: Library, images: ImageEntry[]): Library 
   return { ...library, favorites: appendNew(library.favorites, images) };
 }
 
+/** Takes the images out of Favoriter; the files themselves are untouched. */
+export function removeFromFavorites(library: Library, images: ImageEntry[]): Library {
+  const paths = new Set(images.map((img) => img.path));
+  return { ...library, favorites: library.favorites.filter((img) => !paths.has(img.path)) };
+}
+
 export function addToSeries(library: Library, id: string, images: ImageEntry[]): Library {
   return updateSeries(library, id, (s) => ({ ...s, images: appendNew(s.images, images) }));
 }
