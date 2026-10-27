@@ -200,21 +200,23 @@ export default function App() {
         const first = results[0];
         const reason = first?.status === "rejected" && typeof first.reason === "string" ? first.reason : null;
         showToast(reason ?? "Kunde inte öppna mappen.", "error");
-        return;
+        return null;
       }
       if (failed.length > 0) {
         showToast(`Kunde inte öppna ${failed.map(folderName).join(", ")}.`, "error");
       }
       const opened = loaded.map((l) => l.path);
+      // A folder and one of its subfolders may both be open; show each image once.
+      const found = [...new Map(loaded.flatMap((l) => l.images).map((img) => [img.path, img])).values()];
       setListing({
         folders: opened,
-        // A folder and one of its subfolders may both be open; show each image once.
-        images: [...new Map(loaded.flatMap((l) => l.images).map((img) => [img.path, img])).values()],
+        images: found,
         // Folders that are already open don't need a shortcut.
         subfolders: loaded.flatMap((l) => l.subfolders).filter((p) => !opened.includes(p)),
       });
       if (!keepView) selectView({ kind: "folders" });
       store(STORAGE_FOLDERS, JSON.stringify(opened));
+      return found.length;
     },
     [showToast, includeSubfolders, selectView],
   );
@@ -245,9 +247,18 @@ export default function App() {
 
   const parent = folders.length === 1 ? parentFolder(folders[0]) : null;
   const goToParent = parent ? () => void loadFolders([parent]) : null;
-  const refresh = useCallback(() => {
-    if (listing) void loadFolders(listing.folders, includeSubfolders, true);
-  }, [listing, loadFolders, includeSubfolders]);
+  // Spins the button and then says what was found, so a click is seen to do something.
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = useCallback(async () => {
+    if (!listing || refreshing) return;
+    setRefreshing(true);
+    const [count] = await Promise.all([
+      loadFolders(listing.folders, includeSubfolders, true),
+      new Promise((resolve) => setTimeout(resolve, 600)),
+    ]);
+    setRefreshing(false);
+    if (count !== null) showToast(`Mappen lästes in igen: ${count === 1 ? "1 bild" : `${count} bilder`}.`);
+  }, [listing, refreshing, loadFolders, includeSubfolders, showToast]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -263,7 +274,7 @@ export default function App() {
         void openFolders();
       } else if (e.key === "r" && inFolders) {
         e.preventDefault();
-        refresh();
+        void refresh();
       } else if (e.key === "ArrowUp" && parent && inFolders && viewerIndex === null) {
         e.preventDefault();
         void loadFolders([parent]);
@@ -502,7 +513,8 @@ export default function App() {
         }}
         onOpenFolder={() => void openFolders()}
         onParent={goToParent}
-        onRefresh={refresh}
+        onRefresh={() => void refresh()}
+        refreshing={refreshing}
         includeSubfolders={includeSubfolders}
         onToggleSubfolders={toggleSubfolders}
         settings={settings}
@@ -592,7 +604,15 @@ export default function App() {
               highlight={highlight}
             />
           ) : (
-            <EmptyState kind={emptyKind} onOpenFolder={() => void openFolders()} onClearFilter={() => setFilter(NO_FILTER)} />
+            <EmptyState
+              kind={emptyKind}
+              onOpenFolder={() => void openFolders()}
+              onClearFilter={() => setFilter(NO_FILTER)}
+              onRefresh={() => void refresh()}
+              onShowSubfolders={
+                listing && listing.subfolders.length > 0 && !includeSubfolders ? toggleSubfolders : undefined
+              }
+            />
           )}
         </div>
       </div>
