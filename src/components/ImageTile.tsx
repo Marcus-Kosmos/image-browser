@@ -5,7 +5,7 @@ import type { Tag } from "@/lib/filter";
 import type { LayoutBox } from "@/lib/layout";
 import type { Series } from "@/lib/library";
 import { useRevealOnView } from "@/lib/reveal";
-import type { Frame, ImageSettings, ImageSize, Reveal, Shadow } from "@/lib/settings";
+import type { Frame, ImageSettings, ImageSize, Shadow, TileReveal } from "@/lib/settings";
 import { GRID_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn } from "@/lib/utils";
 import type { HeadingKind } from "./HeadingDialog";
@@ -16,7 +16,7 @@ interface ImageTileProps {
   image: ImageEntry;
   box: LayoutBox;
   /** Effect already resolved from the folder and image settings. */
-  reveal: Exclude<Reveal, "slide-alternate">;
+  reveal: TileReveal;
   /** Position within its row, used to stagger the reveal. */
   order: number;
   /** Drawn with a ring, to show where the image last viewed full screen is. */
@@ -96,6 +96,8 @@ export const ImageTile = memo(function ImageTile({
   const [loaded, setLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const inView = useRevealOnView(ref, root, reveal !== "none");
+  const picture = useRef<HTMLImageElement>(null);
+  useParallax(ref, picture, root, reveal === "parallax" && loaded);
 
   useEffect(() => {
     setUrl(null);
@@ -120,7 +122,8 @@ export const ImageTile = memo(function ImageTile({
         top: box.y,
         width: box.width,
         height: box.height,
-        transitionDelay: shown ? `${order * 90}ms` : undefined,
+        // A cascade lets the images of a row fall in one after another, more slowly.
+        transitionDelay: shown ? `${order * (reveal === "cascade" ? 220 : 90)}ms` : undefined,
       }}
     >
       {settings.heading && header > 0 && (
@@ -145,7 +148,7 @@ export const ImageTile = memo(function ImageTile({
         }}
       >
         <button
-          className="block size-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          className="block size-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           onClick={() => onOpen(box.index)}
           onPointerDown={(e) => onDragStart(box.index, e)}
           onKeyDown={(e) => {
@@ -168,6 +171,7 @@ export const ImageTile = memo(function ImageTile({
         >
           {url && (
             <img
+              ref={picture}
               src={url}
               alt=""
               draggable={false}
@@ -235,3 +239,42 @@ export const ImageTile = memo(function ImageTile({
     </div>
   );
 });
+
+/**
+ * Moves the picture a little slower than the page while scrolling, so it seems to lie further
+ * back. The picture is enlarged slightly so its edges never show.
+ */
+function useParallax(
+  tile: React.RefObject<HTMLElement>,
+  picture: React.RefObject<HTMLImageElement>,
+  root: HTMLElement | null,
+  enabled: boolean,
+) {
+  useEffect(() => {
+    const img = picture.current;
+    if (!enabled || !root || !img || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = tile.current?.getBoundingClientRect();
+      if (!box) return;
+      const view = root.getBoundingClientRect();
+      // -1 when the tile's center is at the bottom of the view, 1 at the top.
+      const offset = (view.top + view.height / 2 - (box.top + box.height / 2)) / (view.height / 2);
+      const shift = Math.max(-1, Math.min(1, offset)) * 7;
+      img.style.transform = `translateY(${shift.toFixed(2)}%) scale(1.18)`;
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    root.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      root.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      img.style.transform = "";
+    };
+  }, [tile, picture, root, enabled]);
+}

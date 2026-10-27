@@ -104,6 +104,17 @@ body {
   opacity: 0;
   transform: translateX(80px);
 }
+.reveal[data-reveal="rise"]:not([data-shown]) {
+  opacity: 0;
+  transform: translateY(70px);
+}
+.reveal[data-reveal="cascade"]:not([data-shown]) {
+  opacity: 0;
+  transform: translateY(-36px) scale(0.94);
+}
+.reveal[data-reveal="parallax"]:not([data-shown]) {
+  opacity: 0;
+}
 
 /* Tiles glide to their new places after a drag in a series. */
 .settling .reveal {

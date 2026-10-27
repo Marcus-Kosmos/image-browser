@@ -1,5 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
-import type { Reveal } from "./settings";
+import type { Reveal, TileReveal } from "./settings";
 
 /**
  * Becomes true the first time the element scrolls into view inside `root`,
@@ -31,8 +31,15 @@ export function useRevealOnView(ref: RefObject<HTMLElement>, root: HTMLElement |
   return shown;
 }
 
-/** Resolves "slide-alternate" to a direction: even rows come from the left, odd from the right. */
-export function resolveReveal(reveal: Reveal, row: number): Exclude<Reveal, "slide-alternate"> {
-  if (reveal !== "slide-alternate") return reveal;
-  return row % 2 === 0 ? "slide-left" : "slide-right";
+/** The effects "Växla automatiskt" takes turns with, one per row. */
+export const AUTO_CYCLE: TileReveal[] = ["fade", "slide-left", "slide-right", "rise", "cascade", "parallax"];
+
+/**
+ * Resolves the effects that vary by row: "slide-alternate" comes from the left on even rows
+ * and from the right on odd ones; "auto" moves on to the next effect each row.
+ */
+export function resolveReveal(reveal: Reveal, row: number): TileReveal {
+  if (reveal === "slide-alternate") return row % 2 === 0 ? "slide-left" : "slide-right";
+  if (reveal === "auto") return AUTO_CYCLE[row % AUTO_CYCLE.length];
+  return reveal;
 }

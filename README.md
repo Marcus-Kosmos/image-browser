@@ -20,8 +20,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   utan att man scrollar, med valfria sidnummer och bläddring sida för sida
 - Storlek per bild: **Stor** tar två rader med andra bilder bredvid, två **Små** i följd staplas
   på varandra (tangenterna 1, 2, 3 på markerad bild)
-- Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis,
-  för hela mappen eller per bild
+- Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis, glid upp,
+  kaskad (bilderna i en rad faller in en i taget) och parallax (bilden rör sig långsammare än sidan),
+  för hela mappen eller per bild. "Växla automatiskt" byter effekt för varje rad medan du scrollar
 - Öppna flera mappar på en gång (⌘-klick i dialogen) och se alla bilderna tillsammans
 - Bilder i undermappar visas också (kan slås av med mappträd-knappen)
 - Inställningarna sparas per mapp, eller per kombination av mappar
