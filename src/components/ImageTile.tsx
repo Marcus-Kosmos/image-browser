@@ -79,17 +79,17 @@ export const ImageTile = memo(function ImageTile({
 }: ImageTileProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // The thumbnail that has finished loading. Compared with `url` rather than reset to false,
+  // because a reloaded folder hands back the same cached thumbnail and the browser then
+  // fires no new load event, which left the tile hidden for good.
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  const loaded = url !== null && loadedUrl === url;
   const [menuOpen, setMenuOpen] = useState(false);
   const inView = useRevealOnView(ref, root, reveal !== "none");
   const picture = useRef<HTMLImageElement>(null);
   useParallax(ref, picture, root, reveal === "parallax" && loaded);
 
-  useEffect(() => {
-    setUrl(null);
-    setLoaded(false);
-    return requestThumbnail(image, GRID_THUMB_SIZE, setUrl);
-  }, [image]);
+  useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setUrl), [image]);
 
   // Wait for the thumbnail too, so the effect plays on the picture rather than an empty box.
   const shown = inView && (loaded || reveal === "none");
@@ -163,7 +163,7 @@ export const ImageTile = memo(function ImageTile({
               src={url}
               alt=""
               draggable={false}
-              onLoad={() => setLoaded(true)}
+              onLoad={(e) => setLoadedUrl(e.currentTarget.getAttribute("src"))}
               className="size-full object-cover transition-opacity duration-200"
               style={{ opacity: loaded ? 1 : 0 }}
             />
