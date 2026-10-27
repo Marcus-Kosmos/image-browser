@@ -29,6 +29,21 @@ pub struct FolderListing {
     pub subfolders: Vec<String>,
 }
 
+/// Extensions of macOS packages: folders that Finder shows as a single file.
+const PACKAGE_EXTENSIONS: &[&str] = &[
+    "app", "photoslibrary", "photolibrary", "aplibrary", "migratedphotolibrary", "imovielibrary", "tvlibrary",
+    "fcpbundle", "bundle", "framework", "plugin", "kext", "pkg", "mpkg", "lrdata", "lrlibrary", "xcodeproj",
+    "xcworkspace", "playground", "rtfd", "pages", "numbers", "key", "band", "logicx", "musiclibrary",
+    "sparsebundle",
+];
+
+fn is_package(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| PACKAGE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 pub fn is_image(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -66,7 +81,8 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
         let Ok(meta) = entry.metadata() else { continue };
         if meta.is_dir() {
             // Skip macOS packages such as Photos libraries and apps, which look like folders.
-            if path.extension().is_none() {
+            // Ordinary folders may have dots in their names too ("2024.06 Midsommar").
+            if !is_package(&path) {
                 subfolders.push(path);
             }
             continue;
@@ -208,7 +224,7 @@ mod recursive_tests {
     fn includes_subfolders_in_order_when_recursive() {
         let dir = std::env::temp_dir().join(format!("ib-rec-test-{}", std::process::id()));
         let img = image::RgbImage::from_pixel(20, 10, image::Rgb([1, 2, 3]));
-        for rel in ["b.png", "a.png", "Sub 10/x.png", "Sub 2/y.png", "Sub 2/Deep/z.png", "Pics.photoslibrary/p.png", ".hidden/h.png"] {
+        for rel in ["b.png", "a.png", "Sub 10/x.png", "Sub 2/y.png", "Sub 2/Deep/z.png", "2024.06 Midsommar/m.png", "Pics.photoslibrary/p.png", ".hidden/h.png"] {
             let p = dir.join(rel);
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             img.save(&p).unwrap();
@@ -222,7 +238,7 @@ mod recursive_tests {
         fs::remove_dir_all(&dir).unwrap();
 
         assert_eq!(rel(&flat), vec!["a.png", "b.png"]);
-        assert_eq!(rel(&deep), vec!["a.png", "b.png", "Sub 2/y.png", "Sub 2/Deep/z.png", "Sub 10/x.png"]);
-        assert_eq!(deep.subfolders.len(), 2);
+        assert_eq!(rel(&deep), vec!["a.png", "b.png", "2024.06 Midsommar/m.png", "Sub 2/y.png", "Sub 2/Deep/z.png", "Sub 10/x.png"]);
+        assert_eq!(deep.subfolders.len(), 3);
     }
 }
