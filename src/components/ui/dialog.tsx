@@ -25,7 +25,7 @@ export function Dialog({ open, onClose, children, className, labelledBy }: Dialo
         e.stopPropagation();
         onClose();
       } else if (e.key === "Tab" && panel.current) {
-        const items = panel.current.querySelectorAll<HTMLElement>("button, [tabindex]:not([tabindex='-1'])");
+        const items = panel.current.querySelectorAll<HTMLElement>("button, input, select, [tabindex]:not([tabindex='-1'])");
         if (items.length === 0) return;
         const firstItem = items[0];
         const lastItem = items[items.length - 1];

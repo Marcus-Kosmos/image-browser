@@ -1,3 +1,4 @@
+mod fonts;
 mod scan;
 mod thumbs;
 
@@ -35,11 +36,19 @@ async fn trash_file(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Font families installed on this computer, for headings.
+#[tauri::command]
+async fn list_fonts() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(fonts::installed_families)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, trash_file])
+        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, trash_file, list_fonts])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

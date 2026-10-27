@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Gallery } from "@/components/Gallery";
+import { HeadingDialog, type HeadingKind } from "@/components/HeadingDialog";
 import { Sidebar } from "@/components/Sidebar";
 import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
@@ -20,6 +21,7 @@ import {
   type LibraryView,
 } from "@/lib/library";
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
+import { useBackgroundTheme } from "@/lib/theme";
 import { folderName, parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
@@ -62,6 +64,7 @@ export default function App() {
   // Set when the viewer closes, so the gallery can show where that image is.
   const [highlight, setHighlight] = useState<{ index: number } | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
+  const [headingEdit, setHeadingEdit] = useState<{ index: number; kind: HeadingKind } | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => readStored(STORAGE_SIDEBAR) !== "false");
   const { library, change: changeLibrary } = useLibrary();
@@ -86,6 +89,7 @@ export default function App() {
   const { settings, update: updateSettings, updateImage } = useFolderSettings(
     inFolders ? (listing ? viewKey : null) : viewKey,
   );
+  useBackgroundTheme(settings.background);
   // File names can repeat across folders: one folder keys settings by the path inside it
   // (just the name for its own files), several folders and the library by full path.
   const imageKey = useCallback(
@@ -318,6 +322,7 @@ export default function App() {
               series={library.series}
               onToggleFavorite={onToggleFavorite}
               onToggleSeries={onToggleSeries}
+              onEditHeading={(index, kind) => setHeadingEdit({ index, kind })}
               highlight={highlight}
             />
           ) : (
@@ -340,6 +345,23 @@ export default function App() {
           paused={trashIndex !== null}
         />
       )}
+      {(() => {
+        const image = headingEdit ? images[headingEdit.index] : undefined;
+        const own = image ? settings.images[imageKey(image)] : undefined;
+        const field = headingEdit?.kind === "page" ? "pageHeading" : "heading";
+        return (
+          <HeadingDialog
+            kind={image ? headingEdit!.kind : null}
+            imageName={image?.name ?? ""}
+            heading={own?.[field]}
+            onSave={(heading) => {
+              if (image) updateImage(imageKey(image), { [field]: heading });
+              setHeadingEdit(null);
+            }}
+            onClose={() => setHeadingEdit(null)}
+          />
+        );
+      })()}
       <TrashDialog
         image={trashIndex !== null ? images[trashIndex] ?? null : null}
         onCancel={() => setTrashIndex(null)}

@@ -4,17 +4,43 @@ import { useCallback, useEffect, useState } from "react";
 export type ViewMode = "flow" | "pages";
 export type Reveal = "none" | "fade" | "slide-left" | "slide-right" | "slide-alternate";
 export type ImageSize = ItemSize;
+export type Frame = "none" | "line" | "mat" | "black";
+export type Shadow = "none" | "drop" | "inset";
+
+export type HeadingLevel = 1 | 2 | 3;
+
+export interface Heading {
+  text: string;
+  level: HeadingLevel;
+  /** #rrggbb; unset uses the text color that suits the background. */
+  color?: string;
+  /** Installed font family; unset uses the system font. */
+  font?: string;
+}
 
 export interface ImageSettings {
   size?: ImageSize;
   /** Unset means the image follows the folder's effect. */
   reveal?: Reveal;
+  /** Heading on a row right above the image. */
+  heading?: Heading;
+  /** Page heading before the image, which then starts a new page. */
+  pageHeading?: Heading;
 }
+
+/** Height of the heading row above an image, per level. */
+export const IMAGE_HEADING_HEIGHT: Record<HeadingLevel, number> = { 1: 40, 2: 32, 3: 26 };
+/** Height of a page heading's row, per level. */
+export const PAGE_HEADING_HEIGHT: Record<HeadingLevel, number> = { 1: 76, 2: 60, 3: 46 };
 
 export interface FolderSettings {
   viewMode: ViewMode;
   reveal: Reveal;
   showPageNumbers: boolean;
+  /** Page background as #rrggbb; unset follows the system's light or dark look. */
+  background?: string;
+  frame: Frame;
+  shadow: Shadow;
   /** Keyed by file name for a single folder (so settings survive moving it), by path for several folders. */
   images: Record<string, ImageSettings>;
 }
@@ -29,10 +55,25 @@ export const REVEAL_LABELS: Record<Reveal, string> = {
   "slide-alternate": "Glid in växelvis",
 };
 
+export const FRAME_LABELS: Record<Frame, string> = {
+  none: "Ingen ram",
+  line: "Tunn linje",
+  mat: "Vitt passepartout",
+  black: "Svart ram",
+};
+
+export const SHADOW_LABELS: Record<Shadow, string> = {
+  none: "Ingen skugga",
+  drop: "Skugga under",
+  inset: "Skugga inåt",
+};
+
 export const DEFAULT_SETTINGS: FolderSettings = {
   viewMode: "flow",
   reveal: "fade",
   showPageNumbers: true,
+  frame: "none",
+  shadow: "none",
   images: {},
 };
 

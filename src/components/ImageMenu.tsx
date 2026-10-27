@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, SlidersHorizontal } from "lucide-react";
+import { Check, Heading as HeadingIcon, SlidersHorizontal } from "lucide-react";
+import type { HeadingKind } from "./HeadingDialog";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import {
@@ -16,6 +17,7 @@ interface ImageMenuProps {
   path: string;
   series: Series[];
   onToggleSeries: (id: string) => void;
+  onEditHeading: (kind: HeadingKind) => void;
   settings: ImageSettings;
   onChange: (change: ImageSettings) => void;
   onOpenChange: (open: boolean) => void;
@@ -25,7 +27,7 @@ const SIZES: ImageSize[] = ["small", "medium", "large"];
 const REVEALS: Reveal[] = ["none", "fade", "slide-left", "slide-right"];
 
 /** Per-image settings: size in the layout and the effect it appears with. */
-export function ImageMenu({ name, path, series, onToggleSeries, settings, onChange, onOpenChange }: ImageMenuProps) {
+export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, settings, onChange, onOpenChange }: ImageMenuProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -142,6 +144,29 @@ export function ImageMenu({ name, path, series, onToggleSeries, settings, onChan
                   label={REVEAL_LABELS[r]}
                 />
               ))}
+            </div>
+            <div className="mt-3 mb-1.5 text-xs font-medium text-muted-foreground">Rubriker</div>
+            <div className="flex flex-col">
+              {(["image", "page"] as const).map((kind) => {
+                const current = kind === "image" ? settings.heading : settings.pageHeading;
+                return (
+                  <button
+                    key={kind}
+                    onClick={() => {
+                      close();
+                      onEditHeading(kind);
+                    }}
+                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <HeadingIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="truncate">
+                      {kind === "image"
+                        ? current ? `Rubrik: ${current.text}` : "Rubrik ovanför bilden…"
+                        : current ? `Sidrubrik: ${current.text}` : "Ny sida med rubrik…"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             {series.length > 0 && (
               <>
