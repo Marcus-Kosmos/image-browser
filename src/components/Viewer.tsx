@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Info, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import type { Tag } from "@/lib/filter";
@@ -23,6 +23,7 @@ interface ViewerProps {
   onToggleSeries: (id: string, index: number) => void;
   onCreateSeries: (name: string, index: number) => void;
   newSeriesName: string;
+  onShowShortcuts: () => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -56,6 +57,7 @@ export function Viewer({
   onToggleSeries,
   onCreateSeries,
   newSeriesName,
+  onShowShortcuts,
   paused,
 }: ViewerProps) {
   const [picking, setPicking] = useState(false);
@@ -177,6 +179,16 @@ export function Viewer({
             ))}
           </div>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-white/80 hover:bg-white/15 hover:text-white"
+          onClick={onShowShortcuts}
+          title="Kortkommandon (?)"
+          aria-label="Kortkommandon"
+        >
+          <Info />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

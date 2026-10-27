@@ -30,6 +30,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 
 - Favoriter: klicka på hjärtat på en bild, eller tryck F, i kartan eller i helskärm (där sitter hjärtat
   i bildens nedre högra hörn)
+- (i)-knappen längst till höger i verktygsraden, eller ?, visar alla kortkommandon
 - I helskärm lägger mappknappen bredvid hjärtat (eller S) bilden i en serie, eller i en ny serie.
   Siffertangenterna 1–9 lägger till i serie nummer 1–9 direkt
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där

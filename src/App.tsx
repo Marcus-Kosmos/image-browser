@@ -8,6 +8,7 @@ import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { Viewer } from "@/components/Viewer";
 import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
@@ -79,6 +80,7 @@ export default function App() {
   // Set when the viewer closes, so the gallery can show where that image is.
   const [highlight, setHighlight] = useState<{ index: number } | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Off when the user chose to trash with one click, without the question.
   const [askBeforeTrash, setAskBeforeTrash] = useState(() => readStored(STORAGE_ASK_TRASH) !== "false");
   const [headingEdit, setHeadingEdit] = useState<{ index: number; kind: HeadingKind } | null>(null);
@@ -247,6 +249,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (e.key === "?" && !typing) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "o") {
         e.preventDefault();
@@ -439,6 +447,7 @@ export default function App() {
         onSettingsChange={updateSettings}
         askBeforeTrash={askBeforeTrash}
         onAskBeforeTrashChange={changeAskBeforeTrash}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
         {sidebarOpen && (
@@ -535,7 +544,8 @@ export default function App() {
             showToast(`Serien ${unique} skapades med bilden.`);
           }}
           newSeriesName={uniqueSeriesName(library, "Ny serie")}
-          paused={trashIndex !== null}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          paused={trashIndex !== null || shortcutsOpen}
         />
       )}
       {(() => {
@@ -560,6 +570,7 @@ export default function App() {
         onCancel={() => setTrashIndex(null)}
         onConfirm={confirmTrash}
       />
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} />
     </div>
   );
