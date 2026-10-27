@@ -46,6 +46,11 @@ export async function thumbnailUrl(image: ImageEntry, size: number): Promise<str
   return convertFileSrc(file);
 }
 
+/** URL of the file itself, for zooming in beyond the largest thumbnail. */
+export function originalUrl(image: ImageEntry): string {
+  return demo ? demoImage(image) : convertFileSrc(image.path);
+}
+
 export async function trashFile(path: string): Promise<void> {
   if (demo) {
     demoTrashed.add(path);
