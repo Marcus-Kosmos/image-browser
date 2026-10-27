@@ -351,7 +351,7 @@ export function Gallery({
         key={image.path}
         image={image}
         box={{ ...box, x: box.x + offsetX, y: box.y + offsetY }}
-        reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index])}
+        reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index], box.index)}
         order={placement.order[box.index]}
         marked={marked === box.index}
         favorite={favorites.has(image.path)}

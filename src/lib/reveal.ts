@@ -47,12 +47,18 @@ export const AUTO_CYCLE: TileReveal[] = [
   "none",
 ];
 
+/** Spread-out but stable choice of about one image in four, so the same images stay still each time. */
+function restsAlone(index: number) {
+  return Math.imul(index + 1, 2654435761) >>> 0 < 0x40000000;
+}
+
 /**
  * Resolves the effects that vary by row: "slide-alternate" comes from the left on even rows
- * and from the right on odd ones; "auto" moves on to the next effect each row.
+ * and from the right on odd ones; "auto" moves on to the next effect each row, and leaves
+ * single images here and there still too, for a natural rhythm.
  */
-export function resolveReveal(reveal: Reveal, row: number): TileReveal {
+export function resolveReveal(reveal: Reveal, row: number, index = 0): TileReveal {
   if (reveal === "slide-alternate") return row % 2 === 0 ? "slide-left" : "slide-right";
-  if (reveal === "auto") return AUTO_CYCLE[row % AUTO_CYCLE.length];
+  if (reveal === "auto") return restsAlone(index) ? "none" : AUTO_CYCLE[row % AUTO_CYCLE.length];
   return reveal;
 }

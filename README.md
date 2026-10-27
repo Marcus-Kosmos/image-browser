@@ -22,7 +22,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   på varandra (tangenterna 1, 2, 3 på markerad bild)
 - Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis, glid upp,
   kaskad (bilderna i en rad faller in en i taget) och parallax (bilden rör sig långsammare än sidan),
-  för hela mappen eller per bild. "Växla automatiskt" byter effekt för varje rad medan du scrollar; var tredje rad står stilla
+  för hela mappen eller per bild. "Växla automatiskt" byter effekt för varje rad medan du scrollar; var tredje rad och enstaka bilder står stilla
 - Öppna flera mappar på en gång (⌘-klick i dialogen) och se alla bilderna tillsammans
 - Bilder i undermappar visas också (kan slås av med mappträd-knappen)
 - Inställningarna sparas per mapp, eller per kombination av mappar
