@@ -64,6 +64,15 @@ export function toggleFavorite(library: Library, image: ImageEntry): Library {
   };
 }
 
+/** Adds images that aren't favorites yet; unlike toggling, never removes one. */
+export function addToFavorites(library: Library, images: ImageEntry[]): Library {
+  return { ...library, favorites: appendNew(library.favorites, images) };
+}
+
+export function addToSeries(library: Library, id: string, images: ImageEntry[]): Library {
+  return updateSeries(library, id, (s) => ({ ...s, images: appendNew(s.images, images) }));
+}
+
 export function createSeries(library: Library, id: string, name: string, images: ImageEntry[]): Library {
   return { ...library, series: [...library.series, { id, name, images: appendNew([], images) }] };
 }

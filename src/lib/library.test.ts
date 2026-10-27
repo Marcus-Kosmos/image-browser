@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ImageEntry } from "./api";
 import {
   EMPTY_LIBRARY,
+  addToFavorites,
+  addToSeries,
   createSeries,
   deleteSeries,
   moveInSeries,
@@ -73,6 +75,13 @@ describe("library", () => {
     expect(privacyOf(lib, { kind: "series", id: "s1" })).toMatchObject({ hidden: true, locked: true });
     expect(privacyOf(lib, { kind: "favorites" })).toEqual({ locked: true });
     expect(privacyOf(lib, { kind: "folders" })).toEqual({});
+  });
+
+  it("adds dropped images without removing ones already there", () => {
+    let lib = addToFavorites(toggleFavorite(EMPTY_LIBRARY, a), [a, b]);
+    expect(lib.favorites.map((i) => i.path)).toEqual([a.path, b.path]);
+    lib = addToSeries(createSeries(lib, "s1", "Resa", [b]), "s1", [b, c]);
+    expect(lib.series[0].images.map((i) => i.path)).toEqual([b.path, c.path]);
   });
 
   it("numbers new series names that are already taken", () => {
