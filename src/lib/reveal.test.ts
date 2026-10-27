@@ -18,4 +18,9 @@ describe("resolveReveal", () => {
     expect(rows[AUTO_CYCLE.length]).toBe(AUTO_CYCLE[0]);
     expect(new Set(rows.slice(0, 3)).size).toBe(3);
   });
+
+  it("leaves every third row still in auto", () => {
+    const still = Array.from({ length: 9 }, (_, row) => resolveReveal("auto", row) === "none");
+    expect(still).toEqual([false, false, true, false, false, true, false, false, true]);
+  });
 });

@@ -31,8 +31,21 @@ export function useRevealOnView(ref: RefObject<HTMLElement>, root: HTMLElement |
   return shown;
 }
 
-/** The effects "Växla automatiskt" takes turns with, one per row. */
-export const AUTO_CYCLE: TileReveal[] = ["fade", "slide-left", "slide-right", "rise", "cascade", "parallax"];
+/**
+ * The effects "Växla automatiskt" takes turns with, one per row. Every third row stays still,
+ * so not everything on screen moves at once.
+ */
+export const AUTO_CYCLE: TileReveal[] = [
+  "fade",
+  "slide-left",
+  "none",
+  "slide-right",
+  "rise",
+  "none",
+  "cascade",
+  "parallax",
+  "none",
+];
 
 /**
  * Resolves the effects that vary by row: "slide-alternate" comes from the left on even rows
