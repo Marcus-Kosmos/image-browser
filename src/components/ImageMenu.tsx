@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { SlidersHorizontal } from "lucide-react";
+import { Check, SlidersHorizontal } from "lucide-react";
+import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import {
   REVEAL_LABELS,
@@ -12,6 +13,9 @@ import {
 
 interface ImageMenuProps {
   name: string;
+  path: string;
+  series: Series[];
+  onToggleSeries: (id: string) => void;
   settings: ImageSettings;
   onChange: (change: ImageSettings) => void;
   onOpenChange: (open: boolean) => void;
@@ -21,7 +25,7 @@ const SIZES: ImageSize[] = ["small", "medium", "large"];
 const REVEALS: Reveal[] = ["none", "fade", "slide-left", "slide-right"];
 
 /** Per-image settings: size in the layout and the effect it appears with. */
-export function ImageMenu({ name, settings, onChange, onOpenChange }: ImageMenuProps) {
+export function ImageMenu({ name, path, series, onToggleSeries, settings, onChange, onOpenChange }: ImageMenuProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -38,11 +42,19 @@ export function ImageMenu({ name, settings, onChange, onOpenChange }: ImageMenuP
     const rect = trigger.current!.getBoundingClientRect();
     const width = 240;
     setPos({
-      top: Math.min(rect.bottom + 6, window.innerHeight - 260),
+      top: rect.bottom + 6,
       left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
     });
     onOpenChange(true);
   };
+
+  // Keep the whole panel inside the window once its height is known.
+  useLayoutEffect(() => {
+    if (!pos || !panel.current) return;
+    const height = panel.current.offsetHeight;
+    const top = Math.max(8, Math.min(pos.top, window.innerHeight - height - 8));
+    if (top !== pos.top) setPos({ ...pos, top });
+  }, [pos]);
 
   useEffect(() => {
     if (!open) return;
@@ -89,7 +101,7 @@ export function ImageMenu({ name, settings, onChange, onOpenChange }: ImageMenuP
             ref={panel}
             role="dialog"
             aria-label={`Inställningar för ${name}`}
-            className="fixed z-50 w-60 rounded-lg border bg-popover p-3 text-sm text-foreground shadow-lg"
+            className="fixed z-50 max-h-[calc(100vh-16px)] w-60 overflow-y-auto rounded-lg border bg-popover p-3 text-sm text-foreground shadow-lg"
             style={pos}
           >
             <div className="mb-1.5 text-xs font-medium text-muted-foreground">Storlek</div>
@@ -131,6 +143,36 @@ export function ImageMenu({ name, settings, onChange, onOpenChange }: ImageMenuP
                 />
               ))}
             </div>
+            {series.length > 0 && (
+              <>
+                <div className="mt-3 mb-1.5 text-xs font-medium text-muted-foreground">Serier</div>
+                <div className="flex max-h-40 flex-col overflow-y-auto">
+                  {series.map((s) => {
+                    const included = s.images.some((img) => img.path === path);
+                    return (
+                      <button
+                        key={s.id}
+                        role="menuitemcheckbox"
+                        aria-checked={included}
+                        onClick={() => onToggleSeries(s.id)}
+                        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span
+                          className={cn(
+                            "flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border",
+                            included && "border-foreground bg-foreground text-background",
+                          )}
+                          aria-hidden
+                        >
+                          {included && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                        <span className="truncate">{s.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>,
           document.body,
         )}

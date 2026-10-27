@@ -1,7 +1,8 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Heart, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
 import type { LayoutBox } from "@/lib/layout";
+import type { Series } from "@/lib/library";
 import { useRevealOnView } from "@/lib/reveal";
 import type { ImageSettings, ImageSize, Reveal } from "@/lib/settings";
 import { GRID_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
@@ -17,12 +18,17 @@ interface ImageTileProps {
   order: number;
   /** Drawn with a ring, to show where the image last viewed full screen is. */
   marked?: boolean;
+  favorite: boolean;
+  /** All saved series, so the menu can add the image to one or take it out. */
+  series: Series[];
   root: HTMLElement | null;
   settingsKey: string;
   settings: ImageSettings;
   onOpen: (index: number) => void;
   onTrash: (index: number) => void;
   onChange: (key: string, change: ImageSettings) => void;
+  onToggleFavorite: (index: number) => void;
+  onToggleSeries: (id: string, index: number) => void;
 }
 
 const SIZE_KEYS: Record<string, ImageSize> = { "1": "small", "2": "medium", "3": "large" };
@@ -33,12 +39,16 @@ export const ImageTile = memo(function ImageTile({
   reveal,
   order,
   marked = false,
+  favorite,
+  series,
   root,
   settingsKey,
   settings,
   onOpen,
   onTrash,
   onChange,
+  onToggleFavorite,
+  onToggleSeries,
 }: ImageTileProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -83,10 +93,13 @@ export const ImageTile = memo(function ImageTile({
           } else if (SIZE_KEYS[e.key]) {
             e.preventDefault();
             onChange(settingsKey, { size: SIZE_KEYS[e.key] });
+          } else if (e.key === "f") {
+            e.preventDefault();
+            onToggleFavorite(box.index);
           }
         }}
         aria-label={image.name}
-        title={`${image.name}\n1, 2, 3: liten, mellan, stor`}
+        title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit`}
       >
         {url && (
           <img
@@ -99,11 +112,14 @@ export const ImageTile = memo(function ImageTile({
           />
         )}
       </button>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
         {image.name}
       </div>
       <ImageMenu
         name={image.name}
+        path={image.path}
+        series={series}
+        onToggleSeries={(id) => onToggleSeries(id, box.index)}
         settings={settings}
         onChange={(change) => onChange(settingsKey, change)}
         onOpenChange={setMenuOpen}
@@ -119,6 +135,19 @@ export const ImageTile = memo(function ImageTile({
         tabIndex={-1}
       >
         <Trash2 className="size-4" />
+      </button>
+      <button
+        onClick={() => onToggleFavorite(box.index)}
+        className={cn(
+          "absolute right-1.5 bottom-1.5 flex size-7 items-center justify-center rounded-md text-white transition-opacity hover:bg-black/40 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+          favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
+        title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+        aria-label={favorite ? `Ta bort ${image.name} från favoriter` : `Lägg till ${image.name} i favoriter`}
+        aria-pressed={favorite}
+        tabIndex={-1}
+      >
+        <Heart className={cn("size-4 drop-shadow", favorite && "fill-current")} />
       </button>
     </div>
   );

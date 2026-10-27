@@ -48,7 +48,7 @@ export function loadSettings(folder: string): FolderSettings {
   return DEFAULT_SETTINGS;
 }
 
-function saveSettings(folder: string, settings: FolderSettings) {
+export function saveSettings(folder: string, settings: FolderSettings) {
   try {
     localStorage.setItem(key(folder), JSON.stringify(settings));
   } catch {

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import { justifiedLayout, paginate, rowHeightForPage, type LayoutBox } from "@/lib/layout";
 import { resolveReveal } from "@/lib/reveal";
+import type { Series } from "@/lib/library";
 import type { FolderSettings, ImageSettings } from "@/lib/settings";
 import { ImageTile } from "./ImageTile";
 
@@ -18,6 +19,11 @@ interface GalleryProps {
   onOpen: (index: number) => void;
   onTrash: (index: number) => void;
   onChangeImage: (key: string, change: ImageSettings) => void;
+  /** Paths of favorite images. */
+  favorites: Set<string>;
+  series: Series[];
+  onToggleFavorite: (index: number) => void;
+  onToggleSeries: (id: string, index: number) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
 }
@@ -39,6 +45,10 @@ export function Gallery({
   onOpen,
   onTrash,
   onChangeImage,
+  favorites,
+  series,
+  onToggleFavorite,
+  onToggleSeries,
   highlight,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -173,12 +183,16 @@ export function Gallery({
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index])}
         order={placement.order[box.index]}
         marked={marked === box.index}
+        favorite={favorites.has(image.path)}
+        series={series}
         root={root}
         settingsKey={key}
         settings={imageSettings}
         onOpen={onOpen}
         onTrash={onTrash}
         onChange={onChangeImage}
+        onToggleFavorite={onToggleFavorite}
+        onToggleSeries={onToggleSeries}
       />
     );
   };

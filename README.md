@@ -25,6 +25,14 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Bilder i undermappar visas också (kan slås av med mappträd-knappen)
 - Inställningarna sparas per mapp, eller per kombination av mappar
 
+## Funktioner (steg 3)
+
+- Favoriter: klicka på hjärtat på en bild, eller tryck F, i kartan eller i helskärm
+- Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
+- Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
+  lägg till eller ta bort bilder via bildens inställningar; byt namn eller ta bort serien i panelen
+- Favoriter och serier finns kvar efter omstart; en bild som slängs försvinner ur dem
+
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken
