@@ -85,3 +85,28 @@ body {
 * {
   border-color: var(--border);
 }
+
+/* Reveal effects: tiles start hidden and transition in once they are scrolled into view. */
+.reveal {
+  transition:
+    opacity 1.2s ease-out,
+    transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal[data-reveal="fade"]:not([data-shown]) {
+  opacity: 0;
+}
+.reveal[data-reveal="slide-left"]:not([data-shown]) {
+  opacity: 0;
+  transform: translateX(-80px);
+}
+.reveal[data-reveal="slide-right"]:not([data-shown]) {
+  opacity: 0;
+  transform: translateX(80px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition: opacity 0.2s linear;
+    transform: none !important;
+  }
+}

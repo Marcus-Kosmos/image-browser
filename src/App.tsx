@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
-import { ImageGrid } from "@/components/ImageGrid";
+import { Gallery } from "@/components/Gallery";
 import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { Viewer } from "@/components/Viewer";
 import { pickFolder, scanFolder, trashFile, type FolderListing } from "@/lib/api";
+import { useFolderSettings } from "@/lib/settings";
 import { parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDER = "image-browser:last-folder";
@@ -37,6 +38,7 @@ export default function App() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const { settings, update: updateSettings, updateImage } = useFolderSettings(listing?.path ?? null);
 
   const showToast = useCallback((text: string, tone: ToastMessage["tone"] = "success") => {
     setToast({ id: Date.now(), text, tone });
@@ -124,10 +126,19 @@ export default function App() {
         onOpenFolder={() => void openFolder()}
         onParent={goToParent}
         onRefresh={refresh}
+        settings={settings}
+        onSettingsChange={updateSettings}
       />
       {listing && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolder(p)} />}
       {images.length > 0 ? (
-        <ImageGrid images={images} rowHeight={rowHeight} onOpen={setViewerIndex} onTrash={setTrashIndex} />
+        <Gallery
+          images={images}
+          rowHeight={rowHeight}
+          settings={settings}
+          onOpen={setViewerIndex}
+          onTrash={setTrashIndex}
+          onChangeImage={updateImage}
+        />
       ) : (
         <EmptyState hasFolder={listing !== null} onOpenFolder={() => void openFolder()} />
       )}

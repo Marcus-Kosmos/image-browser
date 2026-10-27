@@ -13,6 +13,16 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Klicka på en bild för att visa den stort, bläddra med ← och →, stäng med Esc
 - Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse
 
+## Funktioner (steg 2)
+
+- Två visningslägen: **Flöde** (kontinuerlig scroll) och **Sidor**, där varje sida fyller fönstret
+  utan att man scrollar, med valfria sidnummer och bläddring sida för sida
+- Storlek per bild: **Stor** tar två rader med andra bilder bredvid, två **Små** i följd staplas
+  på varandra (tangenterna 1, 2, 3 på markerad bild)
+- Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis,
+  för hela mappen eller per bild
+- Inställningarna sparas per mapp
+
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken
