@@ -20,12 +20,14 @@ import {
   deletePlace,
   deleteSeries,
   findPlace,
+  forgetFolders,
   itemKey,
   moveInSeries,
   privacyOf,
   removeFromFavorites,
   removeImage,
   renamePlace,
+  rememberFolders,
   renameSeries,
   savePlace,
   setPrivacy,
@@ -230,14 +232,20 @@ export default function App() {
 
   const openFolders = useCallback(async () => {
     const paths = await pickFolders();
-    if (paths.length > 0) await loadFolders(paths);
-  }, [loadFolders]);
+    if (paths.length === 0) return;
+    const count = await loadFolders(paths);
+    if (count !== null) changeLibrary((lib) => rememberFolders(lib, paths));
+  }, [loadFolders, changeLibrary]);
 
   useEffect(() => {
     try {
       const last = JSON.parse(readStored(STORAGE_FOLDERS) ?? "[]");
       // Reopen the last folders without leaving the favorites or series shown last.
-      if (Array.isArray(last) && last.length > 0) void loadFolders(last, includeSubfolders, true);
+      if (Array.isArray(last) && last.length > 0) {
+        void loadFolders(last, includeSubfolders, true).then((count) => {
+          if (count !== null) changeLibrary((lib) => rememberFolders(lib, last));
+        });
+      }
     } catch {
       // Ignore a corrupt value; the user just picks a folder again.
     }
@@ -557,6 +565,8 @@ export default function App() {
             }}
             onRenamePlace={(id, name) => changeLibrary((lib) => renamePlace(lib, id, name))}
             onDeletePlace={(id) => changeLibrary((lib) => deletePlace(lib, id))}
+            onOpenRecent={(paths) => void loadFolders(paths)}
+            onForgetRecent={(paths) => changeLibrary((lib) => forgetFolders(lib, paths))}
             onCopyAll={(from, id) => addTo(`series:${id}`, libraryImages(from))}
             onCopyAllToNew={(from, name) => newSeriesWith(name, libraryImages(from))}
             newSeriesName={uniqueSeriesName(library, "Ny serie")}

@@ -6,6 +6,8 @@ import {
   addToSeries,
   createSeries,
   deleteSeries,
+  forgetFolders,
+  rememberFolders,
   moveInSeries,
   privacyOf,
   setPrivacy,
@@ -99,5 +101,16 @@ describe("library", () => {
     expect(uniqueSeriesName(lib, "Resa")).toBe("Resa 2");
     lib = createSeries(lib, "s2", "Resa 2", []);
     expect(uniqueSeriesName(lib, "Resa")).toBe("Resa 3");
+  });
+
+  it("remembers opened folders in order and forgets them", () => {
+    let lib = rememberFolders(EMPTY_LIBRARY, ["/Downloads"]);
+    lib = rememberFolders(lib, ["/Arkiv"]);
+    lib = rememberFolders(lib, ["/Downloads"]);
+    expect(lib.recent).toEqual([["/Downloads"], ["/Arkiv"]]);
+    lib = rememberFolders(lib, ["/b", "/a"]);
+    expect(rememberFolders(lib, ["/a", "/b"])).toBe(lib);
+    lib = forgetFolders(lib, ["/Downloads"]);
+    expect(lib.recent).toEqual([["/Arkiv"], ["/b", "/a"]]);
   });
 });

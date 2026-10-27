@@ -28,6 +28,8 @@ export interface Library {
   series: Series[];
   favoritesPrivacy?: Privacy;
   places?: Place[];
+  /** Folders opened before, so they stay in the sidebar until forgotten. */
+  recent?: string[][];
 }
 
 export const EMPTY_LIBRARY: Library = { favorites: [], series: [] };
@@ -44,6 +46,7 @@ export function loadLibrary(): Library {
         series: Array.isArray(parsed.series) ? parsed.series : [],
         favoritesPrivacy: parsed.favoritesPrivacy ?? undefined,
         places: Array.isArray(parsed.places) ? parsed.places : [],
+        recent: Array.isArray(parsed.recent) ? parsed.recent : [],
       };
     }
   } catch {
@@ -166,10 +169,27 @@ export function deletePlace(library: Library, id: string): Library {
   return { ...library, places: (library.places ?? []).filter((p) => p.id !== id) };
 }
 
+const folderKey = (folders: string[]) => [...folders].sort().join("\n");
+
 /** The saved place for exactly these folders, if any. */
 export function findPlace(library: Library, folders: string[]) {
-  const key = [...folders].sort().join("\n");
-  return (library.places ?? []).find((p) => [...p.folders].sort().join("\n") === key);
+  const key = folderKey(folders);
+  return (library.places ?? []).find((p) => folderKey(p.folders) === key);
+}
+
+export const MAX_RECENT = 12;
+
+/** Adds opened folders to the end of the list; ones already listed keep their place. */
+export function rememberFolders(library: Library, folders: string[]): Library {
+  const recent = library.recent ?? [];
+  const key = folderKey(folders);
+  if (folders.length === 0 || recent.some((r) => folderKey(r) === key)) return library;
+  return { ...library, recent: [...recent, folders].slice(-MAX_RECENT) };
+}
+
+export function forgetFolders(library: Library, folders: string[]): Library {
+  const key = folderKey(folders);
+  return { ...library, recent: (library.recent ?? []).filter((r) => folderKey(r) !== key) };
 }
 
 /** The library, saved between sessions. */
