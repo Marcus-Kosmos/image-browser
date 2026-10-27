@@ -47,6 +47,11 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Fäst bilder i helskärm: nålen bredvid mappknappen (eller P) lägger bilden som en liten förhandsvisning
   uppe till vänster medan du bläddrar vidare. Nästa fästa bild hamnar under, sedan i en kolumn bredvid,
   tills det inte får plats fler. Klicka på en fäst bild för att visa den igen, krysset lossar den
+- Under Visning väljer du hur fästa bilder visas: små i hörnet, mellanstora med bilden du bläddrar till
+  i resten av skärmen, hela i en rad med den, eller som ett pussel som fyller skärmen. I pusslet hamnar
+  den nya bilden längst till höger, under den förra om de får plats, och allt anpassar sig efter formatet
+- Spara som serie sparar de fästa bilderna i samma ordning som en ny serie
+- Behåll zoom (under Visning): varje bild minns sin zoom, så den är kvar när du bläddrar tillbaka
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
