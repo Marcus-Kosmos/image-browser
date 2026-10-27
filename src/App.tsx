@@ -45,6 +45,8 @@ export default function App() {
   });
   const [includeSubfolders, setIncludeSubfolders] = useState(() => readStored(STORAGE_SUBFOLDERS) !== "false");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  // Set when the viewer closes, so the gallery can show where that image is.
+  const [highlight, setHighlight] = useState<{ index: number } | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const folders = listing?.folders ?? [];
@@ -188,6 +190,7 @@ export default function App() {
           onOpen={setViewerIndex}
           onTrash={setTrashIndex}
           onChangeImage={updateImage}
+          highlight={highlight}
         />
       ) : (
         <EmptyState hasFolder={listing !== null} onOpenFolder={() => void openFolders()} />
@@ -197,7 +200,10 @@ export default function App() {
           images={images}
           index={viewerIndex}
           onIndexChange={setViewerIndex}
-          onClose={() => setViewerIndex(null)}
+          onClose={() => {
+            setHighlight({ index: viewerIndex });
+            setViewerIndex(null);
+          }}
           onTrash={setTrashIndex}
           paused={trashIndex !== null}
         />

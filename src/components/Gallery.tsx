@@ -17,7 +17,9 @@ interface GalleryProps {
   settings: FolderSettings;
   onOpen: (index: number) => void;
   onTrash: (index: number) => void;
-  onChangeImage: (name: string, change: ImageSettings) => void;
+  onChangeImage: (key: string, change: ImageSettings) => void;
+  /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
+  highlight?: { index: number } | null;
 }
 
 const GAP = 6;
@@ -28,7 +30,17 @@ const PAGE_NUMBER_SPACE = 24;
 /** Content this far outside the viewport stays mounted, so thumbnails are ready before they scroll in. */
 const OVERSCAN = 800;
 
-export function Gallery({ viewKey, images, imageKey, rowHeight, settings, onOpen, onTrash, onChangeImage }: GalleryProps) {
+export function Gallery({
+  viewKey,
+  images,
+  imageKey,
+  rowHeight,
+  settings,
+  onOpen,
+  onTrash,
+  onChangeImage,
+  highlight,
+}: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [scrollTop, setScrollTop] = useState(0);
@@ -117,6 +129,33 @@ export function Gallery({ viewKey, images, imageKey, rowHeight, settings, onOpen
     if (root) root.scrollTop = 0;
   }, [viewKey, root]);
 
+  // Center the highlighted image (or show its page), mark it for a moment and give it focus.
+  const [marked, setMarked] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!highlight || !root) return;
+    const { index } = highlight;
+    if (pagesMode) {
+      const page = pages.findIndex((p) => index >= p.start && index < p.end);
+      if (page >= 0) root.scrollTop = page * pageHeight;
+    } else {
+      const box = layout.rows.flatMap((r) => r.boxes).find((b) => b.index === index);
+      if (box) root.scrollTop = FLOW_PADDING + box.y + box.height / 2 - root.clientHeight / 2;
+    }
+    anchor.current = index;
+    setScrollTop(root.scrollTop);
+    setMarked(index);
+    const frame = requestAnimationFrame(() =>
+      root.querySelector<HTMLElement>(`[data-index="${index}"] button`)?.focus({ preventScroll: true }),
+    );
+    const timer = setTimeout(() => setMarked(null), 2500);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+    // Only when a new highlight is requested.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight, root]);
+
   const goToPage = useCallback(
     (page: number) => root?.scrollTo({ top: page * pageHeight, behavior: "smooth" }),
     [root, pageHeight],
@@ -133,6 +172,7 @@ export function Gallery({ viewKey, images, imageKey, rowHeight, settings, onOpen
         box={{ ...box, x: box.x + offsetX, y: box.y + offsetY }}
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index])}
         order={placement.order[box.index]}
+        marked={marked === box.index}
         root={root}
         settingsKey={key}
         settings={imageSettings}
