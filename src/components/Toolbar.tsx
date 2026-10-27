@@ -29,6 +29,8 @@ interface ToolbarProps {
   onToggleSubfolders: () => void;
   settings: FolderSettings;
   onSettingsChange: (change: Partial<FolderSettings>) => void;
+  askBeforeTrash: boolean;
+  onAskBeforeTrashChange: (ask: boolean) => void;
 }
 
 export const ROW_HEIGHT_MIN = 100;
@@ -54,6 +56,8 @@ export function Toolbar({
   onToggleSubfolders,
   settings,
   onSettingsChange,
+  askBeforeTrash,
+  onAskBeforeTrashChange,
 }: ToolbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
@@ -161,7 +165,12 @@ export function Toolbar({
               ))}
             </select>
           </label>
-          <AppearanceMenu settings={settings} onChange={onSettingsChange} />
+          <AppearanceMenu
+            settings={settings}
+            onChange={onSettingsChange}
+            askBeforeTrash={askBeforeTrash}
+            onAskBeforeTrashChange={onAskBeforeTrashChange}
+          />
           <div className="mx-1 h-6 w-px bg-border" aria-hidden />
         </>
       )}

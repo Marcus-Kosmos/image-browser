@@ -11,7 +11,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Pussel-layout med reglage för storlek på förhandsvisningar
 - Snabba miniatyrer som cachas; på macOS skapas de med `sips`, så HEIC och RAW fungerar
 - Klicka på en bild för att visa den stort, bläddra med ← och → (mjuk övertoning), stäng med Esc
-- Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse
+- Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse. Kryssa i "Fråga inte igen"
+  för att slänga med ett klick; frågan slås på igen under Utseende (paletten)
 
 ## Funktioner (steg 2)
 
@@ -29,6 +30,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 
 - Favoriter: klicka på hjärtat på en bild, eller tryck F, i kartan eller i helskärm (där sitter hjärtat
   i bildens nedre högra hörn)
+- I helskärm lägger mappknappen bredvid hjärtat (eller S) bilden i en serie, eller i en ny serie.
+  Siffertangenterna 1–9 lägger till i serie nummer 1–9 direkt
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
