@@ -10,7 +10,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Öppna en mapp (⌘O), gå till överordnad mapp (⌘↑) och undermappar, läs in igen (⌘R)
 - Pussel-layout med reglage för storlek på förhandsvisningar
 - Snabba miniatyrer som cachas; på macOS skapas de med `sips`, så HEIC och RAW fungerar
-- Klicka på en bild för att visa den stort, bläddra med ← och →, stäng med Esc
+- Klicka på en bild för att visa den stort, bläddra med ← och → (mjuk övertoning), stäng med Esc
 - Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse
 
 ## Funktioner (steg 2)

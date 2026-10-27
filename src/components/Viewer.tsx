@@ -15,10 +15,27 @@ interface ViewerProps {
   paused: boolean;
 }
 
+interface Layer {
+  id: number;
+  path: string;
+  src: string;
+  alt: string;
+}
+
+/** Resolves once the browser has decoded the image, so swapping it in never shows a blank frame. */
+function decoded(src: string) {
+  const img = new Image();
+  img.src = src;
+  return img.decode().catch(() => {});
+}
+
+const FADE_MS = 350;
+
 export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused }: ViewerProps) {
   const image = images[index];
-  const [preview, setPreview] = useState<string | null>(null);
-  const [full, setFull] = useState<string | null>(null);
+  // The image on top fades in over the previous one, which is removed once covered.
+  const [layers, setLayers] = useState<Layer[]>([]);
+  const nextId = useRef(0);
   const root = useRef<HTMLDivElement>(null);
 
   // Take focus from the grid tile that opened the viewer, so its key handlers don't fire underneath.
@@ -29,16 +46,43 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
   }, []);
 
   useEffect(() => {
-    setPreview(null);
-    setFull(null);
-    // Show the grid thumbnail instantly, then swap in the sharp version.
-    const cancelPreview = requestThumbnail(image, GRID_THUMB_SIZE, setPreview);
-    const cancelFull = requestThumbnail(image, VIEWER_THUMB_SIZE, setFull);
+    let cancelled = false;
+    let sharp = false;
+    const show = (src: string, isSharp: boolean) =>
+      void decoded(src).then(() => {
+        // Ignore a late grid thumbnail once the sharp version is up, and anything after moving on.
+        if (cancelled || (sharp && !isSharp)) return;
+        sharp ||= isSharp;
+        setLayers((prev) => {
+          const top = prev[prev.length - 1];
+          if (top?.path === image.path) return [...prev.slice(0, -1), { ...top, src }];
+          return [...prev.slice(-1), { id: nextId.current++, path: image.path, src, alt: image.name }];
+        });
+      });
+    // Show the grid thumbnail quickly, then swap in the sharp version.
+    const cancelPreview = requestThumbnail(image, GRID_THUMB_SIZE, (src) => show(src, false));
+    const cancelFull = requestThumbnail(image, VIEWER_THUMB_SIZE, (src) => show(src, true));
     return () => {
+      cancelled = true;
       cancelPreview();
       cancelFull();
     };
   }, [image]);
+
+  // Drop the covered image once the fade has finished.
+  useEffect(() => {
+    if (layers.length < 2) return;
+    const timer = setTimeout(() => setLayers((prev) => prev.slice(-1)), FADE_MS + 50);
+    return () => clearTimeout(timer);
+  }, [layers.length]);
+
+  // Prepare the neighbours so stepping to them is instant.
+  useEffect(() => {
+    const cancels = [images[index - 1], images[index + 1]]
+      .filter(Boolean)
+      .map((img) => requestThumbnail(img, VIEWER_THUMB_SIZE, (src) => void decoded(src)));
+    return () => cancels.forEach((c) => c());
+  }, [images, index]);
 
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
@@ -92,15 +136,11 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
         </Button>
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6">
-        {(full ?? preview) && (
-          <img
-            src={full ?? preview!}
-            alt={image.name}
-            draggable={false}
-            className="max-h-full max-w-full object-contain"
-            style={{ aspectRatio: `${image.width} / ${image.height}` }}
-          />
-        )}
+        <div className="relative size-full">
+          {layers.map((layer, i) => (
+            <FadeImage key={layer.id} layer={layer} animate={i > 0} covered={i < layers.length - 1} />
+          ))}
+        </div>
         <NavButton side="left" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} />
         <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
       </div>
@@ -121,5 +161,24 @@ function NavButton({ side, disabled, onClick }: { side: "left" | "right"; disabl
     >
       <Icon className="size-6" />
     </button>
+  );
+}
+
+/** Fades in when added on top, and out once a newer image covers it. */
+function FadeImage({ layer, animate, covered }: { layer: Layer; animate: boolean; covered: boolean }) {
+  const [visible, setVisible] = useState(!animate);
+  useEffect(() => {
+    // Start transparent for one frame, then fade in.
+    const frame = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <img
+      src={layer.src}
+      alt={layer.alt}
+      draggable={false}
+      className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
+      style={{ opacity: visible && !covered ? 1 : 0, transition: `opacity ${FADE_MS}ms ease-out` }}
+    />
   );
 }
