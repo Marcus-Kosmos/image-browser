@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
@@ -11,6 +11,8 @@ interface ToolbarProps {
   onOpenFolder: () => void;
   onParent: (() => void) | null;
   onRefresh: () => void;
+  includeSubfolders: boolean;
+  onToggleSubfolders: () => void;
   settings: FolderSettings;
   onSettingsChange: (change: Partial<FolderSettings>) => void;
 }
@@ -26,6 +28,8 @@ export function Toolbar({
   onOpenFolder,
   onParent,
   onRefresh,
+  includeSubfolders,
+  onToggleSubfolders,
   settings,
   onSettingsChange,
 }: ToolbarProps) {
@@ -49,6 +53,17 @@ export function Toolbar({
           </Button>
           <Button variant="ghost" size="icon-sm" onClick={onRefresh} title="Läs in igen (⌘R)" aria-label="Läs in igen">
             <RefreshCw />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-pressed={includeSubfolders}
+            className={cn(includeSubfolders && "bg-accent")}
+            onClick={onToggleSubfolders}
+            title={includeSubfolders ? "Visar bilder i undermappar. Klicka för att bara visa mappen." : "Visa även bilder i undermappar"}
+            aria-label="Visa bilder i undermappar"
+          >
+            <FolderTree />
           </Button>
           <div className="ml-1 min-w-0" title={folders.join("\n")}>
             <div className="truncate text-sm font-semibold">

@@ -27,9 +27,14 @@ export async function pickFolders(): Promise<string[]> {
   return Array.isArray(result) ? result : [result];
 }
 
-export async function scanFolder(path: string): Promise<FolderListing> {
-  if (demo) return demoListing(path);
-  return invoke<FolderListing>("scan_folder", { path });
+/** Lists a folder's images; with `recursive`, those in all its subfolders too. */
+export async function scanFolder(path: string, recursive: boolean): Promise<FolderListing> {
+  if (demo) {
+    const listing = demoListing(path);
+    if (recursive) listing.images.push(...listing.subfolders.flatMap((s) => demoListing(s).images));
+    return listing;
+  }
+  return invoke<FolderListing>("scan_folder", { path, recursive });
 }
 
 /** Returns a URL the webview can load for a thumbnail with the given longest side. */

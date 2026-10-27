@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 #[tauri::command]
-async fn scan_folder(path: String) -> Result<scan::FolderListing, String> {
-    tauri::async_runtime::spawn_blocking(move || scan::scan_folder(&PathBuf::from(path)))
+async fn scan_folder(path: String, recursive: bool) -> Result<scan::FolderListing, String> {
+    tauri::async_runtime::spawn_blocking(move || scan::scan_folder(&PathBuf::from(path), recursive))
         .await
         .map_err(|e| e.to_string())?
 }

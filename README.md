@@ -22,6 +22,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Effekter när bilder visas: tona fram, glid in från vänster, höger eller växelvis,
   för hela mappen eller per bild
 - Öppna flera mappar på en gång (⌘-klick i dialogen) och se alla bilderna tillsammans
+- Bilder i undermappar visas också (kan slås av med mappträd-knappen)
 - Inställningarna sparas per mapp, eller per kombination av mappar
 
 ## Installera

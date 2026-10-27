@@ -11,6 +11,7 @@ import { useFolderSettings } from "@/lib/settings";
 import { folderName, parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
+const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
 
 /** The images of one or more folders opened together. */
 interface Collection {
@@ -42,6 +43,7 @@ export default function App() {
     const stored = Number(readStored(STORAGE_ROW_HEIGHT));
     return stored >= ROW_HEIGHT_MIN && stored <= ROW_HEIGHT_MAX ? stored : 220;
   });
+  const [includeSubfolders, setIncludeSubfolders] = useState(() => readStored(STORAGE_SUBFOLDERS) !== "false");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -49,17 +51,21 @@ export default function App() {
   const multiple = folders.length > 1;
   const viewKey = folders.join("\n");
   const { settings, update: updateSettings, updateImage } = useFolderSettings(listing ? viewKey : null);
-  // File names can repeat across folders, so several folders key settings by full path.
-  const imageKey = useCallback((image: ImageEntry) => (multiple ? image.path : image.name), [multiple]);
+  // File names can repeat across folders: one folder keys settings by the path inside it
+  // (just the name for its own files), several folders by full path.
+  const imageKey = useCallback(
+    (image: ImageEntry) => (multiple ? image.path : image.path.slice(folders[0].replace(/[\\/]+$/, "").length + 1)),
+    [multiple, folders],
+  );
 
   const showToast = useCallback((text: string, tone: ToastMessage["tone"] = "success") => {
     setToast({ id: Date.now(), text, tone });
   }, []);
 
   const loadFolders = useCallback(
-    async (paths: string[]) => {
+    async (paths: string[], recursive = includeSubfolders) => {
       const sorted = [...new Set(paths)].sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
-      const results = await Promise.allSettled(sorted.map((p) => scanFolder(p)));
+      const results = await Promise.allSettled(sorted.map((p) => scanFolder(p, recursive)));
       const loaded = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
       const failed = sorted.filter((_, i) => results[i].status === "rejected");
       if (loaded.length === 0) {
@@ -74,15 +80,23 @@ export default function App() {
       const opened = loaded.map((l) => l.path);
       setListing({
         folders: opened,
-        images: loaded.flatMap((l) => l.images),
+        // A folder and one of its subfolders may both be open; show each image once.
+        images: [...new Map(loaded.flatMap((l) => l.images).map((img) => [img.path, img])).values()],
         // Folders that are already open don't need a shortcut.
         subfolders: loaded.flatMap((l) => l.subfolders).filter((p) => !opened.includes(p)),
       });
       setViewerIndex(null);
       store(STORAGE_FOLDERS, JSON.stringify(opened));
     },
-    [showToast],
+    [showToast, includeSubfolders],
   );
+
+  const toggleSubfolders = () => {
+    const next = !includeSubfolders;
+    setIncludeSubfolders(next);
+    store(STORAGE_SUBFOLDERS, String(next));
+    if (listing) void loadFolders(listing.folders, next);
+  };
 
   const openFolders = useCallback(async () => {
     const paths = await pickFolders();
@@ -96,7 +110,9 @@ export default function App() {
     } catch {
       // Ignore a corrupt value; the user just picks a folder again.
     }
-  }, [loadFolders]);
+    // Only on start; later loads are triggered by the user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const parent = folders.length === 1 ? parentFolder(folders[0]) : null;
   const goToParent = parent ? () => void loadFolders([parent]) : null;
@@ -156,6 +172,8 @@ export default function App() {
         onOpenFolder={() => void openFolders()}
         onParent={goToParent}
         onRefresh={refresh}
+        includeSubfolders={includeSubfolders}
+        onToggleSubfolders={toggleSubfolders}
         settings={settings}
         onSettingsChange={updateSettings}
       />
