@@ -1,10 +1,14 @@
-import { ArrowUp, FolderOpen, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
 
 interface ToolbarProps {
   folders: string[];
+  /** Name of the favorites or series shown instead of the folders. */
+  libraryTitle: string | null;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   imageCount: number;
   rowHeight: number;
   onRowHeightChange: (value: number) => void;
@@ -22,6 +26,9 @@ export const ROW_HEIGHT_MAX = 420;
 
 export function Toolbar({
   folders,
+  libraryTitle,
+  sidebarOpen,
+  onToggleSidebar,
   imageCount,
   rowHeight,
   onRowHeightChange,
@@ -35,11 +42,28 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-pressed={sidebarOpen}
+        onClick={onToggleSidebar}
+        title={sidebarOpen ? "Dölj biblioteket" : "Visa biblioteket med favoriter och serier"}
+        aria-label="Bibliotek"
+      >
+        <PanelLeft />
+      </Button>
       <Button variant="outline" size="sm" onClick={onOpenFolder} title="Öppna en eller flera mappar (⌘O). Håll ⌘ för att markera flera.">
         <FolderOpen />
         Öppna mapp
       </Button>
-      {folders.length > 0 && (
+      {libraryTitle !== null ? (
+        <div className="ml-1 min-w-0">
+          <div className="truncate text-sm font-semibold">{libraryTitle}</div>
+          <div className="text-xs text-muted-foreground">
+            {imageCount} {imageCount === 1 ? "bild" : "bilder"}
+          </div>
+        </div>
+      ) : folders.length > 0 && (
         <>
           <Button
             variant="ghost"
@@ -76,7 +100,7 @@ export function Toolbar({
         </>
       )}
       <div className="flex-1" />
-      {folders.length > 0 && (
+      {(folders.length > 0 || libraryTitle !== null) && (
         <>
           <div role="radiogroup" aria-label="Visning" className="flex items-center rounded-md bg-muted p-0.5">
             <ModeButton

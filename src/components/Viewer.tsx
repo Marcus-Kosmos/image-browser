@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 interface ViewerProps {
   images: ImageEntry[];
@@ -11,6 +11,8 @@ interface ViewerProps {
   onIndexChange: (index: number) => void;
   onClose: () => void;
   onTrash: (index: number) => void;
+  isFavorite: (image: ImageEntry) => boolean;
+  onToggleFavorite: (index: number) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -31,7 +33,7 @@ function decoded(src: string) {
 
 const FADE_MS = 350;
 
-export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused }: ViewerProps) {
+export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavorite, onToggleFavorite, paused }: ViewerProps) {
   const image = images[index];
   // The image on top fades in over the previous one, which is removed once covered.
   const [layers, setLayers] = useState<Layer[]>([]);
@@ -83,6 +85,7 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
     return () => cancels.forEach((c) => c());
   }, [images, index]);
 
+  const favorite = isFavorite(image);
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
 
@@ -93,12 +96,13 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
       else if (e.key === "ArrowLeft" && hasPrev) onIndexChange(index - 1);
       else if (e.key === "ArrowRight" && hasNext) onIndexChange(index + 1);
       else if (e.key === "Delete" || e.key === "Backspace") onTrash(index);
+      else if (e.key === "f") onToggleFavorite(index);
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash]);
+  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash, onToggleFavorite]);
 
   return (
     <div
@@ -124,6 +128,17 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
             {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
           </div>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-white hover:bg-white/15 hover:text-white"
+          onClick={() => onToggleFavorite(index)}
+          aria-pressed={favorite}
+          title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+          aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+        >
+          <Heart className={cn(favorite && "fill-current")} />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
