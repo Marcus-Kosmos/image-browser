@@ -14,11 +14,20 @@ export interface Series extends Privacy {
   images: ImageEntry[];
 }
 
-/** Favorite images and saved series, across all folders. */
+/** A set of folders opened together, saved under a name of its own. */
+export interface Place {
+  id: string;
+  name: string;
+  folders: string[];
+  recursive: boolean;
+}
+
+/** Favorite images, saved series and named folder sets, across all folders. */
 export interface Library {
   favorites: ImageEntry[];
   series: Series[];
   favoritesPrivacy?: Privacy;
+  places?: Place[];
 }
 
 export const EMPTY_LIBRARY: Library = { favorites: [], series: [] };
@@ -34,6 +43,7 @@ export function loadLibrary(): Library {
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
         series: Array.isArray(parsed.series) ? parsed.series : [],
         favoritesPrivacy: parsed.favoritesPrivacy ?? undefined,
+        places: Array.isArray(parsed.places) ? parsed.places : [],
       };
     }
   } catch {
@@ -50,17 +60,23 @@ function saveLibrary(library: Library) {
   }
 }
 
+/** The image as stored in a list, with the time it was put there. */
+function stamp(image: ImageEntry, added = Date.now()): ImageEntry {
+  return { ...image, added };
+}
+
 /** Appends images that aren't in the list yet, keeping the list's order. */
 function appendNew(list: ImageEntry[], images: ImageEntry[]) {
   const paths = new Set(list.map((img) => img.path));
-  return [...list, ...images.filter((img) => !paths.has(img.path) && paths.add(img.path))];
+  const added = Date.now();
+  return [...list, ...images.filter((img) => !paths.has(img.path) && paths.add(img.path)).map((img) => stamp(img, added))];
 }
 
 export function toggleFavorite(library: Library, image: ImageEntry): Library {
   const has = library.favorites.some((img) => img.path === image.path);
   return {
     ...library,
-    favorites: has ? library.favorites.filter((img) => img.path !== image.path) : [...library.favorites, image],
+    favorites: has ? library.favorites.filter((img) => img.path !== image.path) : [...library.favorites, stamp(image)],
   };
 }
 
@@ -94,7 +110,7 @@ export function toggleInSeries(library: Library, id: string, image: ImageEntry):
     ...s,
     images: s.images.some((img) => img.path === image.path)
       ? s.images.filter((img) => img.path !== image.path)
-      : [...s.images, image],
+      : [...s.images, stamp(image)],
   }));
 }
 
@@ -130,6 +146,24 @@ export function uniqueSeriesName(library: Library, base: string) {
   let n = 2;
   while (names.has(`${base} ${n}`)) n++;
   return `${base} ${n}`;
+}
+
+export function savePlace(library: Library, place: Place): Library {
+  return { ...library, places: [...(library.places ?? []), place] };
+}
+
+export function renamePlace(library: Library, id: string, name: string): Library {
+  return { ...library, places: (library.places ?? []).map((p) => (p.id === id ? { ...p, name } : p)) };
+}
+
+export function deletePlace(library: Library, id: string): Library {
+  return { ...library, places: (library.places ?? []).filter((p) => p.id !== id) };
+}
+
+/** The saved place for exactly these folders, if any. */
+export function findPlace(library: Library, folders: string[]) {
+  const key = [...folders].sort().join("\n");
+  return (library.places ?? []).find((p) => [...p.folders].sort().join("\n") === key);
 }
 
 /** The library, saved between sessions. */

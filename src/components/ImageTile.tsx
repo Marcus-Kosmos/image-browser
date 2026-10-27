@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { Heart, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
+import type { Tag } from "@/lib/filter";
 import type { LayoutBox } from "@/lib/layout";
 import type { Series } from "@/lib/library";
 import { useRevealOnView } from "@/lib/reveal";
@@ -21,6 +22,7 @@ interface ImageTileProps {
   /** Drawn with a ring, to show where the image last viewed full screen is. */
   marked?: boolean;
   favorite: boolean;
+  tags?: Tag[];
   frame: Frame;
   shadow: Shadow;
   /** All saved series, so the menu can add the image to one or take it out. */
@@ -71,6 +73,7 @@ export const ImageTile = memo(function ImageTile({
   order,
   marked = false,
   favorite,
+  tags,
   frame,
   shadow,
   series,
@@ -181,8 +184,17 @@ export const ImageTile = memo(function ImageTile({
             aria-hidden
           />
         )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-          {image.name}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="truncate">{image.name}</div>
+          {tags && tags.length > 0 && (
+            <div className="mt-1 flex gap-1 overflow-hidden whitespace-nowrap">
+              {tags.map((t) => (
+                <span key={t.key} className="shrink-0 rounded-sm bg-white/20 px-1.5 py-px text-[11px] leading-4">
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <ImageMenu
           name={image.name}

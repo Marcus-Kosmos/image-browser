@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { EmptyState } from "@/components/EmptyState";
+import { EmptyState, type EmptyKind } from "@/components/EmptyState";
 import { Gallery } from "@/components/Gallery";
 import { HeadingDialog, type HeadingKind } from "@/components/HeadingDialog";
 import { LockedState } from "@/components/LockedState";
@@ -10,16 +10,21 @@ import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { Viewer } from "@/components/Viewer";
 import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
+import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
 import {
   addToFavorites,
   addToSeries,
   createSeries,
+  deletePlace,
   deleteSeries,
+  findPlace,
   itemKey,
   moveInSeries,
   privacyOf,
   removeImage,
+  renamePlace,
   renameSeries,
+  savePlace,
   setPrivacy,
   toggleFavorite,
   toggleInSeries,
@@ -255,7 +260,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openFolders, refresh, parent, inFolders, viewerIndex, loadFolders]);
 
-  const images = useMemo(
+  const allImages = useMemo(
     () =>
       locked
         ? []
@@ -266,6 +271,24 @@ export default function App() {
             : (listing?.images ?? []),
     [locked, view.kind, library.favorites, series, listing],
   );
+  // Tags are Favoriter and the series an image is in; hidden ones count only while shown.
+  const index = useMemo(() => libraryIndex(library, showHidden), [library, showHidden]);
+  const [filter, setFilter] = useState<ImageFilter>(NO_FILTER);
+  const filtering = isFiltering(filter);
+  const images = useMemo(() => filterImages(allImages, filter, index), [allImages, filter, index]);
+  const tagChoices = useMemo<Tag[]>(
+    () => [
+      ...(showHidden || !library.favoritesPrivacy?.hidden ? [{ key: "favorites", name: "Favoriter" }] : []),
+      ...library.series.filter((s) => showHidden || !s.hidden).map((s) => ({ key: `series:${s.id}`, name: s.name })),
+    ],
+    [library, showHidden],
+  );
+  // A filter on a tag that no longer exists (deleted or hidden series) is dropped.
+  useEffect(() => {
+    const keys = new Set(tagChoices.map((t) => t.key));
+    if (filter.tags.some((k) => !keys.has(k))) setFilter((f) => ({ ...f, tags: f.tags.filter((k) => keys.has(k)) }));
+  }, [tagChoices, filter.tags]);
+  const place = useMemo(() => (listing ? findPlace(library, listing.folders) : undefined), [library, listing]);
   const listedSeries = useMemo(
     () => (showHidden ? library.series : library.series.filter((s) => !s.hidden)),
     [showHidden, library.series],
@@ -363,14 +386,21 @@ export default function App() {
   };
 
   const libraryTitle = view.kind === "favorites" ? "Favoriter" : (series?.name ?? null);
-  const emptyKind =
-    view.kind === "favorites" ? "favorites" : series ? "series" : listing ? "empty-folder" : "no-folder";
+  const emptyKind: EmptyKind =
+    filtering && allImages.length > 0
+      ? "no-match"
+      : view.kind === "favorites" ? "favorites" : series ? "series" : listing ? "empty-folder" : "no-folder";
 
   return (
     <div className="flex h-full flex-col">
       <Toolbar
         folders={folders}
         libraryTitle={libraryTitle}
+        placeName={place?.name ?? null}
+        filter={filter}
+        onFilterChange={setFilter}
+        tags={tagChoices}
+        totalCount={filtering ? allImages.length : null}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => {
           setSidebarOpen(!sidebarOpen);
@@ -407,6 +437,23 @@ export default function App() {
             showHidden={showHidden}
             onToggleShowHidden={() => setShowHidden(!showHidden)}
             onSetPrivacy={(item, change) => void changePrivacy(item, change)}
+            currentPlace={place}
+            onSavePlace={() => {
+              if (!listing) return;
+              const id = crypto.randomUUID();
+              const name = listing.folders.length === 1 ? folderName(listing.folders[0]) : `${listing.folders.length} mappar`;
+              changeLibrary((lib) => savePlace(lib, { id, name, folders: listing.folders, recursive: includeSubfolders }));
+              selectView({ kind: "folders" });
+              setRenamingId(id);
+            }}
+            onOpenPlace={(p) => {
+              selectView({ kind: "folders" });
+              setIncludeSubfolders(p.recursive);
+              store(STORAGE_SUBFOLDERS, String(p.recursive));
+              if (!place || place.id !== p.id) void loadFolders(p.folders, p.recursive);
+            }}
+            onRenamePlace={(id, name) => changeLibrary((lib) => renamePlace(lib, id, name))}
+            onDeletePlace={(id) => changeLibrary((lib) => deletePlace(lib, id))}
           />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -428,12 +475,13 @@ export default function App() {
               onToggleFavorite={onToggleFavorite}
               onToggleSeries={onToggleSeries}
               onEditHeading={(index, kind) => setHeadingEdit({ index, kind })}
-              onMove={series ? onMoveImage : undefined}
+              onMove={series && !filtering ? onMoveImage : undefined}
+              tags={index.tags}
               onDropOnLibrary={onDropOnLibrary}
               highlight={highlight}
             />
           ) : (
-            <EmptyState kind={emptyKind} onOpenFolder={() => void openFolders()} />
+            <EmptyState kind={emptyKind} onOpenFolder={() => void openFolders()} onClearFilter={() => setFilter(NO_FILTER)} />
           )}
         </div>
       </div>
@@ -448,6 +496,7 @@ export default function App() {
           }}
           onTrash={setTrashIndex}
           isFavorite={(img) => favoritePaths.has(img.path)}
+          tagsOf={(img) => index.tags.get(img.path) ?? []}
           onToggleFavorite={onToggleFavorite}
           paused={trashIndex !== null}
         />

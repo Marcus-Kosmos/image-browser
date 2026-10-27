@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import { justifiedLayout, paginate, rowHeightForPage, type LayoutBox } from "@/lib/layout";
 import { resolveReveal } from "@/lib/reveal";
+import type { Tag } from "@/lib/filter";
 import type { Series } from "@/lib/library";
 import {
   IMAGE_HEADING_HEIGHT,
@@ -29,6 +30,8 @@ interface GalleryProps {
   onChangeImage: (key: string, change: ImageSettings) => void;
   /** Paths of favorite images. */
   favorites: Set<string>;
+  /** Tags (Favoriter and series) of each image, by path. */
+  tags: Map<string, Tag[]>;
   series: Series[];
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
@@ -78,6 +81,7 @@ export function Gallery({
   onTrash,
   onChangeImage,
   favorites,
+  tags,
   series,
   onToggleFavorite,
   onToggleSeries,
@@ -351,6 +355,7 @@ export function Gallery({
         order={placement.order[box.index]}
         marked={marked === box.index}
         favorite={favorites.has(image.path)}
+        tags={tags.get(image.path)}
         frame={settings.frame}
         shadow={settings.shadow}
         series={series}

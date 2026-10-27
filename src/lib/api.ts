@@ -8,6 +8,8 @@ export interface ImageEntry {
   height: number;
   size: number;
   modified: number;
+  /** When it was put in the favorites or a series (ms), for those lists. */
+  added?: number;
 }
 
 export interface FolderListing {

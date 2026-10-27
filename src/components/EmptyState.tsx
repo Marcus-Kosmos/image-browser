@@ -1,7 +1,7 @@
-import { FolderOpen, GalleryHorizontalEnd, Heart, ImageOff } from "lucide-react";
+import { FolderOpen, GalleryHorizontalEnd, Heart, ImageOff, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export type EmptyKind = "no-folder" | "empty-folder" | "favorites" | "series";
+export type EmptyKind = "no-folder" | "empty-folder" | "favorites" | "series" | "no-match";
 
 const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text: string }> = {
   "no-folder": {
@@ -19,6 +19,11 @@ const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text:
     title: "Inga favoriter ännu",
     text: "Klicka på hjärtat på en bild, eller tryck F, så samlas den här.",
   },
+  "no-match": {
+    icon: SearchX,
+    title: "Inga bilder matchar",
+    text: "Ingen bild här har det namnet, de taggarna eller det datumet.",
+  },
   series: {
     icon: GalleryHorizontalEnd,
     title: "Serien är tom",
@@ -26,7 +31,15 @@ const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text:
   },
 };
 
-export function EmptyState({ kind, onOpenFolder }: { kind: EmptyKind; onOpenFolder: () => void }) {
+export function EmptyState({
+  kind,
+  onOpenFolder,
+  onClearFilter,
+}: {
+  kind: EmptyKind;
+  onOpenFolder: () => void;
+  onClearFilter?: () => void;
+}) {
   const { icon: Icon, title, text } = CONTENT[kind];
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas p-8 text-center">
@@ -41,6 +54,11 @@ export function EmptyState({ kind, onOpenFolder }: { kind: EmptyKind; onOpenFold
         <Button onClick={onOpenFolder}>
           <FolderOpen />
           Öppna mapp
+        </Button>
+      )}
+      {kind === "no-match" && onClearFilter && (
+        <Button variant="outline" onClick={onClearFilter}>
+          Rensa sökning och filter
         </Button>
       )}
     </div>
