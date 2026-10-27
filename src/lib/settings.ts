@@ -2,7 +2,18 @@ import type { ItemSize } from "./layout";
 import { useCallback, useEffect, useState } from "react";
 
 export type ViewMode = "flow" | "pages";
-export type Reveal = "none" | "fade" | "slide-left" | "slide-right" | "slide-alternate";
+export type Reveal =
+  | "none"
+  | "fade"
+  | "slide-left"
+  | "slide-right"
+  | "slide-alternate"
+  | "rise"
+  | "cascade"
+  | "parallax"
+  | "auto";
+/** An effect a single tile plays; "slide-alternate" and "auto" pick one of these per row. */
+export type TileReveal = Exclude<Reveal, "slide-alternate" | "auto">;
 export type ImageSize = ItemSize;
 export type Frame = "none" | "line" | "mat" | "black";
 export type Shadow = "none" | "drop" | "inset";
@@ -53,6 +64,10 @@ export const REVEAL_LABELS: Record<Reveal, string> = {
   "slide-left": "Glid in från vänster",
   "slide-right": "Glid in från höger",
   "slide-alternate": "Glid in växelvis",
+  rise: "Glid upp",
+  cascade: "Kaskad",
+  parallax: "Parallax",
+  auto: "Växla automatiskt",
 };
 
 export const FRAME_LABELS: Record<Frame, string> = {

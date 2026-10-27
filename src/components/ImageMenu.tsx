@@ -24,7 +24,7 @@ interface ImageMenuProps {
 }
 
 const SIZES: ImageSize[] = ["small", "medium", "large"];
-const REVEALS: Reveal[] = ["none", "fade", "slide-left", "slide-right"];
+const REVEALS: Reveal[] = ["none", "fade", "slide-left", "slide-right", "rise", "cascade", "parallax"];
 
 /** Per-image settings: size in the layout and the effect it appears with. */
 export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, settings, onChange, onOpenChange }: ImageMenuProps) {
