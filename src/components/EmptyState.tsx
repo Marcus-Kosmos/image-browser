@@ -1,4 +1,4 @@
-import { FolderOpen, GalleryHorizontalEnd, Heart, ImageOff, SearchX } from "lucide-react";
+import { FolderOpen, FolderTree, GalleryHorizontalEnd, Heart, ImageOff, RefreshCw, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type EmptyKind = "no-folder" | "empty-folder" | "favorites" | "series" | "no-match";
@@ -12,7 +12,7 @@ const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text:
   "empty-folder": {
     icon: ImageOff,
     title: "Inga bilder i den här mappen",
-    text: "Öppna en annan mapp eller välj en undermapp ovan.",
+    text: "Har du lagt till bilder nyss? Prova Läs in igen. Annars öppna en annan mapp eller välj en undermapp ovan.",
   },
   favorites: {
     icon: Heart,
@@ -35,12 +35,21 @@ export function EmptyState({
   kind,
   onOpenFolder,
   onClearFilter,
+  onRefresh,
+  onShowSubfolders,
 }: {
   kind: EmptyKind;
   onOpenFolder: () => void;
   onClearFilter?: () => void;
+  onRefresh?: () => void;
+  /** Set when the folder has subfolders whose images are not shown. */
+  onShowSubfolders?: () => void;
 }) {
-  const { icon: Icon, title, text } = CONTENT[kind];
+  const { icon: Icon, title } = CONTENT[kind];
+  const text =
+    kind === "empty-folder" && onShowSubfolders
+      ? "Bilderna kanske ligger i undermapparna. Visa dem här, eller välj en undermapp ovan."
+      : CONTENT[kind].text;
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas p-8 text-center">
       <div className="flex size-14 items-center justify-center rounded-full bg-muted">
@@ -50,11 +59,31 @@ export function EmptyState({
         <h1 className="text-base font-semibold">{title}</h1>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
       </div>
-      {(kind === "no-folder" || kind === "empty-folder") && (
+      {kind === "no-folder" && (
         <Button onClick={onOpenFolder}>
           <FolderOpen />
           Öppna mapp
         </Button>
+      )}
+      {kind === "empty-folder" && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {onShowSubfolders && (
+            <Button onClick={onShowSubfolders}>
+              <FolderTree />
+              Visa bilder i undermappar
+            </Button>
+          )}
+          {onRefresh && (
+            <Button variant={onShowSubfolders ? "outline" : "default"} onClick={onRefresh}>
+              <RefreshCw />
+              Läs in igen
+            </Button>
+          )}
+          <Button variant="outline" onClick={onOpenFolder}>
+            <FolderOpen />
+            Öppna en annan mapp
+          </Button>
+        </div>
       )}
       {kind === "no-match" && onClearFilter && (
         <Button variant="outline" onClick={onClearFilter}>

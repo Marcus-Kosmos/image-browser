@@ -47,6 +47,8 @@ interface SidebarProps {
   onOpenPlace: (place: Place) => void;
   onRenamePlace: (id: string, name: string) => void;
   onDeletePlace: (id: string) => void;
+  onOpenRecent: (folders: string[]) => void;
+  onForgetRecent: (folders: string[]) => void;
   /** Puts all images of Favoriter or a series into a series, or a new one. */
   onCopyAll: (from: LibraryView, toSeries: string) => void;
   onCopyAllToNew: (from: LibraryView, name: string) => void;
@@ -73,6 +75,8 @@ export function Sidebar({
   onOpenPlace,
   onRenamePlace,
   onDeletePlace,
+  onOpenRecent,
+  onForgetRecent,
   onCopyAll,
   onCopyAllToNew,
   newSeriesName,
@@ -91,6 +95,10 @@ export function Sidebar({
   }, [renamingId]);
 
   const places = library.places ?? [];
+  const sameFolders = (a: string[], b: string[]) => [...a].sort().join("\n") === [...b].sort().join("\n");
+  // Folders opened before stay listed; saved ones show under their own name instead.
+  const recent = (library.recent ?? []).filter((r) => !places.some((p) => sameFolders(p.folders, r)));
+  const folderLabel = (paths: string[]) => (paths.length === 1 ? folderName(paths[0]) : `${paths.length} mappar`);
   const visibleSeries = showHidden ? library.series : library.series.filter((s) => !s.hidden);
 
   const stopEditing = () => {
@@ -117,12 +125,26 @@ export function Sidebar({
       {folders.length === 0 && (
         <Item active={false} onClick={onOpenFolder} icon={<FolderOpen />} label="Öppna mapp" />
       )}
-      {folders.length > 0 && !currentPlace && (
+      {recent.map((r) => {
+        const open = sameFolders(r, folders);
+        return (
+          <Item
+            key={r.join("\n")}
+            active={view.kind === "folders" && open}
+            onClick={() => (open ? onSelect({ kind: "folders" }) : onOpenRecent(r))}
+            icon={<Folder />}
+            label={folderLabel(r)}
+            title={r.join("\n")}
+            actions={<RowMenu label={folderLabel(r)} onDelete={() => onForgetRecent(r)} deleteLabel="Glöm mappen" />}
+          />
+        );
+      })}
+      {folders.length > 0 && !currentPlace && !recent.some((r) => sameFolders(r, folders)) && (
         <Item
           active={view.kind === "folders"}
           onClick={() => onSelect({ kind: "folders" })}
           icon={<Folder />}
-          label={folders.length === 1 ? folderName(folders[0]) : `${folders.length} mappar`}
+          label={folderLabel(folders)}
           title={folders.join("\n")}
         />
       )}

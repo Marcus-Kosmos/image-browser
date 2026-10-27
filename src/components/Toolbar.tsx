@@ -25,6 +25,8 @@ interface ToolbarProps {
   onOpenFolder: () => void;
   onParent: (() => void) | null;
   onRefresh: () => void;
+  /** Reading the folder in again; the button spins meanwhile. */
+  refreshing: boolean;
   includeSubfolders: boolean;
   onToggleSubfolders: () => void;
   settings: FolderSettings;
@@ -53,6 +55,7 @@ export function Toolbar({
   onOpenFolder,
   onParent,
   onRefresh,
+  refreshing,
   includeSubfolders,
   onToggleSubfolders,
   settings,
@@ -94,8 +97,15 @@ export function Toolbar({
           >
             <ArrowUp />
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={onRefresh} title="Läs in igen (⌘R)" aria-label="Läs in igen">
-            <RefreshCw />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRefresh}
+            disabled={refreshing}
+            title="Läs in igen (⌘R)"
+            aria-label={refreshing ? "Läser in igen" : "Läs in igen"}
+          >
+            <RefreshCw className={cn(refreshing && "animate-spin")} />
           </Button>
           <Button
             variant="ghost"
