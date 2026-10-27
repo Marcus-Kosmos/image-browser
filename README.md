@@ -88,3 +88,9 @@ npm run tauri build   # bygg .app och .dmg
 ```
 
 `npm run dev` startar bara gränssnittet i webbläsaren med genererade demobilder.
+
+## Licens
+
+Imagime är fri programvara under [GNU General Public License v3.0](LICENSE) eller senare version.
+Du får använda, ändra och dela den. Om du sprider en ändrad version måste du dela den under samma
+licens, med källkoden öppen.
