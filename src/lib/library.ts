@@ -1,8 +1,14 @@
 import { useCallback, useState } from "react";
 import type { ImageEntry } from "./api";
 
+/** Kept out of sight: hidden ones show only on request, locked ones open with Touch ID. */
+export interface Privacy {
+  hidden?: boolean;
+  locked?: boolean;
+}
+
 /** A named, ordered selection of images, shown with its own layout settings. */
-export interface Series {
+export interface Series extends Privacy {
   id: string;
   name: string;
   images: ImageEntry[];
@@ -12,6 +18,7 @@ export interface Series {
 export interface Library {
   favorites: ImageEntry[];
   series: Series[];
+  favoritesPrivacy?: Privacy;
 }
 
 export const EMPTY_LIBRARY: Library = { favorites: [], series: [] };
@@ -26,6 +33,7 @@ export function loadLibrary(): Library {
       return {
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
         series: Array.isArray(parsed.series) ? parsed.series : [],
+        favoritesPrivacy: parsed.favoritesPrivacy ?? undefined,
       };
     }
   } catch {
@@ -100,6 +108,7 @@ export function moveInSeries(library: Library, id: string, from: number, to: num
 /** Forgets an image everywhere, e.g. after it was moved to the trash. */
 export function removeImage(library: Library, path: string): Library {
   return {
+    ...library,
     favorites: library.favorites.filter((img) => img.path !== path),
     series: library.series.map((s) => ({ ...s, images: s.images.filter((img) => img.path !== path) })),
   };
@@ -129,3 +138,22 @@ export function useLibrary() {
 
 /** What the gallery shows: the open folders, the favorites or one saved series. */
 export type LibraryView = { kind: "folders" } | { kind: "favorites" } | { kind: "series"; id: string };
+
+/** The favorites or one series: the parts of the library that can be hidden or locked. */
+export type LibraryItem = Exclude<LibraryView, { kind: "folders" }>;
+
+export function privacyOf(library: Library, item: LibraryView): Privacy {
+  if (item.kind === "favorites") return library.favoritesPrivacy ?? {};
+  if (item.kind === "series") return library.series.find((s) => s.id === item.id) ?? {};
+  return {};
+}
+
+export function setPrivacy(library: Library, item: LibraryItem, change: Privacy): Library {
+  if (item.kind === "favorites") return { ...library, favoritesPrivacy: { ...library.favoritesPrivacy, ...change } };
+  return updateSeries(library, item.id, (s) => ({ ...s, ...change }));
+}
+
+/** Identifies a library item, e.g. to remember which one is unlocked. */
+export function itemKey(item: LibraryView) {
+  return item.kind === "series" ? `series:${item.id}` : item.kind;
+}

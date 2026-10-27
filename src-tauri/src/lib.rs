@@ -1,3 +1,4 @@
+mod auth;
 mod fonts;
 mod scan;
 mod thumbs;
@@ -44,11 +45,19 @@ async fn list_fonts() -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Shows the Touch ID (or password) prompt; true when the owner confirmed.
+#[tauri::command]
+async fn confirm_owner(reason: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || auth::confirm_owner(&reason))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, trash_file, list_fonts])
+        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, trash_file, list_fonts, confirm_owner])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
