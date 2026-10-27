@@ -40,6 +40,11 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   (eller datorns lösenord). Dolda syns bara efter ögonknappen vid Bibliotek; låsta låses igen när du
   lämnar dem eller lägger appen i bakgrunden, och appen startar aldrig i något dolt eller låst.
   Bildfilerna själva ligger kvar i sina mappar och syns i Finder
+- Taggar: Favoriter och varje serie fungerar som taggar; en bild i en serie får seriens tagg.
+  Taggarna syns när du för musen över en bild och i helskärm
+- Sök och filtrera: sökfältet (⌘F) letar på filnamn och taggar; filterknappen väljer taggar och
+  hur nyligen bilden lades till (annars filens datum). Under filter visas "x av y bilder"
+- Sparade mappar: bokmärkesknappen vid Mappar sparar de öppna mapparna med ett eget namn
 - Favoriter och serier finns kvar efter omstart; en bild som slängs försvinner ur dem
 
 ## Funktioner (steg 4, del 1)

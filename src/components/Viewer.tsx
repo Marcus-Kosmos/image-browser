@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Heart, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
+import type { Tag } from "@/lib/filter";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -12,6 +13,8 @@ interface ViewerProps {
   onClose: () => void;
   onTrash: (index: number) => void;
   isFavorite: (image: ImageEntry) => boolean;
+  /** Favoriter and the series the image is in. */
+  tagsOf: (image: ImageEntry) => Tag[];
   onToggleFavorite: (index: number) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
@@ -33,7 +36,17 @@ function decoded(src: string) {
 
 const FADE_MS = 350;
 
-export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavorite, onToggleFavorite, paused }: ViewerProps) {
+export function Viewer({
+  images,
+  index,
+  onIndexChange,
+  onClose,
+  onTrash,
+  isFavorite,
+  tagsOf,
+  onToggleFavorite,
+  paused,
+}: ViewerProps) {
   const image = images[index];
   // The image on top fades in over the previous one, which is removed once covered.
   const [layers, setLayers] = useState<Layer[]>([]);
@@ -140,6 +153,11 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavor
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-white/60">
             {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
+            {tagsOf(image).map((t) => (
+              <span key={t.key} className="ml-1.5 rounded-sm bg-white/15 px-1.5 py-px text-white/80">
+                {t.name}
+              </span>
+            ))}
           </div>
         </div>
         <Button

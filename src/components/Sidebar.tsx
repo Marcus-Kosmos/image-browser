@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Bookmark,
+  BookmarkPlus,
   Ellipsis,
   Eye,
   EyeOff,
@@ -15,7 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import type { Library, LibraryItem, LibraryView, Privacy, Series } from "@/lib/library";
+import type { Library, LibraryItem, LibraryView, Place, Privacy, Series } from "@/lib/library";
 import { cn, folderName } from "@/lib/utils";
 
 interface SidebarProps {
@@ -36,6 +38,12 @@ interface SidebarProps {
   showHidden: boolean;
   onToggleShowHidden: () => void;
   onSetPrivacy: (item: LibraryItem, change: Privacy) => void;
+  /** The saved place for the open folders, if they are saved. */
+  currentPlace: Place | undefined;
+  onSavePlace: () => void;
+  onOpenPlace: (place: Place) => void;
+  onRenamePlace: (id: string, name: string) => void;
+  onDeletePlace: (id: string) => void;
 }
 
 export function Sidebar({
@@ -53,6 +61,11 @@ export function Sidebar({
   showHidden,
   onToggleShowHidden,
   onSetPrivacy,
+  currentPlace,
+  onSavePlace,
+  onOpenPlace,
+  onRenamePlace,
+  onDeletePlace,
 }: SidebarProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Series | null>(null);
@@ -61,6 +74,7 @@ export function Sidebar({
     if (renamingId) setEditing(renamingId);
   }, [renamingId]);
 
+  const places = library.places ?? [];
   const visibleSeries = showHidden ? library.series : library.series.filter((s) => !s.hidden);
 
   const stopEditing = () => {
@@ -70,8 +84,24 @@ export function Sidebar({
 
   return (
     <aside aria-label="Bibliotek" className="flex w-60 shrink-0 flex-col overflow-y-auto border-r bg-background py-3 text-sm">
-      <SectionTitle>Mappar</SectionTitle>
-      {folders.length > 0 ? (
+      <div className="flex items-center justify-between pr-2">
+        <SectionTitle className="mb-0">Mappar</SectionTitle>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          onClick={onSavePlace}
+          disabled={folders.length === 0 || currentPlace !== undefined}
+          title={currentPlace ? `Sparade som ${currentPlace.name}` : "Spara de öppna mapparna med ett eget namn"}
+          aria-label="Spara mappvalet"
+        >
+          <BookmarkPlus />
+        </Button>
+      </div>
+      {folders.length === 0 && (
+        <Item active={false} onClick={onOpenFolder} icon={<FolderOpen />} label="Öppna mapp" />
+      )}
+      {folders.length > 0 && !currentPlace && (
         <Item
           active={view.kind === "folders"}
           onClick={() => onSelect({ kind: "folders" })}
@@ -79,8 +109,38 @@ export function Sidebar({
           label={folders.length === 1 ? folderName(folders[0]) : `${folders.length} mappar`}
           title={folders.join("\n")}
         />
-      ) : (
-        <Item active={false} onClick={onOpenFolder} icon={<FolderOpen />} label="Öppna mapp" />
+      )}
+      {places.map((p) =>
+        editing === p.id ? (
+          <RenameField
+            key={p.id}
+            initial={p.name}
+            icon={<Bookmark />}
+            label="Mappvalets namn"
+            onSave={(name) => {
+              if (name && name !== p.name) onRenamePlace(p.id, name);
+              stopEditing();
+            }}
+            onCancel={stopEditing}
+          />
+        ) : (
+          <Item
+            key={p.id}
+            active={view.kind === "folders" && currentPlace?.id === p.id}
+            onClick={() => onOpenPlace(p)}
+            icon={<Bookmark />}
+            label={p.name}
+            title={`${p.name}\n${p.folders.join("\n")}`}
+            actions={
+              <RowMenu
+                label={p.name}
+                onRename={() => setEditing(p.id)}
+                onDelete={() => onDeletePlace(p.id)}
+                deleteLabel="Glöm mappvalet"
+              />
+            }
+          />
+        ),
       )}
 
       <div className="mt-4 flex items-center justify-between pr-2">
@@ -143,6 +203,8 @@ export function Sidebar({
           <RenameField
             key={s.id}
             initial={s.name}
+            icon={<GalleryHorizontalEnd />}
+            label="Seriens namn"
             onSave={(name) => {
               if (name && name !== s.name) onRename(s.id, name);
               stopEditing();
@@ -258,14 +320,15 @@ function Item({ active, onClick, icon, label, title, count, privacy, dropTarget,
 
 interface RowMenuProps {
   label: string;
-  privacy: Privacy;
-  onPrivacy: (change: Privacy) => void;
+  privacy?: Privacy;
+  onPrivacy?: (change: Privacy) => void;
   onRename?: () => void;
   onDelete?: () => void;
+  deleteLabel?: string;
 }
 
 /** The ⋯ menu on a library row: rename, hide, lock and delete. */
-function RowMenu({ label, privacy, onPrivacy, onRename, onDelete }: RowMenuProps) {
+function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = "Ta bort serien" }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -325,23 +388,27 @@ function RowMenu({ label, privacy, onPrivacy, onRename, onDelete }: RowMenuProps
               Byt namn
             </MenuItem>
           )}
-          <MenuItem
-            icon={privacy.hidden ? <Eye /> : <EyeOff />}
-            onClick={choose(() => onPrivacy({ hidden: !privacy.hidden }))}
-          >
-            {privacy.hidden ? "Sluta dölja" : "Dölj"}
-          </MenuItem>
-          <MenuItem
-            icon={privacy.locked ? <LockOpen /> : <Lock />}
-            onClick={choose(() => onPrivacy({ locked: !privacy.locked }))}
-          >
-            {privacy.locked ? "Ta bort låset" : "Lås med Touch ID"}
-          </MenuItem>
+          {privacy && onPrivacy && (
+            <>
+              <MenuItem
+                icon={privacy.hidden ? <Eye /> : <EyeOff />}
+                onClick={choose(() => onPrivacy({ hidden: !privacy.hidden }))}
+              >
+                {privacy.hidden ? "Sluta dölja" : "Dölj"}
+              </MenuItem>
+              <MenuItem
+                icon={privacy.locked ? <LockOpen /> : <Lock />}
+                onClick={choose(() => onPrivacy({ locked: !privacy.locked }))}
+              >
+                {privacy.locked ? "Ta bort låset" : "Lås med Touch ID"}
+              </MenuItem>
+            </>
+          )}
           {onDelete && (
             <>
-              <div className="my-1 h-px bg-border" role="separator" />
+              {privacy && <div className="my-1 h-px bg-border" role="separator" />}
               <MenuItem icon={<Trash2 />} onClick={choose(onDelete)} className="text-destructive">
-                Ta bort serien
+                {deleteLabel}
               </MenuItem>
             </>
           )}
@@ -377,7 +444,15 @@ function MenuItem({
   );
 }
 
-function RenameField({ initial, onSave, onCancel }: { initial: string; onSave: (name: string) => void; onCancel: () => void }) {
+interface RenameFieldProps {
+  initial: string;
+  icon: React.ReactNode;
+  label: string;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}
+
+function RenameField({ initial, icon, label, onSave, onCancel }: RenameFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(initial);
   useEffect(() => {
@@ -385,12 +460,12 @@ function RenameField({ initial, onSave, onCancel }: { initial: string; onSave: (
     input.current?.select();
   }, []);
   return (
-    <div className="mx-2 flex h-8 items-center gap-2 rounded-md bg-accent px-2">
-      <GalleryHorizontalEnd className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+    <div className="mx-2 flex h-8 items-center gap-2 rounded-md bg-accent px-2 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
+      {icon}
       <input
         ref={input}
         value={value}
-        aria-label="Seriens namn"
+        aria-label={label}
         onChange={(e) => setValue(e.target.value)}
         onBlur={() => onSave(value.trim())}
         onKeyDown={(e) => {

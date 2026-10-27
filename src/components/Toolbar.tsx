@@ -1,6 +1,8 @@
 import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
+import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
+import type { ImageFilter, Tag } from "@/lib/filter";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
 
@@ -8,6 +10,13 @@ interface ToolbarProps {
   folders: string[];
   /** Name of the favorites or series shown instead of the folders. */
   libraryTitle: string | null;
+  /** Name the open folders were saved under, if any. */
+  placeName: string | null;
+  filter: ImageFilter;
+  onFilterChange: (filter: ImageFilter) => void;
+  tags: Tag[];
+  /** Images in the folder or list before filtering, when a filter is on. */
+  totalCount: number | null;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   imageCount: number;
@@ -28,6 +37,11 @@ export const ROW_HEIGHT_MAX = 420;
 export function Toolbar({
   folders,
   libraryTitle,
+  placeName,
+  filter,
+  onFilterChange,
+  tags,
+  totalCount,
   sidebarOpen,
   onToggleSidebar,
   imageCount,
@@ -60,9 +74,7 @@ export function Toolbar({
       {libraryTitle !== null ? (
         <div className="ml-1 min-w-0">
           <div className="truncate text-sm font-semibold">{libraryTitle}</div>
-          <div className="text-xs text-muted-foreground">
-            {imageCount} {imageCount === 1 ? "bild" : "bilder"}
-          </div>
+          <Count shown={imageCount} total={totalCount} />
         </div>
       ) : folders.length > 0 && (
         <>
@@ -92,17 +104,17 @@ export function Toolbar({
           </Button>
           <div className="ml-1 min-w-0" title={folders.join("\n")}>
             <div className="truncate text-sm font-semibold">
-              {folders.length === 1 ? folderName(folders[0]) : `${folders.length} mappar`}
+              {placeName ?? (folders.length === 1 ? folderName(folders[0]) : `${folders.length} mappar`)}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {imageCount} {imageCount === 1 ? "bild" : "bilder"}
-            </div>
+            <Count shown={imageCount} total={totalCount} />
           </div>
         </>
       )}
       <div className="flex-1" />
       {(folders.length > 0 || libraryTitle !== null) && (
         <>
+          <FilterBar filter={filter} onChange={onFilterChange} tags={tags} />
+          <div className="mx-1 h-6 w-px bg-border" aria-hidden />
           <div role="radiogroup" aria-label="Visning" className="flex items-center rounded-md bg-muted p-0.5">
             <ModeButton
               mode="flow"
@@ -167,6 +179,14 @@ export function Toolbar({
         />
       </label>
     </header>
+  );
+}
+
+function Count({ shown, total }: { shown: number; total: number | null }) {
+  return (
+    <div className="text-xs whitespace-nowrap text-muted-foreground">
+      {total !== null ? `${shown} av ${total} ${total === 1 ? "bild" : "bilder"}` : `${shown} ${shown === 1 ? "bild" : "bilder"}`}
+    </div>
   );
 }
 
