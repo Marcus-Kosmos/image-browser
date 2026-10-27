@@ -8,6 +8,7 @@ import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { Viewer } from "@/components/Viewer";
 import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
@@ -42,6 +43,7 @@ const STORAGE_FOLDERS = "image-browser:last-folders";
 const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
 const STORAGE_SIDEBAR = "image-browser:sidebar";
 const STORAGE_VIEW = "image-browser:view";
+const STORAGE_ASK_TRASH = "image-browser:ask-before-trash";
 
 /** The images of one or more folders opened together. */
 interface Collection {
@@ -78,6 +80,9 @@ export default function App() {
   // Set when the viewer closes, so the gallery can show where that image is.
   const [highlight, setHighlight] = useState<{ index: number } | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Off when the user chose to trash with one click, without the question.
+  const [askBeforeTrash, setAskBeforeTrash] = useState(() => readStored(STORAGE_ASK_TRASH) !== "false");
   const [headingEdit, setHeadingEdit] = useState<{ index: number; kind: HeadingKind } | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => readStored(STORAGE_SIDEBAR) !== "false");
@@ -244,6 +249,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (e.key === "?" && !typing) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "o") {
         e.preventDefault();
@@ -367,11 +378,7 @@ export default function App() {
     if (view.kind === "series" && view.id === id) selectView({ kind: "folders" });
   };
 
-  const confirmTrash = async () => {
-    if (trashIndex === null) return;
-    const image = images[trashIndex];
-    setTrashIndex(null);
-    if (!image) return;
+  const trashImage = async (image: ImageEntry) => {
     try {
       await trashFile(image.path);
     } catch (err) {
@@ -379,10 +386,29 @@ export default function App() {
       return;
     }
     changeLibrary((lib) => removeImage(lib, image.path));
-    if (listing) setListing({ ...listing, images: listing.images.filter((img) => img.path !== image.path) });
+    setListing((prev) => prev && { ...prev, images: prev.images.filter((img) => img.path !== image.path) });
     if (viewerIndex !== null && images.length === 1) setViewerIndex(null);
     // Otherwise the viewer stays on the same position, which now holds the next image.
     showToast(`${image.name} flyttades till papperskorgen.`);
+  };
+
+  const changeAskBeforeTrash = (ask: boolean) => {
+    setAskBeforeTrash(ask);
+    store(STORAGE_ASK_TRASH, String(ask));
+  };
+
+  const requestTrash = (index: number) => {
+    const image = images[index];
+    if (!image) return;
+    if (askBeforeTrash) setTrashIndex(index);
+    else void trashImage(image);
+  };
+
+  const confirmTrash = (dontAsk: boolean) => {
+    const image = trashIndex !== null ? images[trashIndex] : undefined;
+    setTrashIndex(null);
+    if (dontAsk) changeAskBeforeTrash(false);
+    if (image) void trashImage(image);
   };
 
   const libraryTitle = view.kind === "favorites" ? "Favoriter" : (series?.name ?? null);
@@ -419,6 +445,9 @@ export default function App() {
         onToggleSubfolders={toggleSubfolders}
         settings={settings}
         onSettingsChange={updateSettings}
+        askBeforeTrash={askBeforeTrash}
+        onAskBeforeTrashChange={changeAskBeforeTrash}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
         {sidebarOpen && (
@@ -468,7 +497,7 @@ export default function App() {
               rowHeight={rowHeight}
               settings={settings}
               onOpen={setViewerIndex}
-              onTrash={setTrashIndex}
+              onTrash={requestTrash}
               onChangeImage={updateImage}
               favorites={favoritePaths}
               series={listedSeries}
@@ -494,11 +523,29 @@ export default function App() {
             setHighlight({ index: viewerIndex });
             setViewerIndex(null);
           }}
-          onTrash={setTrashIndex}
+          onTrash={requestTrash}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
           onToggleFavorite={onToggleFavorite}
-          paused={trashIndex !== null}
+          series={listedSeries}
+          onToggleSeries={(id, i) => {
+            const image = images[i];
+            const target = library.series.find((s) => s.id === id);
+            if (!image || !target) return;
+            const included = target.images.some((img) => img.path === image.path);
+            onToggleSeries(id, i);
+            showToast(included ? `Togs bort från ${target.name}.` : `Lades till i ${target.name}.`);
+          }}
+          onCreateSeries={(name, i) => {
+            const image = images[i];
+            if (!image) return;
+            const unique = uniqueSeriesName(library, name);
+            changeLibrary((lib) => createSeries(lib, crypto.randomUUID(), unique, [image]));
+            showToast(`Serien ${unique} skapades med bilden.`);
+          }}
+          newSeriesName={uniqueSeriesName(library, "Ny serie")}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          paused={trashIndex !== null || shortcutsOpen}
         />
       )}
       {(() => {
@@ -521,8 +568,9 @@ export default function App() {
       <TrashDialog
         image={trashIndex !== null ? images[trashIndex] ?? null : null}
         onCancel={() => setTrashIndex(null)}
-        onConfirm={() => void confirmTrash()}
+        onConfirm={confirmTrash}
       />
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} />
     </div>
   );

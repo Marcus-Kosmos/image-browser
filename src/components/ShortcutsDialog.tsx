@@ -1,0 +1,76 @@
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+
+const GROUPS: Array<{ title: string; keys: Array<[string[], string]> }> = [
+  {
+    title: "Överallt",
+    keys: [
+      [["⌘", "O"], "Öppna mapp"],
+      [["⌘", "R"], "Läs in mappen igen"],
+      [["⌘", "↑"], "Överordnad mapp"],
+      [["⌘", "F"], "Sök på namn eller tagg"],
+      [["?"], "Visa kortkommandon"],
+    ],
+  },
+  {
+    title: "Markerad bild i kartan",
+    keys: [
+      [["↵"], "Öppna i helskärm"],
+      [["F"], "Favorit på eller av"],
+      [["1", "2", "3"], "Liten, mellan eller stor"],
+      [["⌫"], "Flytta till papperskorgen"],
+      [["⌥", "←", "→"], "Flytta i serien"],
+    ],
+  },
+  {
+    title: "Helskärm",
+    keys: [
+      [["←", "→"], "Föregående eller nästa bild"],
+      [["F"], "Favorit på eller av"],
+      [["S"], "Lägg till i serie"],
+      [["1–9"], "Lägg till i serie 1–9 direkt"],
+      [["⌫"], "Flytta till papperskorgen"],
+      [["Esc"], "Stäng helskärm"],
+    ],
+  },
+];
+
+export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} labelledBy="shortcuts-title" className="max-w-lg">
+      <div className="flex items-center justify-between">
+        <h2 id="shortcuts-title" className="text-lg font-semibold">
+          Kortkommandon
+        </h2>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Stäng" title="Stäng (Esc)">
+          <X />
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-col gap-4">
+        {GROUPS.map((group) => (
+          <section key={group.title}>
+            <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">{group.title}</h3>
+            <dl className="flex flex-col">
+              {group.keys.map(([keys, label]) => (
+                <div key={label} className="flex items-center justify-between gap-4 border-b py-1.5 text-sm last:border-b-0">
+                  <dt>{label}</dt>
+                  <dd className="flex shrink-0 gap-1">
+                    {keys.map((k) => (
+                      <kbd
+                        key={k}
+                        className="min-w-6 rounded border bg-muted px-1.5 py-0.5 text-center font-sans text-xs text-foreground"
+                      >
+                        {k}
+                      </kbd>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+    </Dialog>
+  );
+}

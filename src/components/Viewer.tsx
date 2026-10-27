@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Info, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import type { Tag } from "@/lib/filter";
+import type { Series } from "@/lib/library";
+import { SeriesPicker } from "./SeriesPicker";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -16,6 +18,12 @@ interface ViewerProps {
   /** Favoriter and the series the image is in. */
   tagsOf: (image: ImageEntry) => Tag[];
   onToggleFavorite: (index: number) => void;
+  /** The series listed in the sidebar, which the image can be added to. */
+  series: Series[];
+  onToggleSeries: (id: string, index: number) => void;
+  onCreateSeries: (name: string, index: number) => void;
+  newSeriesName: string;
+  onShowShortcuts: () => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -45,8 +53,14 @@ export function Viewer({
   isFavorite,
   tagsOf,
   onToggleFavorite,
+  series,
+  onToggleSeries,
+  onCreateSeries,
+  newSeriesName,
+  onShowShortcuts,
   paused,
 }: ViewerProps) {
+  const [picking, setPicking] = useState(false);
   const image = images[index];
   // The image on top fades in over the previous one, which is removed once covered.
   const [layers, setLayers] = useState<Layer[]>([]);
@@ -119,7 +133,12 @@ export function Viewer({
   useEffect(() => {
     if (paused) return;
     const onKey = (e: KeyboardEvent) => {
+      // Typing a series name must not trash or step.
+      if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+      const digit = Number(e.key);
       if (e.key === "Escape") onClose();
+      else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length) onToggleSeries(series[digit - 1].id, index);
+      else if (e.key === "s") setPicking((p) => !p);
       else if (e.key === "ArrowLeft" && hasPrev) onIndexChange(index - 1);
       else if (e.key === "ArrowRight" && hasNext) onIndexChange(index + 1);
       else if (e.key === "Delete" || e.key === "Backspace") onTrash(index);
@@ -129,7 +148,7 @@ export function Viewer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash, onToggleFavorite]);
+  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash, onToggleFavorite, series, onToggleSeries]);
 
   return (
     <div
@@ -163,6 +182,16 @@ export function Viewer({
         <Button
           variant="ghost"
           size="icon-sm"
+          className="text-white/80 hover:bg-white/15 hover:text-white"
+          onClick={onShowShortcuts}
+          title="Kortkommandon (?)"
+          aria-label="Kortkommandon"
+        >
+          <Info />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
           className="text-white hover:bg-white/15 hover:text-white"
           onClick={onClose}
           title="Stäng (Esc)"
@@ -190,6 +219,15 @@ export function Viewer({
             >
               <Heart className={cn("size-6 drop-shadow", favorite && "fill-current")} />
             </button>
+            <SeriesPicker
+              path={image.path}
+              series={series}
+              open={picking}
+              onOpenChange={setPicking}
+              onToggle={(id) => onToggleSeries(id, index)}
+              onCreate={(name) => onCreateSeries(name, index)}
+              defaultName={newSeriesName}
+            />
           </div>
         </div>
         <NavButton side="left" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} />

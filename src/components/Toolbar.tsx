@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, Info, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,9 @@ interface ToolbarProps {
   onToggleSubfolders: () => void;
   settings: FolderSettings;
   onSettingsChange: (change: Partial<FolderSettings>) => void;
+  askBeforeTrash: boolean;
+  onAskBeforeTrashChange: (ask: boolean) => void;
+  onShowShortcuts: () => void;
 }
 
 export const ROW_HEIGHT_MIN = 100;
@@ -54,6 +57,9 @@ export function Toolbar({
   onToggleSubfolders,
   settings,
   onSettingsChange,
+  askBeforeTrash,
+  onAskBeforeTrashChange,
+  onShowShortcuts,
 }: ToolbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
@@ -161,7 +167,12 @@ export function Toolbar({
               ))}
             </select>
           </label>
-          <AppearanceMenu settings={settings} onChange={onSettingsChange} />
+          <AppearanceMenu
+            settings={settings}
+            onChange={onSettingsChange}
+            askBeforeTrash={askBeforeTrash}
+            onAskBeforeTrashChange={onAskBeforeTrashChange}
+          />
           <div className="mx-1 h-6 w-px bg-border" aria-hidden />
         </>
       )}
@@ -178,6 +189,9 @@ export function Toolbar({
           className="w-36 accent-[var(--primary)]"
         />
       </label>
+      <Button variant="ghost" size="icon-sm" onClick={onShowShortcuts} title="Kortkommandon (?)" aria-label="Kortkommandon">
+        <Info />
+      </Button>
     </header>
   );
 }
