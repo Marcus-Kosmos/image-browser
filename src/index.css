@@ -90,7 +90,8 @@ body {
 .reveal {
   transition:
     opacity 1.2s ease-out,
-    transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+    transform 1.6s cubic-bezier(0.16, 1, 0.3, 1),
+    outline-color 0.6s ease-out;
 }
 .reveal[data-reveal="fade"]:not([data-shown]) {
   opacity: 0;

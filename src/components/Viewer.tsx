@@ -39,10 +39,9 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
   const root = useRef<HTMLDivElement>(null);
 
   // Take focus from the grid tile that opened the viewer, so its key handlers don't fire underneath.
+  // On close the gallery moves focus to the image last viewed.
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
     root.current?.focus();
-    return () => previous?.focus();
   }, []);
 
   useEffect(() => {
@@ -107,23 +106,24 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, paused 
       tabIndex={-1}
       className="fixed inset-0 z-40 flex flex-col bg-black text-white outline-none"
       role="dialog" aria-modal="true" aria-label={image.name}>
+      {/* Trash and close sit at opposite ends so one isn't clicked by mistake for the other. */}
       <div className="flex h-12 shrink-0 items-center gap-3 px-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{image.name}</div>
-          <div className="text-xs text-white/60">
-            {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
-          </div>
-        </div>
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-white hover:bg-white/15 hover:text-white"
+          className="text-white/80 hover:bg-destructive hover:text-white"
           onClick={() => onTrash(index)}
           title="Flytta till papperskorgen (⌫)"
           aria-label="Flytta till papperskorgen"
         >
           <Trash2 />
         </Button>
+        <div className="min-w-0 flex-1 text-center">
+          <div className="truncate text-sm font-medium">{image.name}</div>
+          <div className="text-xs text-white/60">
+            {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
+          </div>
+        </div>
         <Button
           variant="ghost"
           size="icon-sm"

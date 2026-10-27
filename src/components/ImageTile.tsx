@@ -15,6 +15,8 @@ interface ImageTileProps {
   reveal: Exclude<Reveal, "slide-alternate">;
   /** Position within its row, used to stagger the reveal. */
   order: number;
+  /** Drawn with a ring, to show where the image last viewed full screen is. */
+  marked?: boolean;
   root: HTMLElement | null;
   settingsKey: string;
   settings: ImageSettings;
@@ -30,6 +32,7 @@ export const ImageTile = memo(function ImageTile({
   box,
   reveal,
   order,
+  marked = false,
   root,
   settingsKey,
   settings,
@@ -55,6 +58,7 @@ export const ImageTile = memo(function ImageTile({
   return (
     <div
       ref={ref}
+      data-index={box.index}
       data-reveal={reveal}
       data-shown={shown ? "" : undefined}
       className={cn("group reveal absolute overflow-hidden rounded-sm", reveal === "none" && "bg-muted")}
@@ -64,6 +68,9 @@ export const ImageTile = memo(function ImageTile({
         width: box.width,
         height: box.height,
         transitionDelay: shown ? `${order * 90}ms` : undefined,
+        // Outlines are drawn outside the clipped box, so the ring isn't cut off.
+        outline: `3px solid ${marked ? "var(--primary)" : "transparent"}`,
+        outlineOffset: 3,
       }}
     >
       <button
