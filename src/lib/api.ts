@@ -52,6 +52,16 @@ export async function trashFile(path: string): Promise<void> {
   await invoke("trash_file", { path });
 }
 
+let fonts: Promise<string[]> | null = null;
+
+/** Font families installed on the computer, for headings. Read once per session. */
+export function listFonts(): Promise<string[]> {
+  fonts ??= demo
+    ? Promise.resolve(["Avenir Next", "Baskerville", "Didot", "Futura", "Georgia", "Gill Sans", "Helvetica Neue", "Courier New"])
+    : invoke<string[]>("list_fonts").catch(() => []);
+  return fonts;
+}
+
 const demoTrashed = new Set<string>();
 const demoRatios = [1.5, 0.667, 1, 1.778, 0.75, 1.333, 2.4, 0.8, 1.5, 1.5, 0.667, 1.25];
 

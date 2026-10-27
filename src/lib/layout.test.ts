@@ -145,3 +145,54 @@ describe("paginate", () => {
     expect(page.boxes[0].x).toBeCloseTo(350);
   });
 });
+
+describe("headings", () => {
+  const ratios = [1.5, 1, 0.75, 1.5, 1.5, 1, 1.333, 0.8, 1.5, 1, 2, 0.667, 1.5, 1.5];
+
+  it("keeps the picture's proportions below an image heading", () => {
+    const items = ratios.map((r, i) => ({ aspectRatio: r, header: i === 2 ? 30 : undefined }));
+    const { rows } = justifiedLayout(items, 1000, 200, 6);
+    const box = rows.flatMap((r) => r.boxes).find((b) => b.index === 2)!;
+    expect(box.header).toBe(30);
+    expect(box.width / (box.height - 30)).toBeCloseTo(0.75, 5);
+    // The row is still filled edge to edge.
+    const row = rows.find((r) => r.boxes.includes(box))!;
+    const last = row.boxes[row.boxes.length - 1];
+    expect(last.x + last.width).toBeCloseTo(1000, 5);
+  });
+
+  it("keeps a large image's proportions below its heading", () => {
+    const items = ratios.map((r, i) => ({
+      aspectRatio: r,
+      size: i === 0 ? ("large" as const) : undefined,
+      header: i === 0 ? 40 : undefined,
+    }));
+    const { rows } = justifiedLayout(items, 1200, 180, 6);
+    const box = rows[0].boxes.find((b) => b.index === 0)!;
+    expect(box.width / (box.height - 40)).toBeCloseTo(1.5, 5);
+    const rights = rows[0].boxes.map((b) => b.x + b.width);
+    expect(Math.max(...rights)).toBeCloseTo(1200, 5);
+  });
+
+  it("starts a new row under a page heading", () => {
+    const items = ratios.map((r, i) => ({ aspectRatio: r, section: i === 5 ? 50 : undefined }));
+    const { rows } = justifiedLayout(items, 1000, 200, 6);
+    const start = rows.findIndex((r) => r.section);
+    expect(rows[start].boxes[0].index).toBe(5);
+    expect(rows[start].section).toMatchObject({ index: 5, height: 50 });
+    expect(rows[start].y).toBeCloseTo(rows[start].section!.y + 50);
+    const before = rows[start - 1];
+    expect(before.boxes[before.boxes.length - 1].index).toBe(4);
+  });
+
+  it("starts a new page at a page heading and shows the heading on top", () => {
+    const items = ratios.map((r, i) => ({ aspectRatio: r, section: i === 3 ? 50 : undefined }));
+    const layout = justifiedLayout(items, 1000, 150, 6);
+    const pages = paginate(layout, 1000, 700);
+    const page = pages.find((p) => p.section)!;
+    expect(page.start).toBe(3);
+    expect(page.section!.index).toBe(3);
+    expect(page.boxes[0].y).toBeGreaterThanOrEqual(page.section!.y + page.section!.height - 0.01);
+    expect(pages.flatMap((p) => p.boxes.map((b) => b.index))).toEqual(ratios.map((_, i) => i));
+  });
+});

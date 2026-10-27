@@ -5,7 +5,14 @@ import type { ImageEntry } from "@/lib/api";
 import { justifiedLayout, paginate, rowHeightForPage, type LayoutBox } from "@/lib/layout";
 import { resolveReveal } from "@/lib/reveal";
 import type { Series } from "@/lib/library";
-import type { FolderSettings, ImageSettings } from "@/lib/settings";
+import {
+  IMAGE_HEADING_HEIGHT,
+  PAGE_HEADING_HEIGHT,
+  type FolderSettings,
+  type ImageSettings,
+} from "@/lib/settings";
+import type { HeadingKind } from "./HeadingDialog";
+import { HeadingText } from "./HeadingText";
 import { ImageTile } from "./ImageTile";
 
 interface GalleryProps {
@@ -24,6 +31,7 @@ interface GalleryProps {
   series: Series[];
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
+  onEditHeading: (index: number, kind: HeadingKind) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
 }
@@ -49,6 +57,7 @@ export function Gallery({
   series,
   onToggleFavorite,
   onToggleSeries,
+  onEditHeading,
   highlight,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -69,10 +78,15 @@ export function Gallery({
 
   const items = useMemo(
     () =>
-      images.map((img) => ({
-        aspectRatio: img.width / img.height,
-        size: settings.images[imageKey(img)]?.size,
-      })),
+      images.map((img) => {
+        const own = settings.images[imageKey(img)];
+        return {
+          aspectRatio: img.width / img.height,
+          size: own?.size,
+          header: own?.heading ? IMAGE_HEADING_HEIGHT[own.heading.level] : undefined,
+          section: own?.pageHeading ? PAGE_HEADING_HEIGHT[own.pageHeading.level] : undefined,
+        };
+      }),
     [images, imageKey, settings.images],
   );
 
@@ -195,7 +209,23 @@ export function Gallery({
         onChange={onChangeImage}
         onToggleFavorite={onToggleFavorite}
         onToggleSeries={onToggleSeries}
+        onEditHeading={onEditHeading}
       />
+    );
+  };
+
+  const renderSection = (section: { index: number; y: number; height: number }, x: number, y: number, width: number) => {
+    const heading = settings.images[imageKey(images[section.index])]?.pageHeading;
+    if (!heading) return null;
+    return (
+      <div key={`section-${section.index}`} className="absolute flex items-end" style={{ left: x, top: y + section.y, width, height: section.height }}>
+        <HeadingText
+          heading={heading}
+          height={section.height * 0.8}
+          scale={0.62}
+          onEdit={() => onEditHeading(section.index, "page")}
+        />
+      </div>
     );
   };
 
@@ -217,6 +247,7 @@ export function Gallery({
                   className="absolute inset-x-0"
                   style={{ top: i * pageHeight, height: pageHeight, scrollSnapAlign: "start" }}
                 >
+                  {page.section && renderSection(page.section, PAGE_PADDING_X, PAGE_PADDING_Y, pageContent.width)}
                   {page.boxes.map((box) => renderTile(box, PAGE_PADDING_X, PAGE_PADDING_Y))}
                   {settings.showPageNumbers && (
                     <div
@@ -248,7 +279,10 @@ export function Gallery({
                   row.y + row.height + FLOW_PADDING >= scrollTop - OVERSCAN &&
                   row.y <= scrollTop + size.height + OVERSCAN,
               )
-              .flatMap((row) => row.boxes.map((box) => renderTile(box, FLOW_PADDING, FLOW_PADDING)))}
+              .flatMap((row) => [
+                ...(row.section ? [renderSection(row.section, FLOW_PADDING, FLOW_PADDING, size.width - FLOW_PADDING * 2)] : []),
+                ...row.boxes.map((box) => renderTile(box, FLOW_PADDING, FLOW_PADDING)),
+              ])}
           </div>
         )}
       </div>

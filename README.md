@@ -39,6 +39,13 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Knappar, menyer och sidopanel tar färg efter bakgrunden och byter mellan mörk och ljus text för läsbarhet
 - Sparas per mapp, favoriter eller serie
 
+## Funktioner (steg 4, del 2: rubriker)
+
+- Bildens inställningsmeny: **Rubrik ovanför bilden** eller **Ny sida med rubrik**
+- Rubriken har nivå H1–H3, valfri färg och valfritt typsnitt bland de som finns installerade på datorn
+- Bildrubriken får en egen rad ovanför bilden; sidrubriken får en egen rad och bilden börjar en ny sida (i flödesläget en ny rad)
+- Klicka på en rubrik för att ändra eller ta bort den
+
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken
