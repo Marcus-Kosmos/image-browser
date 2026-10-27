@@ -9,6 +9,7 @@ import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { ShortcutsDialog } from "@/components/ShortcutsDialog";
+import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
@@ -322,21 +323,68 @@ export default function App() {
     [changeLibrary, images],
   );
 
-  const onDropOnLibrary = useCallback(
-    (index: number, target: string) => {
-      const image = images[index];
-      if (!image) return;
+  /** Adds images to Favoriter ("favorites") or a series ("series:<id>") and says how it went. */
+  const addTo = useCallback(
+    (target: string, added: ImageEntry[]) => {
+      if (added.length === 0) return;
       const seriesId = target.startsWith("series:") ? target.slice("series:".length) : null;
       const list = seriesId ? library.series.find((s) => s.id === seriesId) : null;
+      if (seriesId && !list) return;
       const name = list ? list.name : "Favoriter";
-      if ((list ? list.images : library.favorites).some((img) => img.path === image.path)) {
-        showToast(`${image.name} finns redan i ${name}.`);
+      const there = new Set((list ? list.images : library.favorites).map((img) => img.path));
+      const fresh = added.filter((img) => !there.has(img.path));
+      if (fresh.length === 0) {
+        showToast(added.length === 1 ? `${added[0].name} finns redan i ${name}.` : `Bilderna finns redan i ${name}.`);
         return;
       }
-      changeLibrary((lib) => (seriesId ? addToSeries(lib, seriesId, [image]) : addToFavorites(lib, [image])));
-      showToast(`${image.name} lades till i ${name}.`);
+      changeLibrary((lib) => (seriesId ? addToSeries(lib, seriesId, fresh) : addToFavorites(lib, fresh)));
+      const already = added.length - fresh.length;
+      showToast(
+        (fresh.length === 1 ? `${fresh[0].name} lades till i ${name}.` : `${fresh.length} bilder lades till i ${name}.`) +
+          (already > 0 ? ` ${already} fanns redan där.` : ""),
+      );
     },
-    [images, library, changeLibrary, showToast],
+    [library, changeLibrary, showToast],
+  );
+
+  const newSeriesWith = useCallback(
+    (name: string, added: ImageEntry[]) => {
+      const unique = uniqueSeriesName(library, name);
+      changeLibrary((lib) => createSeries(lib, crypto.randomUUID(), unique, added));
+      showToast(`Serien ${unique} skapades med ${added.length === 1 ? "bilden" : `${added.length} bilder`}.`);
+    },
+    [library, changeLibrary, showToast],
+  );
+
+  const onDropOnLibrary = useCallback(
+    (indices: number[], target: string) => addTo(target, indices.flatMap((i) => (images[i] ? [images[i]] : []))),
+    [images, addTo],
+  );
+
+  // Images selected with ⌘-click, Shift-click or a rectangle; cleared when another view opens.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => setSelected(new Set()), [viewKey]);
+  const selectedImages = useMemo(() => images.filter((img) => selected.has(img.path)), [images, selected]);
+  // ⌘A selects every image shown, Esc clears the selection.
+  useEffect(() => {
+    if (viewerIndex !== null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === "a" && images.length > 0) {
+        e.preventDefault();
+        setSelected(new Set(images.map((img) => img.path)));
+      } else if (e.key === "Escape" && selected.size > 0) {
+        setSelected(new Set());
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewerIndex, images, selected.size]);
+
+  const libraryImages = useCallback(
+    (item: LibraryView) =>
+      item.kind === "favorites" ? library.favorites : (library.series.find((s) => s.id === (item as { id: string }).id)?.images ?? []),
+    [library],
   );
 
   const onMoveImage = useCallback(
@@ -483,9 +531,25 @@ export default function App() {
             }}
             onRenamePlace={(id, name) => changeLibrary((lib) => renamePlace(lib, id, name))}
             onDeletePlace={(id) => changeLibrary((lib) => deletePlace(lib, id))}
+            onCopyAll={(from, id) => addTo(`series:${id}`, libraryImages(from))}
+            onCopyAllToNew={(from, name) => newSeriesWith(name, libraryImages(from))}
+            newSeriesName={uniqueSeriesName(library, "Ny serie")}
           />
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          {selectedImages.length > 0 && !locked && (
+            <SelectionBar
+              count={selectedImages.length}
+              series={listedSeries}
+              onFavorite={() => addTo("favorites", selectedImages)}
+              onAddToSeries={(id) => addTo(`series:${id}`, selectedImages)}
+              onCreateSeries={(name) => newSeriesWith(name, selectedImages)}
+              newSeriesName={uniqueSeriesName(library, "Ny serie")}
+              onSelectAll={() => setSelected(new Set(images.map((img) => img.path)))}
+              allSelected={selectedImages.length === images.length}
+              onClear={() => setSelected(new Set())}
+            />
+          )}
           {listing && inFolders && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />}
           {locked ? (
             <LockedState name={itemName(view)} onUnlock={() => void unlock(view)} />
@@ -507,6 +571,8 @@ export default function App() {
               onMove={series && !filtering ? onMoveImage : undefined}
               tags={index.tags}
               onDropOnLibrary={onDropOnLibrary}
+              selected={selected}
+              onSelectionChange={setSelected}
               highlight={highlight}
             />
           ) : (
@@ -536,13 +602,7 @@ export default function App() {
             onToggleSeries(id, i);
             showToast(included ? `Togs bort från ${target.name}.` : `Lades till i ${target.name}.`);
           }}
-          onCreateSeries={(name, i) => {
-            const image = images[i];
-            if (!image) return;
-            const unique = uniqueSeriesName(library, name);
-            changeLibrary((lib) => createSeries(lib, crypto.randomUUID(), unique, [image]));
-            showToast(`Serien ${unique} skapades med bilden.`);
-          }}
+          onCreateSeries={(name, i) => images[i] && newSeriesWith(name, [images[i]])}
           newSeriesName={uniqueSeriesName(library, "Ny serie")}
           onShowShortcuts={() => setShortcutsOpen(true)}
           paused={trashIndex !== null || shortcutsOpen}
@@ -571,7 +631,7 @@ export default function App() {
         onConfirm={confirmTrash}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} />
+      <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} raised={selectedImages.length > 0} />
     </div>
   );
 }

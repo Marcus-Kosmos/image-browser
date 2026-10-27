@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Bookmark,
   BookmarkPlus,
   Ellipsis,
@@ -7,6 +8,7 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
+  FolderPlus,
   GalleryHorizontalEnd,
   Heart,
   Lock,
@@ -19,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import type { Library, LibraryItem, LibraryView, Place, Privacy, Series } from "@/lib/library";
 import { cn, folderName } from "@/lib/utils";
+import { SeriesMenuList } from "./SeriesMenuList";
 
 interface SidebarProps {
   folders: string[];
@@ -44,6 +47,10 @@ interface SidebarProps {
   onOpenPlace: (place: Place) => void;
   onRenamePlace: (id: string, name: string) => void;
   onDeletePlace: (id: string) => void;
+  /** Puts all images of Favoriter or a series into a series, or a new one. */
+  onCopyAll: (from: LibraryView, toSeries: string) => void;
+  onCopyAllToNew: (from: LibraryView, name: string) => void;
+  newSeriesName: string;
 }
 
 export function Sidebar({
@@ -66,7 +73,16 @@ export function Sidebar({
   onOpenPlace,
   onRenamePlace,
   onDeletePlace,
+  onCopyAll,
+  onCopyAllToNew,
+  newSeriesName,
 }: SidebarProps) {
+  const copyTo = (from: LibraryView, exclude?: string) => ({
+    series: visibleSeries.filter((s) => s.id !== exclude),
+    onPick: (id: string) => onCopyAll(from, id),
+    onCreate: (name: string) => onCopyAllToNew(from, name),
+    defaultName: newSeriesName,
+  });
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Series | null>(null);
 
@@ -171,6 +187,7 @@ export function Sidebar({
               label="Favoriter"
               privacy={library.favoritesPrivacy ?? {}}
               onPrivacy={(change) => onSetPrivacy({ kind: "favorites" }, change)}
+              copyTo={library.favorites.length > 0 ? copyTo({ kind: "favorites" }) : undefined}
             />
           }
         />
@@ -228,6 +245,7 @@ export function Sidebar({
                 onPrivacy={(change) => onSetPrivacy({ kind: "series", id: s.id }, change)}
                 onRename={() => setEditing(s.id)}
                 onDelete={() => setDeleting(s)}
+                copyTo={s.images.length > 0 ? copyTo({ kind: "series", id: s.id }, s.id) : undefined}
               />
             }
           />
@@ -325,11 +343,18 @@ interface RowMenuProps {
   onRename?: () => void;
   onDelete?: () => void;
   deleteLabel?: string;
+  /** "Lägg alla i serie": puts every image of the row into a series. */
+  copyTo?: { series: Series[]; onPick: (id: string) => void; onCreate: (name: string) => void; defaultName: string };
 }
 
 /** The ⋯ menu on a library row: rename, hide, lock and delete. */
-function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = "Ta bort serien" }: RowMenuProps) {
+function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = "Ta bort serien", copyTo }: RowMenuProps) {
   const [open, setOpen] = useState(false);
+  // The menu turns into a list of series after "Lägg alla i serie".
+  const [picking, setPicking] = useState(false);
+  useEffect(() => {
+    if (!open) setPicking(false);
+  }, [open]);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -383,6 +408,26 @@ function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = 
           aria-label={label}
           className="absolute top-7 right-0 z-50 w-52 rounded-lg border bg-popover p-1 text-sm text-foreground shadow-lg"
         >
+          {picking && copyTo ? (
+            <>
+              <MenuItem icon={<ArrowLeft />} onClick={() => setPicking(false)} className="text-muted-foreground">
+                Lägg alla i serie
+              </MenuItem>
+              <div className="my-1 h-px bg-border" role="separator" />
+              <SeriesMenuList
+                series={copyTo.series}
+                onPick={(id) => choose(() => copyTo.onPick(id))()}
+                onCreate={(name) => choose(() => copyTo.onCreate(name))()}
+                defaultName={copyTo.defaultName}
+              />
+            </>
+          ) : (
+          <>
+          {copyTo && (
+            <MenuItem icon={<FolderPlus />} onClick={() => setPicking(true)}>
+              Lägg alla i serie…
+            </MenuItem>
+          )}
           {onRename && (
             <MenuItem icon={<Pencil />} onClick={choose(onRename)}>
               Byt namn
@@ -411,6 +456,8 @@ function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = 
                 {deleteLabel}
               </MenuItem>
             </>
+          )}
+          </>
           )}
         </div>
       )}

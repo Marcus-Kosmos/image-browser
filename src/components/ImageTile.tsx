@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Heart, Trash2 } from "lucide-react";
+import { Check, Heart, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
 import type { Tag } from "@/lib/filter";
 import type { LayoutBox } from "@/lib/layout";
@@ -21,6 +21,8 @@ interface ImageTileProps {
   order: number;
   /** Drawn with a ring, to show where the image last viewed full screen is. */
   marked?: boolean;
+  /** Part of the current selection. */
+  selected?: boolean;
   favorite: boolean;
   tags?: Tag[];
   frame: Frame;
@@ -30,7 +32,8 @@ interface ImageTileProps {
   root: HTMLElement | null;
   settingsKey: string;
   settings: ImageSettings;
-  onOpen: (index: number) => void;
+  /** A click; with ⌘ or Shift it selects rather than opens. */
+  onOpen: (index: number, e: React.MouseEvent) => void;
   onTrash: (index: number) => void;
   onChange: (key: string, change: ImageSettings) => void;
   onToggleFavorite: (index: number) => void;
@@ -72,6 +75,7 @@ export const ImageTile = memo(function ImageTile({
   reveal,
   order,
   marked = false,
+  selected = false,
   favorite,
   tags,
   frame,
@@ -141,7 +145,7 @@ export const ImageTile = memo(function ImageTile({
           top: header,
           boxShadow: shadow === "drop" ? "0 12px 24px -8px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.2)" : undefined,
           // Outlines are drawn outside the clipped box, so the ring isn't cut off.
-          outline: `3px solid ${marked ? "var(--primary)" : "transparent"}`,
+          outline: `3px solid ${marked || selected ? "var(--primary)" : "transparent"}`,
           outlineOffset: 3,
           opacity: dragging ? 0.35 : undefined,
           transition: "outline-color 0.6s ease-out, opacity 0.15s ease-out",
@@ -149,7 +153,8 @@ export const ImageTile = memo(function ImageTile({
       >
         <button
           className="block size-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          onClick={() => onOpen(box.index)}
+          data-tile
+          onClick={(e) => onOpen(box.index, e)}
           onPointerDown={(e) => onDragStart(box.index, e)}
           onKeyDown={(e) => {
             if (reorderable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
@@ -167,7 +172,8 @@ export const ImageTile = memo(function ImageTile({
             }
           }}
           aria-label={image.name}
-          title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit${reorderable ? "\nDra till en ny plats, eller Alt + pil vänster/höger" : ""}`}
+          aria-pressed={selected || undefined}
+          title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit\n⌘- eller Skift-klick: markera · Skift + dra: markera flera med en ruta${reorderable ? "\nDra till en ny plats, eller Alt + pil vänster/höger" : ""}`}
         >
           {url && (
             <img
@@ -235,6 +241,14 @@ export const ImageTile = memo(function ImageTile({
         >
           <Heart className={cn("size-4 drop-shadow", favorite && "fill-current")} />
         </button>
+        {selected && (
+          <span
+            className="pointer-events-none absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow"
+            aria-hidden
+          >
+            <Check className="size-4" strokeWidth={3} />
+          </span>
+        )}
       </div>
     </div>
   );

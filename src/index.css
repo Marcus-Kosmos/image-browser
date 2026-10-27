@@ -139,3 +139,38 @@ body.reordering * {
     transform: none !important;
   }
 }
+
+/* Dragging out a selection rectangle over the gallery. */
+body.selecting,
+body.selecting * {
+  user-select: none;
+}
+
+/* Thumbnail size slider: track and handle drawn from the text color, so they show on any background. */
+.size-slider {
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.size-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--foreground) 30%, transparent);
+}
+.size-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--foreground);
+  border: 2px solid var(--background);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+.size-slider:focus-visible {
+  outline: none;
+}
+.size-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--foreground) 35%, transparent);
+}
