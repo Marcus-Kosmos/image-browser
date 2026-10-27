@@ -11,6 +11,8 @@ import { TrashDialog } from "@/components/TrashDialog";
 import { Viewer } from "@/components/Viewer";
 import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import {
+  addToFavorites,
+  addToSeries,
   createSeries,
   deleteSeries,
   itemKey,
@@ -286,6 +288,23 @@ export default function App() {
     [changeLibrary, images],
   );
 
+  const onDropOnLibrary = useCallback(
+    (index: number, target: string) => {
+      const image = images[index];
+      if (!image) return;
+      const seriesId = target.startsWith("series:") ? target.slice("series:".length) : null;
+      const list = seriesId ? library.series.find((s) => s.id === seriesId) : null;
+      const name = list ? list.name : "Favoriter";
+      if ((list ? list.images : library.favorites).some((img) => img.path === image.path)) {
+        showToast(`${image.name} finns redan i ${name}.`);
+        return;
+      }
+      changeLibrary((lib) => (seriesId ? addToSeries(lib, seriesId, [image]) : addToFavorites(lib, [image])));
+      showToast(`${image.name} lades till i ${name}.`);
+    },
+    [images, library, changeLibrary, showToast],
+  );
+
   const onMoveImage = useCallback(
     (from: number, to: number) => {
       if (series) changeLibrary((lib) => moveInSeries(lib, series.id, from, to));
@@ -410,6 +429,7 @@ export default function App() {
               onToggleSeries={onToggleSeries}
               onEditHeading={(index, kind) => setHeadingEdit({ index, kind })}
               onMove={series ? onMoveImage : undefined}
+              onDropOnLibrary={onDropOnLibrary}
               highlight={highlight}
             />
           ) : (

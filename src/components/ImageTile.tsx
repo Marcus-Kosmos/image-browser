@@ -34,11 +34,12 @@ interface ImageTileProps {
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
   onEditHeading: (index: number, kind: HeadingKind) => void;
-  /** In a series, where the image can be dragged to a new place. */
+  /** In a series, where the image can be moved to a new place. */
   reorderable: boolean;
   /** This image is being dragged. */
   dragging: boolean;
-  onReorderStart: (index: number, e: React.PointerEvent) => void;
+  /** A press that may become a drag: to a new place in a series, or onto the sidebar. */
+  onDragStart: (index: number, e: React.PointerEvent) => void;
   onReorderKey: (index: number, step: -1 | 1) => void;
 }
 
@@ -84,7 +85,7 @@ export const ImageTile = memo(function ImageTile({
   onEditHeading,
   reorderable,
   dragging,
-  onReorderStart,
+  onDragStart,
   onReorderKey,
 }: ImageTileProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -143,7 +144,7 @@ export const ImageTile = memo(function ImageTile({
         <button
           className="block size-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           onClick={() => onOpen(box.index)}
-          onPointerDown={reorderable ? (e) => onReorderStart(box.index, e) : undefined}
+          onPointerDown={(e) => onDragStart(box.index, e)}
           onKeyDown={(e) => {
             if (reorderable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
               e.preventDefault();

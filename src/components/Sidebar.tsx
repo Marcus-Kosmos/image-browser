@@ -105,6 +105,7 @@ export function Sidebar({
           label="Favoriter"
           count={library.favorites.length}
           privacy={library.favoritesPrivacy}
+          dropTarget="favorites"
           actions={
             <RowMenu
               label="Favoriter"
@@ -157,6 +158,7 @@ export function Sidebar({
             label={s.name}
             count={s.images.length}
             privacy={s}
+            dropTarget={`series:${s.id}`}
             actions={
               <RowMenu
                 label={s.name}
@@ -210,12 +212,20 @@ interface ItemProps {
   title?: string;
   count?: number;
   privacy?: Privacy;
+  /** Lets images be dragged here from the gallery. */
+  dropTarget?: string;
   actions?: React.ReactNode;
 }
 
-function Item({ active, onClick, icon, label, title, count, privacy, actions }: ItemProps) {
+function Item({ active, onClick, icon, label, title, count, privacy, dropTarget, actions }: ItemProps) {
   return (
-    <div className={cn("group relative mx-2 flex items-center rounded-md", active ? "bg-accent" : "hover:bg-accent/60")}>
+    <div
+      data-drop-target={dropTarget}
+      className={cn(
+        "group relative mx-2 flex items-center rounded-md data-drop-active:bg-accent data-drop-active:ring-2 data-drop-active:ring-ring",
+        active ? "bg-accent" : "hover:bg-accent/60",
+      )}
+    >
       <button
         onClick={onClick}
         aria-current={active ? "page" : undefined}

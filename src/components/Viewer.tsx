@@ -85,6 +85,20 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavor
     return () => cancels.forEach((c) => c());
   }, [images, index]);
 
+  // The largest box with the picture's shape that fits, never larger than the picture itself.
+  const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  const [room, setRoom] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!stage) return;
+    const measure = () => setRoom({ width: stage.clientWidth, height: stage.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [stage]);
+  const scale = Math.min(room.width / image.width, room.height / image.height, 1);
+  const box = { width: Math.round(image.width * scale), height: Math.round(image.height * scale) };
+
   const favorite = isFavorite(image);
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
@@ -132,17 +146,6 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavor
           variant="ghost"
           size="icon-sm"
           className="text-white hover:bg-white/15 hover:text-white"
-          onClick={() => onToggleFavorite(index)}
-          aria-pressed={favorite}
-          title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
-          aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-        >
-          <Heart className={cn(favorite && "fill-current")} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-white hover:bg-white/15 hover:text-white"
           onClick={onClose}
           title="Stäng (Esc)"
           aria-label="Stäng"
@@ -151,10 +154,25 @@ export function Viewer({ images, index, onIndexChange, onClose, onTrash, isFavor
         </Button>
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6">
-        <div className="relative size-full">
-          {layers.map((layer, i) => (
-            <FadeImage key={layer.id} layer={layer} animate={i > 0} covered={i < layers.length - 1} />
-          ))}
+        <div ref={setStage} className="relative flex size-full items-center justify-center">
+          {/* Sized to the picture, so the heart sits on its corner whatever its shape. */}
+          <div className="relative shrink-0" style={{ width: box.width, height: box.height }}>
+            {layers.map((layer, i) => (
+              <FadeImage key={layer.id} layer={layer} animate={i > 0} covered={i < layers.length - 1} />
+            ))}
+            <button
+              onClick={() => onToggleFavorite(index)}
+              aria-pressed={favorite}
+              title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+              aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+              className={cn(
+                "absolute right-3 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                favorite ? "opacity-100" : "opacity-70 hover:opacity-100",
+              )}
+            >
+              <Heart className={cn("size-6 drop-shadow", favorite && "fill-current")} />
+            </button>
+          </div>
         </div>
         <NavButton side="left" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} />
         <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
@@ -192,7 +210,7 @@ function FadeImage({ layer, animate, covered }: { layer: Layer; animate: boolean
       src={layer.src}
       alt={layer.alt}
       draggable={false}
-      className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
+      className="absolute inset-0 size-full object-contain"
       style={{ opacity: visible && !covered ? 1 : 0, transition: `opacity ${FADE_MS}ms ease-out` }}
     />
   );

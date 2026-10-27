@@ -35,6 +35,8 @@ interface GalleryProps {
   onEditHeading: (index: number, kind: HeadingKind) => void;
   /** Given in a series: images can be dragged to a new place. `to` is the index to land before. */
   onMove?: (from: number, to: number) => void;
+  /** An image dropped on Favoriter or a series in the sidebar (rows marked with data-drop-target). */
+  onDropOnLibrary: (index: number, target: string) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
 }
@@ -62,6 +64,8 @@ interface DragState {
   thumb: string | null;
   /** Insertion line, in viewport coordinates. */
   bar: { left: number; top: number; height: number } | null;
+  /** Sidebar row under the pointer, e.g. "favorites" or "series:<id>". */
+  drop: string | null;
 }
 
 export function Gallery({
@@ -79,6 +83,7 @@ export function Gallery({
   onToggleSeries,
   onEditHeading,
   onMove,
+  onDropOnLibrary,
   highlight,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -206,16 +211,16 @@ export function Gallery({
     [root, pageHeight],
   );
 
-  // Dragging to reorder. Pointer events rather than HTML drag and drop, which the app window
+  // Dragging to reorder a series, or onto Favoriter or a series in the sidebar. Pointer events rather than HTML drag and drop, which the app window
   // reserves for files dropped from Finder.
   const [drag, setDrag] = useState<DragState | null>(null);
   const [settling, setSettling] = useState(false);
-  const live = useRef({ root, onMove, pagesMode, pageHeight });
-  live.current = { root, onMove, pagesMode, pageHeight };
+  const live = useRef({ root, onMove, onDropOnLibrary, pagesMode, pageHeight });
+  live.current = { root, onMove, onDropOnLibrary, pagesMode, pageHeight };
   const suppressClick = useRef(false);
 
   const startReorder = useCallback((from: number, start: React.PointerEvent) => {
-    if (!live.current.onMove || start.button !== 0) return;
+    if (start.button !== 0) return;
     const tile = (start.currentTarget as HTMLElement).closest<HTMLElement>("[data-index]");
     const thumb = tile?.querySelector("img")?.getAttribute("src") ?? null;
     let state: DragState | null = null;
@@ -223,18 +228,30 @@ export function Gallery({
     let frame = 0;
     let edgeSince = 0;
 
-    const target = (x: number, y: number, prev: DragState | null): Pick<DragState, "to" | "bar"> => {
-      const el = document
-        .elementsFromPoint(x, y)
+    let dropRow: HTMLElement | null = null;
+    const markDrop = (row: HTMLElement | null) => {
+      if (row === dropRow) return;
+      dropRow?.removeAttribute("data-drop-active");
+      row?.setAttribute("data-drop-active", "");
+      dropRow = row;
+    };
+
+    const target = (x: number, y: number, prev: DragState | null): Pick<DragState, "to" | "bar" | "drop"> => {
+      const under = document.elementsFromPoint(x, y);
+      const row = under.map((e) => e.closest<HTMLElement>("[data-drop-target]")).find(Boolean) ?? null;
+      markDrop(row);
+      if (row) return { to: from, bar: null, drop: row.dataset.dropTarget ?? null };
+      if (!live.current.onMove) return { to: from, bar: null, drop: null };
+      const el = under
         .map((e) => e.closest<HTMLElement>("[data-index]"))
         .find((e) => e && live.current.root?.contains(e));
-      if (!el) return prev ? { to: prev.to, bar: prev.bar } : { to: from, bar: null };
+      if (!el) return prev ? { to: prev.to, bar: prev.bar, drop: null } : { to: from, bar: null, drop: null };
       const index = Number(el.dataset.index);
       const rect = el.getBoundingClientRect();
       const before = x < rect.left + rect.width / 2;
       const to = before ? index : index + 1;
-      if (to === from || to === from + 1) return { to: from, bar: null };
-      return { to, bar: { left: (before ? rect.left : rect.right) + (before ? -GAP / 2 : GAP / 2), top: rect.top, height: rect.height } };
+      if (to === from || to === from + 1) return { to: from, bar: null, drop: null };
+      return { to, drop: null, bar: { left: (before ? rect.left : rect.right) + (before ? -GAP / 2 : GAP / 2), top: rect.top, height: rect.height } };
     };
 
     const update = () => {
@@ -243,12 +260,13 @@ export function Gallery({
       setDrag(state);
     };
 
-    // Scrolls while the pointer is held near the top or bottom edge.
+    // Scrolls while the pointer is held near the top or bottom edge of the gallery.
     const tick = (time: number) => {
       const r = live.current.root;
       if (!state || !r) return;
       const rect = r.getBoundingClientRect();
-      const dir = pointer.y < rect.top + EDGE ? -1 : pointer.y > rect.bottom - EDGE ? 1 : 0;
+      const inside = pointer.x >= rect.left && pointer.x <= rect.right;
+      const dir = !inside ? 0 : pointer.y < rect.top + EDGE ? -1 : pointer.y > rect.bottom - EDGE ? 1 : 0;
       if (dir === 0) edgeSince = 0;
       else if (live.current.pagesMode) {
         if (!edgeSince) edgeSince = time;
@@ -272,14 +290,16 @@ export function Gallery({
       window.removeEventListener("keydown", onKey, true);
       cancelAnimationFrame(frame);
       document.body.classList.remove("reordering");
+      markDrop(null);
       if (!state) return;
       // The press ended a drag, so the click that follows must not open the viewer.
       suppressClick.current = true;
       setTimeout(() => (suppressClick.current = false), 0);
-      const { to } = state;
+      const { to, drop } = state;
       state = null;
       setDrag(null);
-      if (commit && to !== from && to !== from + 1) {
+      if (commit && drop) live.current.onDropOnLibrary(from, drop);
+      else if (commit && to !== from && to !== from + 1) {
         setSettling(true);
         setTimeout(() => setSettling(false), 400);
         live.current.onMove?.(from, to);
@@ -291,7 +311,7 @@ export function Gallery({
       pointer = { x: e.clientX, y: e.clientY };
       if (!state) {
         if (Math.hypot(e.clientX - start.clientX, e.clientY - start.clientY) < DRAG_THRESHOLD) return;
-        state = { from, to: from, ...pointer, thumb, bar: null };
+        state = { from, to: from, ...pointer, thumb, bar: null, drop: null };
         document.body.classList.add("reordering");
         frame = requestAnimationFrame(tick);
       }
@@ -345,7 +365,7 @@ export function Gallery({
         onEditHeading={onEditHeading}
         reorderable={!!onMove}
         dragging={drag?.from === box.index}
-        onReorderStart={startReorder}
+        onDragStart={startReorder}
         onReorderKey={reorderByKey}
       />
     );
@@ -440,7 +460,7 @@ export function Gallery({
         <img
           src={drag.thumb}
           alt=""
-          className="pointer-events-none fixed z-50 w-28 -translate-x-1/2 -translate-y-1/2 rotate-2 rounded-sm opacity-90 shadow-xl ring-1 ring-black/10"
+          className="pointer-events-none fixed z-50 w-28 translate-x-3 translate-y-3 rotate-2 rounded-sm opacity-90 shadow-xl ring-1 ring-black/10"
           style={{ left: drag.x, top: drag.y }}
           aria-hidden
         />

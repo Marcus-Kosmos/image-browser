@@ -27,7 +27,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 
 ## Funktioner (steg 3)
 
-- Favoriter: klicka på hjärtat på en bild, eller tryck F, i kartan eller i helskärm
+- Favoriter: klicka på hjärtat på en bild, eller tryck F, i kartan eller i helskärm (där sitter hjärtat
+  i bildens nedre högra hörn)
+- Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
   lägg till eller ta bort bilder via bildens inställningar; byt namn eller ta bort serien i panelen
