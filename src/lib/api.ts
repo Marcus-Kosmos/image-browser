@@ -1,0 +1,78 @@
+import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+
+export interface ImageEntry {
+  path: string;
+  name: string;
+  width: number;
+  height: number;
+  size: number;
+  modified: number;
+}
+
+export interface FolderListing {
+  path: string;
+  images: ImageEntry[];
+  subfolders: string[];
+}
+
+/** Outside Tauri (plain `npm run dev` in a browser) the app runs against generated demo images. */
+const demo = !isTauri();
+
+export async function pickFolder(): Promise<string | null> {
+  if (demo) return "/Demo/Bilder";
+  const result = await open({ directory: true, multiple: false, title: "Välj bildmapp" });
+  return typeof result === "string" ? result : null;
+}
+
+export async function scanFolder(path: string): Promise<FolderListing> {
+  if (demo) return demoListing(path);
+  return invoke<FolderListing>("scan_folder", { path });
+}
+
+/** Returns a URL the webview can load for a thumbnail with the given longest side. */
+export async function thumbnailUrl(image: ImageEntry, size: number): Promise<string> {
+  if (demo) return demoImage(image);
+  const file = await invoke<string>("thumbnail", { path: image.path, size });
+  return convertFileSrc(file);
+}
+
+export async function trashFile(path: string): Promise<void> {
+  if (demo) {
+    demoTrashed.add(path);
+    return;
+  }
+  await invoke("trash_file", { path });
+}
+
+const demoTrashed = new Set<string>();
+const demoRatios = [1.5, 0.667, 1, 1.778, 0.75, 1.333, 2.4, 0.8, 1.5, 1.5, 0.667, 1.25];
+
+function demoListing(path: string): FolderListing {
+  const images: ImageEntry[] = Array.from({ length: 64 }, (_, i) => {
+    const ratio = demoRatios[i % demoRatios.length];
+    return {
+      path: `${path}/IMG_${String(i + 1).padStart(4, "0")}.jpg`,
+      name: `IMG_${String(i + 1).padStart(4, "0")}.jpg`,
+      width: Math.round(ratio * 1000),
+      height: 1000,
+      size: 2_000_000 + i * 37_000,
+      modified: 1_760_000_000 + i * 3600,
+    };
+  }).filter((img) => !demoTrashed.has(img.path));
+  const subfolders = path === "/Demo/Bilder" ? ["/Demo/Bilder/Resa 2025", "/Demo/Bilder/Studio"] : [];
+  return { path, images, subfolders };
+}
+
+function demoImage(image: ImageEntry): string {
+  const hue = (parseInt(image.name.replace(/\D/g, ""), 10) * 47) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="hsl(${hue} 45% 62%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 38%)"/>
+    </linearGradient></defs>
+    <rect width="100%" height="100%" fill="url(#g)"/>
+    <circle cx="${image.width * 0.7}" cy="${image.height * 0.32}" r="${Math.min(image.width, image.height) * 0.12}" fill="hsl(${hue} 60% 85%)" opacity="0.8"/>
+    <path d="M0 ${image.height} L${image.width * 0.35} ${image.height * 0.55} L${image.width * 0.6} ${image.height * 0.8} L${image.width * 0.8} ${image.height * 0.6} L${image.width} ${image.height} Z" fill="hsl(${hue} 30% 22%)" opacity="0.7"/>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
