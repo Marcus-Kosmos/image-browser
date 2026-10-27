@@ -2,24 +2,30 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Gallery } from "@/components/Gallery";
 import { HeadingDialog, type HeadingKind } from "@/components/HeadingDialog";
+import { LockedState } from "@/components/LockedState";
 import { Sidebar } from "@/components/Sidebar";
 import { SubfolderBar } from "@/components/SubfolderBar";
 import { Toast, type ToastMessage } from "@/components/Toast";
 import { Toolbar, ROW_HEIGHT_MAX, ROW_HEIGHT_MIN } from "@/components/Toolbar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { Viewer } from "@/components/Viewer";
-import { pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
+import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
 import {
   createSeries,
   deleteSeries,
+  itemKey,
   moveInSeries,
+  privacyOf,
   removeImage,
   renameSeries,
+  setPrivacy,
   toggleFavorite,
   toggleInSeries,
   uniqueSeriesName,
   useLibrary,
+  type LibraryItem,
   type LibraryView,
+  type Privacy,
 } from "@/lib/library";
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
 import { useBackgroundTheme } from "@/lib/theme";
@@ -71,17 +77,25 @@ export default function App() {
   const { library, change: changeLibrary } = useLibrary();
   const [view, setView] = useState<LibraryView>(() => {
     try {
-      return JSON.parse(readStored(STORAGE_VIEW) ?? "") as LibraryView;
+      const stored = JSON.parse(readStored(STORAGE_VIEW) ?? "") as LibraryView;
+      // Something hidden or locked is never what the app opens with.
+      const { hidden, locked } = privacyOf(library, stored);
+      return hidden || locked ? { kind: "folders" } : stored;
     } catch {
       return { kind: "folders" };
     }
   });
+  // Hidden series and favorites are listed only after "Visa dolda", until the app restarts.
+  const [showHidden, setShowHidden] = useState(false);
+  // The locked series (or favorites) opened with Touch ID; it locks again when left.
+  const [unlocked, setUnlocked] = useState<string | null>(null);
   // A series just created, whose name the sidebar should open for editing.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const folders = listing?.folders ?? [];
   const multiple = folders.length > 1;
   const series = view.kind === "series" ? library.series.find((s) => s.id === view.id) : undefined;
   const inFolders = view.kind === "folders";
+  const locked = !!privacyOf(library, view).locked && unlocked !== itemKey(view);
   const viewKey = inFolders
     ? folders.join("\n")
     : view.kind === "favorites"
@@ -100,6 +114,7 @@ export default function App() {
   );
 
   const selectView = useCallback((next: LibraryView) => {
+    setUnlocked((key) => (key === itemKey(next) ? key : null));
     setView(next);
     setViewerIndex(null);
     store(STORAGE_VIEW, JSON.stringify(next));
@@ -112,6 +127,53 @@ export default function App() {
 
   const showToast = useCallback((text: string, tone: ToastMessage["tone"] = "success") => {
     setToast({ id: Date.now(), text, tone });
+  }, []);
+
+  const itemName = useCallback(
+    (item: LibraryView) =>
+      item.kind === "series" ? (library.series.find((s) => s.id === item.id)?.name ?? "serien") : "Favoriter",
+    [library.series],
+  );
+
+  /** Asks for Touch ID or the password; true when the owner confirmed. */
+  const askOwner = useCallback(
+    async (reason: string) => {
+      try {
+        return await confirmOwner(reason);
+      } catch (err) {
+        showToast(typeof err === "string" ? err : "Kunde inte fråga efter Touch ID.", "error");
+        return false;
+      }
+    },
+    [showToast],
+  );
+
+  const unlock = useCallback(
+    async (item: LibraryView) => {
+      if (await askOwner(`låsa upp ${itemName(item)}`)) setUnlocked(itemKey(item));
+    },
+    [askOwner, itemName],
+  );
+
+  const openView = (next: LibraryView) => {
+    selectView(next);
+    if (privacyOf(library, next).locked && unlocked !== itemKey(next)) void unlock(next);
+  };
+
+  const changePrivacy = async (item: LibraryItem, change: Privacy) => {
+    // Anyone could take a lock off otherwise.
+    if (change.locked === false && !(await askOwner(`ta bort låset på ${itemName(item)}`))) return;
+    changeLibrary((lib) => setPrivacy(lib, item, change));
+    if (change.locked) setUnlocked((key) => (key === itemKey(item) ? null : key));
+  };
+
+  // Lock again when the app goes to the background or is minimized.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) setUnlocked(null);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   const loadFolders = useCallback(
@@ -192,8 +254,19 @@ export default function App() {
   }, [openFolders, refresh, parent, inFolders, viewerIndex, loadFolders]);
 
   const images = useMemo(
-    () => (view.kind === "favorites" ? library.favorites : series ? series.images : (listing?.images ?? [])),
-    [view.kind, library.favorites, series, listing],
+    () =>
+      locked
+        ? []
+        : view.kind === "favorites"
+          ? library.favorites
+          : series
+            ? series.images
+            : (listing?.images ?? []),
+    [locked, view.kind, library.favorites, series, listing],
+  );
+  const listedSeries = useMemo(
+    () => (showHidden ? library.series : library.series.filter((s) => !s.hidden)),
+    [showHidden, library.series],
   );
   const favoritePaths = useMemo(() => new Set(library.favorites.map((img) => img.path)), [library.favorites]);
 
@@ -304,7 +377,7 @@ export default function App() {
             folders={folders}
             library={library}
             view={view}
-            onSelect={selectView}
+            onSelect={openView}
             onOpenFolder={() => void openFolders()}
             onNewSeries={newSeries}
             canCreateSeries={images.length > 0}
@@ -312,11 +385,16 @@ export default function App() {
             onDelete={removeSeries}
             renamingId={renamingId}
             onRenamingDone={() => setRenamingId(null)}
+            showHidden={showHidden}
+            onToggleShowHidden={() => setShowHidden(!showHidden)}
+            onSetPrivacy={(item, change) => void changePrivacy(item, change)}
           />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
           {listing && inFolders && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />}
-          {images.length > 0 ? (
+          {locked ? (
+            <LockedState name={itemName(view)} onUnlock={() => void unlock(view)} />
+          ) : images.length > 0 ? (
             <Gallery
               viewKey={viewKey}
               images={images}
@@ -327,7 +405,7 @@ export default function App() {
               onTrash={setTrashIndex}
               onChangeImage={updateImage}
               favorites={favoritePaths}
-              series={library.series}
+              series={listedSeries}
               onToggleFavorite={onToggleFavorite}
               onToggleSeries={onToggleSeries}
               onEditHeading={(index, kind) => setHeadingEdit({ index, kind })}

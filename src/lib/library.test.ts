@@ -5,6 +5,8 @@ import {
   createSeries,
   deleteSeries,
   moveInSeries,
+  privacyOf,
+  setPrivacy,
   removeImage,
   renameSeries,
   toggleFavorite,
@@ -60,6 +62,17 @@ describe("library", () => {
     expect(order(moveInSeries(lib, "s1", 2, 0))).toEqual([c.path, a.path, b.path]);
     expect(moveInSeries(lib, "s1", 1, 1).series[0]).toBe(lib.series[0]);
     expect(order(moveInSeries(lib, "s1", 1, 2))).toEqual([a.path, b.path, c.path]);
+  });
+
+  it("hides and locks the favorites or a series, and keeps that when an image is trashed", () => {
+    let lib = createSeries(toggleFavorite(EMPTY_LIBRARY, a), "s1", "Resa", [a, b]);
+    lib = setPrivacy(lib, { kind: "series", id: "s1" }, { hidden: true });
+    lib = setPrivacy(lib, { kind: "series", id: "s1" }, { locked: true });
+    lib = setPrivacy(lib, { kind: "favorites" }, { locked: true });
+    lib = removeImage(lib, a.path);
+    expect(privacyOf(lib, { kind: "series", id: "s1" })).toMatchObject({ hidden: true, locked: true });
+    expect(privacyOf(lib, { kind: "favorites" })).toEqual({ locked: true });
+    expect(privacyOf(lib, { kind: "folders" })).toEqual({});
   });
 
   it("numbers new series names that are already taken", () => {

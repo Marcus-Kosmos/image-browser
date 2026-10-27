@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Folder, FolderOpen, GalleryHorizontalEnd, Heart, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Ellipsis,
+  Eye,
+  EyeOff,
+  Folder,
+  FolderOpen,
+  GalleryHorizontalEnd,
+  Heart,
+  Lock,
+  LockOpen,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import type { Library, LibraryView, Series } from "@/lib/library";
+import type { Library, LibraryItem, LibraryView, Privacy, Series } from "@/lib/library";
 import { cn, folderName } from "@/lib/utils";
 
 interface SidebarProps {
@@ -19,6 +32,10 @@ interface SidebarProps {
   /** A series that was just created and should start with its name being edited. */
   renamingId: string | null;
   onRenamingDone: () => void;
+  /** Whether hidden series (and hidden favorites) are listed. */
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
+  onSetPrivacy: (item: LibraryItem, change: Privacy) => void;
 }
 
 export function Sidebar({
@@ -33,6 +50,9 @@ export function Sidebar({
   onDelete,
   renamingId,
   onRenamingDone,
+  showHidden,
+  onToggleShowHidden,
+  onSetPrivacy,
 }: SidebarProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Series | null>(null);
@@ -40,6 +60,8 @@ export function Sidebar({
   useEffect(() => {
     if (renamingId) setEditing(renamingId);
   }, [renamingId]);
+
+  const visibleSeries = showHidden ? library.series : library.series.filter((s) => !s.hidden);
 
   const stopEditing = () => {
     setEditing(null);
@@ -61,14 +83,37 @@ export function Sidebar({
         <Item active={false} onClick={onOpenFolder} icon={<FolderOpen />} label="Öppna mapp" />
       )}
 
-      <SectionTitle className="mt-4">Bibliotek</SectionTitle>
-      <Item
-        active={view.kind === "favorites"}
-        onClick={() => onSelect({ kind: "favorites" })}
-        icon={<Heart />}
-        label="Favoriter"
-        count={library.favorites.length}
-      />
+      <div className="mt-4 flex items-center justify-between pr-2">
+        <SectionTitle className="mb-0">Bibliotek</SectionTitle>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          onClick={onToggleShowHidden}
+          aria-pressed={showHidden}
+          title={showHidden ? "Göm det dolda igen" : "Visa dolda"}
+          aria-label="Visa dolda"
+        >
+          {showHidden ? <Eye /> : <EyeOff />}
+        </Button>
+      </div>
+      {(showHidden || !library.favoritesPrivacy?.hidden) && (
+        <Item
+          active={view.kind === "favorites"}
+          onClick={() => onSelect({ kind: "favorites" })}
+          icon={<Heart />}
+          label="Favoriter"
+          count={library.favorites.length}
+          privacy={library.favoritesPrivacy}
+          actions={
+            <RowMenu
+              label="Favoriter"
+              privacy={library.favoritesPrivacy ?? {}}
+              onPrivacy={(change) => onSetPrivacy({ kind: "favorites" }, change)}
+            />
+          }
+        />
+      )}
 
       <div className="mt-4 flex items-center justify-between pr-2">
         <SectionTitle className="mb-0">Serier</SectionTitle>
@@ -84,12 +129,15 @@ export function Sidebar({
           <Plus />
         </Button>
       </div>
+      {visibleSeries.length < library.series.length && visibleSeries.length === 0 && (
+        <p className="px-4 py-1 text-xs text-muted-foreground">Alla serier är dolda.</p>
+      )}
       {library.series.length === 0 && (
         <p className="px-4 py-1 text-xs text-muted-foreground">
           Spara det som visas som en serie med plus-knappen, eller lägg till bilder via bildens inställningar.
         </p>
       )}
-      {library.series.map((s) =>
+      {visibleSeries.map((s) =>
         editing === s.id ? (
           <RenameField
             key={s.id}
@@ -108,20 +156,15 @@ export function Sidebar({
             icon={<GalleryHorizontalEnd />}
             label={s.name}
             count={s.images.length}
+            privacy={s}
             actions={
-              <>
-                <RowAction label={`Byt namn på ${s.name}`} title="Byt namn" onClick={() => setEditing(s.id)}>
-                  <Pencil />
-                </RowAction>
-                <RowAction
-                  label={`Ta bort ${s.name}`}
-                  title="Ta bort serien"
-                  onClick={() => setDeleting(s)}
-                  className="hover:text-destructive"
-                >
-                  <Trash2 />
-                </RowAction>
-              </>
+              <RowMenu
+                label={s.name}
+                privacy={s}
+                onPrivacy={(change) => onSetPrivacy({ kind: "series", id: s.id }, change)}
+                onRename={() => setEditing(s.id)}
+                onDelete={() => setDeleting(s)}
+              />
             }
           />
         ),
@@ -166,10 +209,11 @@ interface ItemProps {
   label: string;
   title?: string;
   count?: number;
+  privacy?: Privacy;
   actions?: React.ReactNode;
 }
 
-function Item({ active, onClick, icon, label, title, count, actions }: ItemProps) {
+function Item({ active, onClick, icon, label, title, count, privacy, actions }: ItemProps) {
   return (
     <div className={cn("group relative mx-2 flex items-center rounded-md", active ? "bg-accent" : "hover:bg-accent/60")}>
       <button
@@ -180,38 +224,144 @@ function Item({ active, onClick, icon, label, title, count, actions }: ItemProps
       >
         {icon}
         <span className={cn("truncate", active && "font-medium")}>{label}</span>
+        {privacy?.hidden && <EyeOff className="!size-3" aria-label="Dold" />}
+        {privacy?.locked && <Lock className="!size-3" aria-label="Låst" />}
         {count !== undefined && (
-          <span className={cn("ml-auto pr-1 text-xs text-muted-foreground tabular-nums", actions && "group-hover:invisible group-focus-within:invisible")}>
+          <span
+            className={cn(
+              "ml-auto pr-1 text-xs text-muted-foreground tabular-nums",
+              actions && "group-hover:invisible group-focus-within:invisible group-has-[[aria-expanded=true]]:invisible",
+            )}
+          >
             {count}
           </span>
         )}
       </button>
       {actions && (
-        <div className="absolute right-1 flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">{actions}</div>
+        <div className="absolute right-1 flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100">
+          {actions}
+        </div>
       )}
     </div>
   );
 }
 
-interface RowActionProps {
+interface RowMenuProps {
   label: string;
-  title: string;
+  privacy: Privacy;
+  onPrivacy: (change: Privacy) => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+}
+
+/** The ⋯ menu on a library row: rename, hide, lock and delete. */
+function RowMenu({ label, privacy, onPrivacy, onRename, onDelete }: RowMenuProps) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    root.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = [...(root.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+        const at = items.indexOf(document.activeElement as HTMLElement);
+        items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  const choose = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        ref={trigger}
+        onClick={() => setOpen(!open)}
+        title="Fler val"
+        aria-label={`Fler val för ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:size-3.5"
+      >
+        <Ellipsis />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={label}
+          className="absolute top-7 right-0 z-50 w-52 rounded-lg border bg-popover p-1 text-sm text-foreground shadow-lg"
+        >
+          {onRename && (
+            <MenuItem icon={<Pencil />} onClick={choose(onRename)}>
+              Byt namn
+            </MenuItem>
+          )}
+          <MenuItem
+            icon={privacy.hidden ? <Eye /> : <EyeOff />}
+            onClick={choose(() => onPrivacy({ hidden: !privacy.hidden }))}
+          >
+            {privacy.hidden ? "Sluta dölja" : "Dölj"}
+          </MenuItem>
+          <MenuItem
+            icon={privacy.locked ? <LockOpen /> : <Lock />}
+            onClick={choose(() => onPrivacy({ locked: !privacy.locked }))}
+          >
+            {privacy.locked ? "Ta bort låset" : "Lås med Touch ID"}
+          </MenuItem>
+          {onDelete && (
+            <>
+              <div className="my-1 h-px bg-border" role="separator" />
+              <MenuItem icon={<Trash2 />} onClick={choose(onDelete)} className="text-destructive">
+                Ta bort serien
+              </MenuItem>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  onClick,
+  className,
+  children,
+}: {
+  icon: React.ReactNode;
   onClick: () => void;
   className?: string;
   children: React.ReactNode;
-}
-
-function RowAction({ label, title, onClick, className, children }: RowActionProps) {
+}) {
   return (
     <button
+      role="menuitem"
       onClick={onClick}
-      title={title}
-      aria-label={label}
       className={cn(
-        "flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:size-3.5",
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-4 [&_svg]:shrink-0",
         className,
       )}
     >
+      {icon}
       {children}
     </button>
   );

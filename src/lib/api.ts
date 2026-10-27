@@ -52,6 +52,15 @@ export async function trashFile(path: string): Promise<void> {
   await invoke("trash_file", { path });
 }
 
+/**
+ * Asks for Touch ID, or the Mac's password, before something locked is shown.
+ * Resolves false when the person cancels; rejects when the Mac can't ask.
+ */
+export async function confirmOwner(reason: string): Promise<boolean> {
+  if (demo) return new Promise((resolve) => setTimeout(() => resolve(true), 300));
+  return invoke<boolean>("confirm_owner", { reason });
+}
+
 let fonts: Promise<string[]> | null = null;
 
 /** Font families installed on the computer, for headings. Read once per session. */
