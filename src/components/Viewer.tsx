@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, Info, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Heart, Info, Pin, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ImageEntry } from "@/lib/api";
+import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Shadow } from "@/lib/settings";
 import { resolveTransition, useViewerSettings, type ViewerEffect } from "@/lib/viewer";
@@ -31,6 +31,9 @@ interface ViewerProps {
   /** The folder's frame and shadow, drawn when the viewer is set to show them. */
   frame: Frame;
   shadow: Shadow;
+  /** Images kept in the top left corner while stepping on. */
+  pinned: ImageEntry[];
+  onPinnedChange: (pinned: ImageEntry[]) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -66,6 +69,24 @@ const DURATION: Record<ViewerEffect, number> = {
   parallax: 750,
 };
 const LONGEST = 800;
+
+/** Size of a pinned preview, and the gap between them. */
+const PIN_W = 120;
+const PIN_H = 90;
+const PIN_GAP = 8;
+/** Pinned previews fill at most this many columns. */
+const PIN_COLUMNS = 2;
+
+interface Zoom {
+  /** 1 shows the whole picture. */
+  scale: number;
+  /** Offset of the picture's center from the stage's, in screen pixels. */
+  x: number;
+  y: number;
+}
+const WHOLE: Zoom = { scale: 1, x: 0, y: 0 };
+/** Clicks from the whole picture to the closest zoom. */
+const ZOOM_STEPS = 3;
 
 /** Where an image starts before it comes in. */
 function enterStyle(effect: ViewerEffect, dir: 1 | -1): React.CSSProperties {
@@ -132,6 +153,8 @@ export function Viewer({
   onShowShortcuts,
   frame: folderFrame,
   shadow: folderShadow,
+  pinned,
+  onPinnedChange,
   paused,
 }: ViewerProps) {
   const { settings: look, update: updateLook } = useViewerSettings();
@@ -224,6 +247,133 @@ export function Viewer({
   const box = fit(room, image.width, image.height, frame);
   const top = layers[layers.length - 1];
 
+  // Zoom: each click magnifies where it points, three clicks reach the closest view.
+  const [zoom, setZoom] = useState<Zoom>(WHOLE);
+  const [panning, setPanning] = useState(false);
+  useEffect(() => setZoom(WHOLE), [image]);
+  // At least 3×, more for a picture with pixels to spare, so the last step shows them one to one.
+  const maxScale = Math.min(12, Math.max(3, image.width / Math.max(1, box.picture.width)));
+  const levels = Array.from({ length: ZOOM_STEPS + 1 }, (_, k) => maxScale ** (k / ZOOM_STEPS));
+  const zoomed = zoom.scale > 1.001;
+  const atMax = zoom.scale >= maxScale - 0.001;
+
+  /** Keeps the picture covering the stage, so it can't be dragged off screen. */
+  const clamp = useCallback(
+    (z: Zoom): Zoom => {
+      const limitX = Math.max(0, (box.width * z.scale - room.width) / 2);
+      const limitY = Math.max(0, (box.height * z.scale - room.height) / 2);
+      return {
+        scale: z.scale,
+        x: Math.max(-limitX, Math.min(limitX, z.x)),
+        y: Math.max(-limitY, Math.min(limitY, z.y)),
+      };
+    },
+    [box.width, box.height, room.width, room.height],
+  );
+
+  /** Zooms to `scale`, keeping the point `px, py` (from the stage's center) where it is. */
+  const zoomTo = useCallback(
+    (scale: number, px = 0, py = 0) =>
+      setZoom((z) => {
+        if (scale <= 1.001) return WHOLE;
+        const qx = (px - z.x) / z.scale;
+        const qy = (py - z.y) / z.scale;
+        return clamp({ scale, x: px - qx * scale, y: py - qy * scale });
+      }),
+    [clamp],
+  );
+  const stepZoom = useCallback(
+    (dir: 1 | -1, px = 0, py = 0) => {
+      const next =
+        dir > 0
+          ? (levels.find((l) => l > zoom.scale + 0.001) ?? maxScale)
+          : ([...levels].reverse().find((l) => l < zoom.scale - 0.001) ?? 1);
+      zoomTo(next, px, py);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zoom.scale, maxScale, zoomTo],
+  );
+
+  // The file itself once zoomed in, as the largest thumbnail runs out of detail.
+  const [original, setOriginal] = useState<{ path: string; src: string } | null>(null);
+  useEffect(() => {
+    if (!zoomed || original?.path === image.path) return;
+    let cancelled = false;
+    const src = originalUrl(image);
+    const img = new Image();
+    img.src = src;
+    img
+      .decode()
+      .then(() => !cancelled && setOriginal({ path: image.path, src }))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [zoomed, image, original?.path]);
+
+  // A press either drags the zoomed picture around or, without moving, is a zoom click.
+  const press = useRef<{ x: number; y: number; from: Zoom; moved: boolean } | null>(null);
+  const onStageDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu]")) return;
+    press.current = { x: e.clientX, y: e.clientY, from: zoom, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onStageMove = (e: React.PointerEvent) => {
+    const p = press.current;
+    if (!p || !zoomed) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    if (!p.moved && Math.hypot(dx, dy) < 4) return;
+    p.moved = true;
+    setPanning(true);
+    setZoom(clamp({ ...p.from, x: p.from.x + dx, y: p.from.y + dy }));
+  };
+  const onStageUp = (e: React.PointerEvent) => {
+    const p = press.current;
+    press.current = null;
+    setPanning(false);
+    if (!p || p.moved || !stage) return;
+    const rect = stage.getBoundingClientRect();
+    const px = e.clientX - rect.left - rect.width / 2;
+    const py = e.clientY - rect.top - rect.height / 2;
+    if (e.altKey) stepZoom(-1, px, py);
+    else if (atMax) zoomTo(1);
+    else stepZoom(1, px, py);
+  };
+
+  // Scrolling or swiping moves around a zoomed picture.
+  useEffect(() => {
+    if (!stage || !zoomed) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => clamp({ ...z, x: z.x - e.deltaX, y: z.y - e.deltaY }));
+    };
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel);
+  }, [stage, zoomed, clamp]);
+
+  // Pinned previews fill a column down the left, then a second one beside it.
+  const [area, setArea] = useState<HTMLDivElement | null>(null);
+  const [areaHeight, setAreaHeight] = useState(0);
+  useEffect(() => {
+    if (!area) return;
+    const measure = () => setAreaHeight(area.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [area]);
+  const pinRows = Math.max(1, Math.floor((areaHeight - 24 + PIN_GAP) / (PIN_H + PIN_GAP)));
+  const pinCapacity = pinRows * PIN_COLUMNS;
+  const pinColumns = Math.min(PIN_COLUMNS, Math.ceil(pinned.length / pinRows));
+  const pinsWidth = pinColumns ? 16 + pinColumns * (PIN_W + PIN_GAP) : 0;
+  const isPinned = pinned.some((p) => p.path === image.path);
+  const pinsFull = !isPinned && pinned.length >= pinCapacity;
+  const togglePin = useCallback(() => {
+    if (pinned.some((p) => p.path === image.path)) onPinnedChange(pinned.filter((p) => p.path !== image.path));
+    else if (pinned.length < pinCapacity) onPinnedChange([...pinned, image]);
+  }, [pinned, image, pinCapacity, onPinnedChange]);
+
   const favorite = isFavorite(image);
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
@@ -234,7 +384,13 @@ export function Viewer({
       // Typing a series name must not trash or step.
       if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
       const digit = Number(e.key);
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (zoomed) setZoom(WHOLE);
+        else onClose();
+      } else if (e.key === "+" || e.key === "=") stepZoom(1);
+      else if (e.key === "-") stepZoom(-1);
+      else if (e.key === "0") setZoom(WHOLE);
+      else if (e.key === "p") togglePin();
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length) onToggleSeries(series[digit - 1].id, index);
       else if (e.key === "s") setPicking((p) => !p);
       else if (e.key === "ArrowLeft" && hasPrev) onIndexChange(index - 1);
@@ -246,7 +402,7 @@ export function Viewer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash, onToggleFavorite, series, onToggleSeries]);
+  }, [paused, index, hasPrev, hasNext, onClose, onIndexChange, onTrash, onToggleFavorite, series, onToggleSeries, zoomed, stepZoom, togglePin]);
 
   return (
     <div
@@ -305,21 +461,83 @@ export function Viewer({
           <X />
         </Button>
       </div>
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6">
-        <div ref={setStage} className="relative flex size-full items-center justify-center">
+      <div
+        ref={setArea}
+        className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6"
+        style={{ paddingLeft: pinsWidth ? pinsWidth + 48 : undefined }}
+      >
+        {pinned.length > 0 && (
+          <div
+            className="absolute top-0 left-4 flex flex-col flex-wrap content-start"
+            style={{ gap: PIN_GAP, height: pinRows * (PIN_H + PIN_GAP) - PIN_GAP }}
+            aria-label="Fästa bilder"
+          >
+            {pinned.map((p) => (
+              <PinnedPreview
+                key={p.path}
+                image={p}
+                current={p.path === image.path}
+                onOpen={() => {
+                  const i = images.findIndex((img) => img.path === p.path);
+                  if (i >= 0) onIndexChange(i);
+                }}
+                onUnpin={() => onPinnedChange(pinned.filter((q) => q.path !== p.path))}
+              />
+            ))}
+          </div>
+        )}
+        <div
+          ref={setStage}
+          className="relative flex size-full touch-none items-center justify-center overflow-hidden"
+          style={{ cursor: panning ? "grabbing" : atMax ? "zoom-out" : "zoom-in" }}
+          onPointerDown={onStageDown}
+          onPointerMove={onStageMove}
+          onPointerUp={onStageUp}
+          onPointerCancel={() => {
+            press.current = null;
+            setPanning(false);
+          }}
+        >
           {layers.map((layer, i) => (
             <LayerView
               key={layer.id}
-              layer={layer}
+              layer={original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer}
               box={fit(room, layer.width, layer.height, frame)}
               frame={frame}
               shadow={shadow}
               animate={i > 0}
               exit={i < layers.length - 1 ? top : undefined}
+              zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
+              panning={panning}
             />
           ))}
-          {/* Sized to the picture, so the heart sits on its corner whatever its shape. */}
-          <div className="pointer-events-none relative shrink-0 *:pointer-events-auto" style={{ width: box.width, height: box.height }}>
+          {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
+          <div
+            className={cn(
+              "pointer-events-none relative shrink-0 transition-opacity",
+              zoomed ? "opacity-0" : "*:pointer-events-auto",
+            )}
+            style={{ width: box.width, height: box.height }}
+          >
+            <button
+              onClick={togglePin}
+              disabled={pinsFull}
+              aria-pressed={isPinned}
+              title={
+                isPinned
+                  ? "Lossa från hörnet (P)"
+                  : pinsFull
+                    ? "Det får inte plats fler fästa bilder"
+                    : "Fäst i hörnet medan du bläddrar vidare (P)"
+              }
+              aria-label={isPinned ? "Lossa från hörnet" : "Fäst i hörnet"}
+              className={cn(
+                "absolute right-29 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-30",
+                isPinned ? "opacity-100" : "opacity-70 hover:opacity-100",
+              )}
+            >
+              <Pin className={cn("size-6 drop-shadow", isPinned && "fill-current")} />
+            </button>
             <button
               onClick={() => onToggleFavorite(index)}
               aria-pressed={favorite}
@@ -343,20 +561,33 @@ export function Viewer({
             />
           </div>
         </div>
-        <NavButton side="left" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} />
+        <NavButton
+          side="left"
+          disabled={!hasPrev}
+          onClick={() => onIndexChange(index - 1)}
+          style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
+        />
         <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
       </div>
     </div>
   );
 }
 
-function NavButton({ side, disabled, onClick }: { side: "left" | "right"; disabled: boolean; onClick: () => void }) {
+interface NavButtonProps {
+  side: "left" | "right";
+  disabled: boolean;
+  onClick: () => void;
+  style?: React.CSSProperties;
+}
+
+function NavButton({ side, disabled, onClick, style }: NavButtonProps) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   const label = side === "left" ? "Föregående bild (←)" : "Nästa bild (→)";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      style={style}
       title={label}
       aria-label={label}
       className={`absolute top-1/2 ${side === "left" ? "left-2" : "right-2"} flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
@@ -375,10 +606,13 @@ interface LayerViewProps {
   animate: boolean;
   /** The layer that now covers this one, whose effect decides how this one goes. */
   exit?: Layer;
+  zoom: Zoom;
+  /** Follows the pointer without easing while the picture is dragged. */
+  panning: boolean;
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
-function LayerView({ layer, box, frame, shadow, animate, exit }: LayerViewProps) {
+function LayerView({ layer, box, frame, shadow, animate, exit, zoom, panning }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     // Paint the starting position first, then move to rest.
@@ -405,16 +639,64 @@ function LayerView({ layer, box, frame, shadow, animate, exit }: LayerViewProps)
         top: `calc(50% - ${box.height / 2}px)`,
         width: box.width,
         height: box.height,
-        ...framing,
-        boxShadow: shadow === "drop" ? "0 24px 48px -12px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.25)" : undefined,
-        willChange: "opacity, transform",
-        ...motion,
+        transform: zoom.scale === 1 ? undefined : `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
+        transition: panning ? "none" : "transform 280ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      <img src={layer.src} alt={layer.alt} draggable={false} className="block size-full object-contain" />
-      {shadow === "inset" && (
-        <div className="absolute" style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW }} aria-hidden />
-      )}
+      <div
+        className="relative size-full"
+        style={{
+          ...framing,
+          boxShadow: shadow === "drop" ? "0 24px 48px -12px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.25)" : undefined,
+          ...motion,
+        }}
+      >
+        <img src={layer.src} alt={layer.alt} draggable={false} className="block size-full object-contain" />
+        {shadow === "inset" && (
+          <div className="absolute" style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW }} aria-hidden />
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface PinnedPreviewProps {
+  image: ImageEntry;
+  current: boolean;
+  onOpen: () => void;
+  onUnpin: () => void;
+}
+
+/** A small pinned image; a click shows it in full again. */
+function PinnedPreview({ image, current, onOpen, onUnpin }: PinnedPreviewProps) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setSrc), [image]);
+  return (
+    <div className="group relative shrink-0" style={{ width: PIN_W, height: PIN_H }}>
+      <button
+        onClick={(e) => {
+          // Keep the ring for the image shown, not the one last clicked.
+          e.currentTarget.blur();
+          onOpen();
+        }}
+        title={`${image.name}\nVisa i helskärm`}
+        aria-label={`Visa ${image.name}`}
+        aria-current={current || undefined}
+        className={cn(
+          "flex size-full items-center justify-center rounded-md bg-current/10 p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current",
+          current && "ring-2 ring-current",
+        )}
+      >
+        {src && <img src={src} alt="" draggable={false} className="max-h-full max-w-full rounded-sm object-contain" />}
+      </button>
+      <button
+        onClick={onUnpin}
+        title="Lossa från hörnet"
+        aria-label={`Lossa ${image.name} från hörnet`}
+        className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <X className="size-3.5" />
+      </button>
     </div>
   );
 }

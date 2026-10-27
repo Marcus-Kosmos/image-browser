@@ -364,6 +364,9 @@ export default function App() {
   // Images selected with ⌘-click, Shift-click or a rectangle; cleared when another view opens.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => setSelected(new Set()), [viewKey]);
+  // Images kept in the corner of the full screen view, for this folder or list only.
+  const [pinned, setPinned] = useState<ImageEntry[]>([]);
+  useEffect(() => setPinned([]), [viewKey]);
   const selectedImages = useMemo(() => images.filter((img) => selected.has(img.path)), [images, selected]);
   // ⌘A selects every image shown, Esc clears the selection.
   useEffect(() => {
@@ -606,6 +609,8 @@ export default function App() {
           newSeriesName={uniqueSeriesName(library, "Ny serie")}
           onShowShortcuts={() => setShortcutsOpen(true)}
           frame={settings.frame}
+          pinned={pinned}
+          onPinnedChange={setPinned}
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen}
         />

@@ -41,6 +41,12 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - I helskärm väljer knappen Visning (reglagen uppe till höger) hur nästa bild kommer in: tona fram,
   glid in från vänster eller höger, glid upp, kaskad, parallax eller växla automatiskt. Där kan du också
   visa mappens ram, skugga och bakgrundsfärg i helskärm. Valet gäller i alla mappar.
+- Zooma i helskärm: pekaren blir ett förstoringsglas. Klicka där du vill förstora, tre klick zoomar
+  in helt och nästa klick visar hela bilden igen. Dra eller scrolla för att flytta runt, Alt-klick zoomar
+  ut ett steg, + och − zoomar, 0 eller Esc visar hela bilden
+- Fäst bilder i helskärm: nålen bredvid mappknappen (eller P) lägger bilden som en liten förhandsvisning
+  uppe till vänster medan du bläddrar vidare. Nästa fästa bild hamnar under, sedan i en kolumn bredvid,
+  tills det inte får plats fler. Klicka på en fäst bild för att visa den igen, krysset lossar den
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
