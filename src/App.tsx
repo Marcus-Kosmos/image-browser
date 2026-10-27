@@ -23,6 +23,7 @@ import {
   itemKey,
   moveInSeries,
   privacyOf,
+  removeFromFavorites,
   removeImage,
   renamePlace,
   renameSeries,
@@ -347,6 +348,16 @@ export default function App() {
     [library, changeLibrary, showToast],
   );
 
+  const unfavorite = useCallback(
+    (removed: ImageEntry[]) => {
+      const gone = removed.filter((img) => favoritePaths.has(img.path));
+      if (gone.length === 0) return;
+      changeLibrary((lib) => removeFromFavorites(lib, gone));
+      showToast(gone.length === 1 ? `${gone[0].name} togs bort från Favoriter.` : `${gone.length} bilder togs bort från Favoriter.`);
+    },
+    [favoritePaths, changeLibrary, showToast],
+  );
+
   const newSeriesWith = useCallback(
     (name: string, added: ImageEntry[]) => {
       const unique = uniqueSeriesName(library, name);
@@ -544,7 +555,9 @@ export default function App() {
             <SelectionBar
               count={selectedImages.length}
               series={listedSeries}
+              favoriteCount={selectedImages.filter((img) => favoritePaths.has(img.path)).length}
               onFavorite={() => addTo("favorites", selectedImages)}
+              onUnfavorite={() => unfavorite(selectedImages)}
               onAddToSeries={(id) => addTo(`series:${id}`, selectedImages)}
               onCreateSeries={(name) => newSeriesWith(name, selectedImages)}
               newSeriesName={uniqueSeriesName(library, "Ny serie")}

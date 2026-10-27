@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderPlus, Heart, X } from "lucide-react";
+import { ChevronDown, FolderPlus, Heart, HeartOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,10 @@ import { SeriesMenuList } from "./SeriesMenuList";
 interface SelectionBarProps {
   count: number;
   series: Series[];
+  /** How many of the selected images are favorites already. */
+  favoriteCount: number;
   onFavorite: () => void;
+  onUnfavorite: () => void;
   onAddToSeries: (id: string) => void;
   onCreateSeries: (name: string) => void;
   newSeriesName: string;
@@ -21,7 +24,9 @@ interface SelectionBarProps {
 export function SelectionBar({
   count,
   series,
+  favoriteCount,
   onFavorite,
+  onUnfavorite,
   onAddToSeries,
   onCreateSeries,
   newSeriesName,
@@ -72,10 +77,28 @@ export function SelectionBar({
         </Button>
       )}
       <div className="mx-1 h-5 w-px bg-border" aria-hidden />
-      <Button variant="ghost" size="sm" onClick={onFavorite} title="Lägg de markerade i Favoriter">
-        <Heart />
-        Favoriter
-      </Button>
+      {/* A mixed selection offers both, so either can be done in one click. */}
+      {favoriteCount < count && (
+        <Button variant="ghost" size="sm" onClick={onFavorite} title="Lägg de markerade i Favoriter">
+          <Heart />
+          Favoriter
+        </Button>
+      )}
+      {favoriteCount > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onUnfavorite}
+          title={
+            favoriteCount === count
+              ? "Ta bort de markerade från Favoriter"
+              : `Ta bort de ${favoriteCount} markerade som är favoriter från Favoriter`
+          }
+        >
+          <HeartOff />
+          Ta bort från favoriter
+        </Button>
+      )}
       <div ref={menu} className="relative">
         <Button
           variant="ghost"
