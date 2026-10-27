@@ -605,6 +605,8 @@ export default function App() {
           onCreateSeries={(name, i) => images[i] && newSeriesWith(name, [images[i]])}
           newSeriesName={uniqueSeriesName(library, "Ny serie")}
           onShowShortcuts={() => setShortcutsOpen(true)}
+          frame={settings.frame}
+          shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen}
         />
       )}

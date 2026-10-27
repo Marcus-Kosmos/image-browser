@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { Check, Heart, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
+import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Tag } from "@/lib/filter";
 import type { LayoutBox } from "@/lib/layout";
 import type { Series } from "@/lib/library";
@@ -46,25 +47,6 @@ interface ImageTileProps {
   /** A press that may become a drag: to a new place in a series, or onto the sidebar. */
   onDragStart: (index: number, e: React.PointerEvent) => void;
   onReorderKey: (index: number, step: -1 | 1) => void;
-}
-
-/** Padding and color of each frame; the padding grows with the picture, like a real mat. */
-function frameStyle(frame: Frame, width: number, height: number): React.CSSProperties {
-  const short = Math.min(width, height);
-  switch (frame) {
-    case "line":
-      return { border: "1px solid color-mix(in oklab, var(--foreground) 35%, transparent)" };
-    case "mat":
-      return {
-        padding: Math.max(6, Math.round(short * 0.05)),
-        background: "#fbfaf7",
-        border: "1px solid rgb(0 0 0 / 0.08)",
-      };
-    case "black":
-      return { padding: Math.max(4, Math.round(short * 0.03)), background: "#111" };
-    default:
-      return {};
-  }
 }
 
 const SIZE_KEYS: Record<string, ImageSize> = { "1": "small", "2": "medium", "3": "large" };
@@ -190,7 +172,7 @@ export const ImageTile = memo(function ImageTile({
         {shadow === "inset" && (
           <div
             className="pointer-events-none absolute"
-            style={{ inset: framing.padding ?? 0, boxShadow: "inset 0 0 24px rgb(0 0 0 / 0.6), inset 0 0 4px rgb(0 0 0 / 0.4)" }}
+            style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW }}
             aria-hidden
           />
         )}
