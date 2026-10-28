@@ -22,3 +22,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# AI upscaling, fetched by scripts/fetch-upscaler.sh for the macOS build
+src-tauri/binaries/
+src-tauri/upscale-models/

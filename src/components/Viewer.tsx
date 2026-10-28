@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FolderMinus, Heart, Info, PanelLeft, Pin, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderMinus,
+  Heart,
+  Info,
+  Loader2,
+  PanelLeft,
+  Pin,
+  Trash2,
+  WandSparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -37,6 +49,10 @@ interface ViewerProps {
   onTrash: (index: number) => void;
   /** Shown in a series: takes the image out of it; the file stays. */
   onRemove?: (index: number) => void;
+  /** Enlarges the image with AI into a new file beside it. */
+  onUpscale?: (index: number) => void;
+  /** Whether an enlargement is running. */
+  upscaling?: boolean;
   isFavorite: (image: ImageEntry) => boolean;
   /** Favoriter and the series the image is in. */
   tagsOf: (image: ImageEntry) => Tag[];
@@ -207,6 +223,8 @@ export function Viewer({
   onClose,
   onTrash,
   onRemove,
+  onUpscale,
+  upscaling = false,
   isFavorite,
   tagsOf,
   onToggleFavorite,
@@ -699,6 +717,21 @@ export function Viewer({
         >
           <Trash2 />
         </Button>
+        {onUpscale && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
+            onClick={() => onUpscale(index)}
+            disabled={upscaling}
+            title={
+              upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en fyra gånger större kopia bredvid originalet"
+            }
+            aria-label="Förstora med AI"
+          >
+            {upscaling ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+          </Button>
+        )}
         {onRemove && (
           <Button
             variant="ghost"

@@ -12,7 +12,17 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
-import { confirmOwner, onFileDrop, pickFolders, pickImages, scanFolder, sortDropped, trashFile, type ImageEntry } from "@/lib/api";
+import {
+  confirmOwner,
+  onFileDrop,
+  pickFolders,
+  pickImages,
+  scanFolder,
+  sortDropped,
+  trashFile,
+  upscaleImage,
+  type ImageEntry,
+} from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
 import {
   addToFavorites,
@@ -577,6 +587,28 @@ export default function App() {
     const count = await loadFolders(targets);
     if (count !== null) changeLibrary((lib) => rememberFolders(lib, targets));
   };
+  // AI enlargement: a new file beside the original, shown once it is read in.
+  const [upscaling, setUpscaling] = useState(false);
+  const upscale = async (image: ImageEntry) => {
+    setUpscaling(true);
+    showToast(`Förstorar ${image.name} med AI. Det kan ta upp till en minut.`);
+    try {
+      const made = await upscaleImage(image);
+      const name = made.split("/").pop() ?? made;
+      if (series && !locked) {
+        // In a series, the copy goes into it, beside the original.
+        await handleDrop([made]);
+      } else if (listing) {
+        await loadFolders(listing.folders, includeSubfolders, true);
+      }
+      setShowOnLoad(made);
+      showToast(`Sparad som ${name}, bredvid originalet.`);
+    } catch (e) {
+      showToast(typeof e === "string" ? e : "AI-förstoringen misslyckades.", "error");
+    } finally {
+      setUpscaling(false);
+    }
+  };
   // Picked in a dialog that previews the pictures, they open like pictures dropped from Finder.
   const openImages = async () => {
     const paths = await pickImages();
@@ -781,6 +813,8 @@ export default function App() {
           }}
           onTrash={requestTrash}
           onRemove={series && !locked ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
+          onUpscale={(i) => images[i] && void upscale(images[i])}
+          upscaling={upscaling}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
           onToggleFavorite={onToggleFavorite}

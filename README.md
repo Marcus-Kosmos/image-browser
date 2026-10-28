@@ -71,6 +71,10 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   och välj hur de kommer in (tona fram, glid in, parallax med flera). Storleken går från
   Normal till Jättestor. På bilden bryts en lång rubrik på upp till tre rader; ovanför bilden krymper den
   så att den får plats på en rad
+- Förstora med AI (trollstaven i helskärm): gör en fyra gånger större kopia av en lågupplöst bild och
+  sparar den bredvid originalet som "namn förstorad 4x". Originalet lämnas orört. Det sker på din Mac med
+  Real-ESRGAN, utan nät, och kan ta upp till en minut. AI:n fyller i detaljer som ser rimliga ut, så
+  resultatet är skarpare men inte alltid helt troget. Bilder större än 4000 pixlar förstoras inte
 - Välj bland bilderna (knappen bredvid Öppna mapp, eller ⇧⌘O): Macens väljarfönster visar bilderna som
   miniatyrer, och mellanslag visar en större förhandsvisning. Väljer du en bild öppnas mappen den ligger i
   och bilden visas i helskärm. Inget kopieras, bilderna visas där de ligger
@@ -127,8 +131,14 @@ npm run tauri build   # bygg .app och .dmg
 
 `npm run dev` startar bara gränssnittet i webbläsaren med genererade demobilder.
 
+AI-förstoringen behöver Real-ESRGAN. Hämta den med `scripts/fetch-upscaler.sh` och bygg med
+`npm run tauri build -- --config src-tauri/tauri.macos-upscale.json`. Bygget i GitHub Actions gör båda.
+
 ## Licens
 
 Imagime är fri programvara under [GNU General Public License v3.0](LICENSE) eller senare version.
 Du får använda, ändra och dela den. Om du sprider en ändrad version måste du dela den under samma
 licens, med källkoden öppen.
+
+AI-förstoringen använder [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (BSD 3-Clause), som
+följer med i Mac-appen men inte ligger i det här arkivet.
