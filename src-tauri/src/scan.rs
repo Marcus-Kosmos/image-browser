@@ -44,6 +44,29 @@ fn is_package(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// What was dropped on the window from Finder: folders to open and images to show.
+/// Anything else (documents, packages such as a Photos library) is left out.
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct Dropped {
+    pub folders: Vec<String>,
+    pub images: Vec<String>,
+}
+
+pub fn sort_dropped(paths: &[PathBuf]) -> Dropped {
+    let mut dropped = Dropped::default();
+    for path in paths {
+        let text = path.to_string_lossy().into_owned();
+        if path.is_dir() {
+            if !is_package(path) {
+                dropped.folders.push(text);
+            }
+        } else if is_image(path) {
+            dropped.images.push(text);
+        }
+    }
+    dropped
+}
+
 pub fn is_image(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -187,6 +210,29 @@ mod tests {
         let mut names = vec!["img10.jpg", "img2.jpg", "Img1.jpg", "img02b.jpg"];
         names.sort_by(|a, b| natural_cmp(a, b));
         assert_eq!(names, vec!["Img1.jpg", "img2.jpg", "img02b.jpg", "img10.jpg"]);
+    }
+
+    #[test]
+    fn sorts_dropped_paths_into_folders_and_images() {
+        let dir = std::env::temp_dir().join(format!("ib-drop-test-{}", std::process::id()));
+        let folder = dir.join("Semester");
+        let library = dir.join("Bilder.photoslibrary");
+        fs::create_dir_all(&folder).unwrap();
+        fs::create_dir_all(&library).unwrap();
+        let photo = dir.join("strand.JPG");
+        let note = dir.join("lista.txt");
+        fs::write(&photo, b"").unwrap();
+        fs::write(&note, b"").unwrap();
+
+        let dropped = sort_dropped(&[folder.clone(), library, photo.clone(), note]);
+        assert_eq!(
+            dropped,
+            Dropped {
+                folders: vec![folder.to_string_lossy().into_owned()],
+                images: vec![photo.to_string_lossy().into_owned()],
+            }
+        );
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

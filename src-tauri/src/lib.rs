@@ -29,6 +29,15 @@ async fn thumbnail(app: tauri::AppHandle, path: String, size: u32) -> Result<Str
     .map_err(|e| e.to_string())?
 }
 
+/// Splits paths dropped from Finder into folders and image files.
+#[tauri::command]
+async fn sort_dropped(paths: Vec<String>) -> Result<scan::Dropped, String> {
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    tauri::async_runtime::spawn_blocking(move || scan::sort_dropped(&paths))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Moves the file to the system trash so the deletion can be undone in Finder.
 #[tauri::command]
 async fn trash_file(path: String) -> Result<(), String> {
@@ -57,7 +66,7 @@ async fn confirm_owner(reason: String) -> Result<bool, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, trash_file, list_fonts, confirm_owner])
+        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, sort_dropped, trash_file, list_fonts, confirm_owner])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
