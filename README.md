@@ -48,8 +48,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   uppe till vänster medan du bläddrar vidare. Nästa fästa bild hamnar under, sedan i en kolumn bredvid,
   tills det inte får plats fler. Klicka på en fäst bild för att visa den igen, krysset lossar den
 - Under Visning väljer du hur fästa bilder visas: små i hörnet, mellanstora med bilden du bläddrar till
-  i resten av skärmen, hela i en rad med den, eller som ett pussel som fyller skärmen. I pusslet hamnar
-  den nya bilden längst till höger, under den förra om de får plats, och allt anpassar sig efter formatet
+  i resten av skärmen, hela i en rad med den, eller som ett pussel som fyller skärmen. Pusslet bryts
+  i rader som i kartan när bilderna blir fler, och den nya bilden hamnar sist, nere till höger
 - Spara som serie sparar de fästa bilderna i samma ordning som en ny serie
 - Behåll zoom (under Visning): varje bild minns sin zoom, så den är kvar när du bläddrar tillbaka
 - Rundade hörn (under Visning) rundar bilderna och deras ramar i helskärm
