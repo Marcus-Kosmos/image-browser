@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, Info, Puzzle, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, FolderTree, Hash, ImagePlus, Images, Info, PanelLeft, Puzzle, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ interface ToolbarProps {
   rowHeight: number;
   onRowHeightChange: (value: number) => void;
   onOpenFolder: () => void;
+  /** Picks pictures in a dialog that previews them, then opens their folder. */
+  onOpenImages: () => void;
   onParent: (() => void) | null;
   onRefresh: () => void;
   /** Reading the folder in again; the button spins meanwhile. */
@@ -56,6 +58,7 @@ export function Toolbar({
   rowHeight,
   onRowHeightChange,
   onOpenFolder,
+  onOpenImages,
   onParent,
   onRefresh,
   refreshing,
@@ -83,6 +86,15 @@ export function Toolbar({
       <Button variant="outline" size="sm" onClick={onOpenFolder} title="Öppna en eller flera mappar (⌘O). Håll ⌘ för att markera flera.">
         <FolderOpen />
         Öppna mapp
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onOpenImages}
+        title="Bläddra bland bilderna med förhandsvisning och öppna mappen för den du väljer (⇧⌘O)"
+        aria-label="Välj bild"
+      >
+        <ImagePlus />
       </Button>
       {libraryTitle !== null ? (
         <div className="ml-1 min-w-0">
