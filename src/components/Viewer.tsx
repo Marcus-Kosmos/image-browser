@@ -5,6 +5,7 @@ import {
   FolderMinus,
   Heart,
   Info,
+  LayoutDashboard,
   Loader2,
   PanelLeft,
   Pin,
@@ -361,8 +362,12 @@ export function Viewer({
   }, [content]);
   // Larger pinned pictures share the space with the current one, which is shown once, on the right.
   const pinSize = look.pinSize;
-  const beside = pinSize === "small" ? [] : pinned.filter((p) => p.path !== image.path);
-  const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP);
+  // A pinned picture clicked in the arrangement is shown on its own, large; the arrangement comes back as it
+  // was, with the picture that was shown before, on Escape or "Visa serien".
+  const [solo, setSolo] = useState<number | null>(null);
+  const arranged = pinSize !== "small" && solo === null;
+  const beside = arranged ? pinned.filter((p) => p.path !== image.path) : [];
+  const layout = arranged ? pinLayout(pinSize, beside, image, space, PIN_ROW_GAP) : null;
   // One image at a time can take the whole screen: the header steps aside and the margins go.
   const wide = !layout && look.screen !== "margins";
   const fitMode = !wide ? "fit" : look.screen === "fill" ? "cover" : "grow";
@@ -578,8 +583,19 @@ export function Viewer({
       return;
     }
     const i = images.findIndex((img) => img.path === p.path);
-    if (i >= 0) onIndexChange(i);
+    if (i < 0) return;
+    if (layout) setSolo(index);
+    onIndexChange(i);
   };
+  const backToSeries = useCallback(() => {
+    if (solo === null) return;
+    if (solo < images.length) onIndexChange(solo);
+    setSolo(null);
+  }, [solo, images.length, onIndexChange]);
+  // Nothing left to arrange, nothing to go back to.
+  useEffect(() => {
+    if (pinned.length === 0 || pinSize === "small") setSolo(null);
+  }, [pinned.length, pinSize]);
 
   // A pinned image dragged onto another takes its place; the others make room as it passes.
   const [dragging, setDragging] = useState<string | null>(null);
@@ -632,6 +648,7 @@ export function Viewer({
       const digit = Number(e.key);
       if (e.key === "Escape") {
         if (zoomed) setZoom(WHOLE);
+        else if (solo !== null) backToSeries();
         else onClose();
       } else if (e.key === "+" || e.key === "=") stepZoom(1);
       else if (e.key === "-") stepZoom(-1);
@@ -668,6 +685,8 @@ export function Viewer({
     look.screen,
     look.collections,
     updateLook,
+    solo,
+    backToSeries,
   ]);
 
   return (
@@ -815,6 +834,16 @@ export function Viewer({
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
           style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
         >
+          {solo !== null && (
+            <button
+              onClick={backToSeries}
+              title="Tillbaka till de fästa bilderna (Esc)"
+              className="absolute top-3 left-3 z-20 flex h-9 items-center gap-2 rounded-full bg-black/35 px-3.5 text-sm text-white hover:bg-black/55 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+            >
+              <LayoutDashboard className="size-4" />
+              Visa serien
+            </button>
+          )}
           {pinSize === "small" && pinned.length > 0 && (
             <div
               className="absolute top-0 left-4 flex flex-col flex-wrap content-start"
