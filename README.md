@@ -142,8 +142,13 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken
-**Actions → senaste körningen → Artifacts**. Appen är inte signerad, så första gången:
+**Actions → senaste körningen → Artifacts**. Appen är inte signerad av Apple, så första gången:
 högerklicka på appen i Program och välj **Öppna**.
+
+Bygget signeras med ett eget certifikat ("Imagime Self-Signed") när repots hemligheter
+`MACOS_CERTIFICATE` (en base64-kodad .p12) och `MACOS_CERTIFICATE_PASSWORD` finns. Eftersom
+signaturen är densamma i varje version kommer macOS ihåg vilka mappar appen fått öppna, i
+stället för att fråga igen efter varje uppdatering. Utan hemligheterna blir bygget osignerat.
 
 ## Utveckla
 
