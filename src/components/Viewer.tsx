@@ -91,6 +91,14 @@ const PIN_ROW_GAP = 12;
 /** Pinned pictures and the current one glide to their new places as the layout changes. */
 const SLOT_TRANSITION = "left 300ms ease-out, top 300ms ease-out, width 300ms ease-out, height 300ms ease-out";
 
+/** Corner radii for "Rundade hörn": the frame's outer edge, and the picture inside it. */
+function corners(rounded: boolean, framing: React.CSSProperties, width: number, height: number) {
+  if (!rounded) return { outer: undefined, inner: undefined };
+  const outer = Math.round(Math.max(8, Math.min(28, Math.min(width, height) * 0.03)));
+  const pad = typeof framing.padding === "number" ? framing.padding : 0;
+  return { outer, inner: pad ? Math.max(3, outer - pad) : outer };
+}
+
 const DROP_SHADOW = "0 24px 48px -12px rgb(0 0 0 / 0.55), 0 4px 12px rgb(0 0 0 / 0.25)";
 
 interface Zoom {
@@ -580,6 +588,7 @@ export function Viewer({
                 rect={rect}
                 frame={frame}
                 shadow={shadow}
+                rounded={look.rounded}
                 onOpen={() => openPinned(beside[i])}
                 onUnpin={() => unpin(beside[i])}
               />
@@ -616,6 +625,7 @@ export function Viewer({
                   box={fit(room, layer.width, layer.height, frame)}
                   frame={frame}
                   shadow={shadow}
+                  rounded={look.rounded}
                   animate={i > 0}
                   exit={i < layers.length - 1 ? top : undefined}
                   zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
@@ -715,6 +725,7 @@ interface LayerViewProps {
   box: ReturnType<typeof fit>;
   frame: Frame;
   shadow: Shadow;
+  rounded: boolean;
   /** Plays the layer's effect when added on top. */
   animate: boolean;
   /** The layer that now covers this one, whose effect decides how this one goes. */
@@ -725,7 +736,7 @@ interface LayerViewProps {
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
-function LayerView({ layer, box, frame, shadow, animate, exit, zoom, panning }: LayerViewProps) {
+function LayerView({ layer, box, frame, shadow, rounded, animate, exit, zoom, panning }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     // Paint the starting position first, then move to rest.
@@ -739,6 +750,7 @@ function LayerView({ layer, box, frame, shadow, animate, exit, zoom, panning }: 
     };
   }, []);
   const framing = frameStyle(frame, box.picture.width, box.picture.height);
+  const radius = corners(rounded, framing, box.width, box.height);
   const motion = exit
     ? {
         ...exitStyle(exit.effect, exit.dir),
@@ -767,13 +779,24 @@ function LayerView({ layer, box, frame, shadow, animate, exit, zoom, panning }: 
         className="relative size-full"
         style={{
           ...framing,
+          borderRadius: radius.outer,
           boxShadow: shadow === "drop" ? DROP_SHADOW : undefined,
           ...motion,
         }}
       >
-        <img src={layer.src} alt={layer.alt} draggable={false} className="block size-full object-contain" />
+        <img
+          src={layer.src}
+          alt={layer.alt}
+          draggable={false}
+          className="block size-full object-contain"
+          style={{ borderRadius: radius.inner }}
+        />
         {shadow === "inset" && (
-          <div className="absolute" style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW }} aria-hidden />
+          <div
+            className="absolute"
+            style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW, borderRadius: radius.inner }}
+            aria-hidden
+          />
         )}
       </div>
     </div>
@@ -827,16 +850,18 @@ interface PinnedPictureProps {
   rect: Rect;
   frame: Frame;
   shadow: Shadow;
+  rounded: boolean;
   onOpen: () => void;
   onUnpin: () => void;
 }
 
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
-function PinnedPicture({ image, rect, frame, shadow, onOpen, onUnpin }: PinnedPictureProps) {
+function PinnedPicture({ image, rect, frame, shadow, rounded, onOpen, onUnpin }: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
   const box = fit(rect, image.width, image.height, frame);
   const framing = frameStyle(frame, box.picture.width, box.picture.height);
+  const radius = corners(rounded, framing, box.width, box.height);
   return (
     <div
       className="group absolute"
@@ -856,14 +881,22 @@ function PinnedPicture({ image, rect, frame, shadow, onOpen, onUnpin }: PinnedPi
         title={`${image.name}\nVisa i stort`}
         aria-label={`Visa ${image.name}`}
         className="block size-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
-        style={{ ...framing, boxShadow: shadow === "drop" ? DROP_SHADOW : undefined }}
+        style={{ ...framing, borderRadius: radius.outer, boxShadow: shadow === "drop" ? DROP_SHADOW : undefined }}
       >
-        {src && <img src={src} alt="" draggable={false} className="block size-full object-contain" />}
+        {src && (
+          <img
+            src={src}
+            alt=""
+            draggable={false}
+            className="block size-full object-contain"
+            style={{ borderRadius: radius.inner }}
+          />
+        )}
       </button>
       {shadow === "inset" && (
         <div
           className="pointer-events-none absolute"
-          style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW }}
+          style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW, borderRadius: radius.inner }}
           aria-hidden
         />
       )}

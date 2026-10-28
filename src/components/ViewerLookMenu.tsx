@@ -52,7 +52,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
         aria-haspopup="dialog"
         className={cn("text-current/80 hover:bg-current/15 hover:text-current", open && "bg-current/15")}
         onClick={() => setOpen(!open)}
-        title="Visning: övergång, zoom, fästa bilder, ram och bakgrund"
+        title="Visning: övergång, zoom, fästa bilder, ram, hörn och bakgrund"
         aria-label="Visning"
       >
         <SlidersHorizontal />
@@ -80,6 +80,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
             onChange={(keepZoom) => onChange({ keepZoom })}
             label="Behåll zoom när du bläddrar"
           />
+          <Toggle checked={settings.rounded} onChange={(rounded) => onChange({ rounded })} label="Rundade hörn" />
           <div className="my-1 h-px bg-white/10" />
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Fästa bilder (P)</div>
           <div role="radiogroup" aria-label="Fästa bilder" className="flex flex-col">
@@ -94,11 +95,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
           </div>
           <div className="my-1 h-px bg-white/10" />
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Som i kartan</div>
-          <Toggle
-            checked={settings.frame}
-            onChange={(frame) => onChange({ frame })}
-            label="Visa ram och skugga"
-          />
+          <Toggle checked={settings.frame} onChange={(frame) => onChange({ frame })} label="Visa ram och skugga" />
           <Toggle
             checked={settings.background}
             onChange={(background) => onChange({ background })}
@@ -113,7 +110,15 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
   );
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
   return (
     <button
       role="checkbox"
