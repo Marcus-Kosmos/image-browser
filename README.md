@@ -75,6 +75,12 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   sparar den bredvid originalet som "namn förstorad 4x". Originalet lämnas orört. Det sker på din Mac med
   Real-ESRGAN, utan nät, och kan ta upp till en minut. AI:n fyller i detaljer som ser rimliga ut, så
   resultatet är skarpare men inte alltid helt troget. Bilder större än 4000 pixlar förstoras inte
+- Trollstaven frågar hur bilden ska förstoras: **På Macen** (Real-ESRGAN, gratis, skärper), eller med
+  [Stability AI](https://platform.stability.ai), som känner igen vad bilden föreställer och ritar in detaljer
+  som passar: **Varsam** håller sig nära originalet, **Kreativ** ritar om friare (för små eller suddiga bilder).
+  Du kan beskriva bilden och välja hur fritt den får hitta på. Bilden skickas till Stability AI och varje
+  förstoring drar krediter från ditt eget konto där; API-nyckeln sparas i Macens nyckelring. Kopian sparas
+  som "namn förstorad AI" bredvid originalet
 - Välj bland bilderna (knappen bredvid Öppna mapp, eller ⇧⌘O): Macens väljarfönster visar bilderna som
   miniatyrer, och mellanslag visar en större förhandsvisning. Väljer du en bild öppnas mappen den ligger i
   och bilden visas i helskärm. Inget kopieras, bilderna visas där de ligger

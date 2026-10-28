@@ -126,6 +126,47 @@ export async function upscaleImage(image: ImageEntry): Promise<string> {
   return invoke<string>("upscale_image", { path: image.path, width: image.width, height: image.height });
 }
 
+/** How the picture is enlarged: on this Mac, or by Stability AI, carefully or more freely. */
+export type UpscaleMode = "local" | "conservative" | "creative";
+
+export interface CloudUpscale {
+  mode: Exclude<UpscaleMode, "local">;
+  /** What the picture shows, so the model knows what detail to draw. */
+  prompt: string;
+  /** 0 to 1: how freely the model may invent detail. */
+  amount: number;
+}
+
+let demoCloudKey = false;
+
+/** Enlarges the picture with Stability AI and saves the copy beside the original; returns its path. */
+export async function cloudUpscaleImage(image: ImageEntry, options: CloudUpscale): Promise<string> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    throw "AI-förstoring finns bara i Mac-appen.";
+  }
+  return invoke<string>("cloud_upscale_image", {
+    path: image.path,
+    width: image.width,
+    height: image.height,
+    ...options,
+  });
+}
+
+/** Keeps the Stability AI key in the Mac's keychain; an empty key forgets it. */
+export async function saveCloudKey(key: string): Promise<void> {
+  if (demo) {
+    demoCloudKey = key.trim() !== "";
+    return;
+  }
+  return invoke("save_cloud_key", { key });
+}
+
+export async function hasCloudKey(): Promise<boolean> {
+  if (demo) return demoCloudKey;
+  return invoke<boolean>("has_cloud_key");
+}
+
 export async function trashFile(path: string): Promise<void> {
   if (demo) {
     demoTrashed.add(path);

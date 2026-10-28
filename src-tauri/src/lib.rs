@@ -1,4 +1,5 @@
 mod auth;
+mod cloud;
 mod fonts;
 mod scan;
 mod thumbs;
@@ -47,6 +48,48 @@ async fn trash_file(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Enlarges a picture with Stability AI, which draws in detail to match what the picture shows.
+/// `amount` (0 to 1) is how freely it may invent detail. Returns the new file's path.
+#[tauri::command]
+async fn cloud_upscale_image(
+    app: tauri::AppHandle,
+    path: String,
+    width: u32,
+    height: u32,
+    mode: cloud::Mode,
+    prompt: String,
+    amount: f32,
+) -> Result<String, String> {
+    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("thumbs");
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = cloud::key()?;
+        cloud::enlarge(&PathBuf::from(path), width, height, mode, &prompt, amount, &key, &cache_dir)
+            .map(|p| p.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the Stability AI key in the Mac's keychain; an empty key forgets it.
+#[tauri::command]
+async fn save_cloud_key(key: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if key.trim().is_empty() {
+            cloud::forget_key()
+        } else {
+            cloud::save_key(&key)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Whether a Stability AI key is saved, without handing it out.
+#[tauri::command]
+async fn has_cloud_key() -> bool {
+    tauri::async_runtime::spawn_blocking(|| cloud::key().is_ok()).await.unwrap_or(false)
+}
+
 /// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
 /// Returns the new file's path.
 #[tauri::command]
@@ -91,7 +134,10 @@ pub fn run() {
             trash_file,
             list_fonts,
             confirm_owner,
-            upscale_image
+            upscale_image,
+            cloud_upscale_image,
+            save_cloud_key,
+            has_cloud_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

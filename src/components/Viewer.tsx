@@ -724,9 +724,7 @@ export function Viewer({
             className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
             onClick={() => onUpscale(index)}
             disabled={upscaling}
-            title={
-              upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en fyra gånger större kopia bredvid originalet"
-            }
+            title={upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en större kopia bredvid originalet"}
             aria-label="Förstora med AI"
           >
             {upscaling ? <Loader2 className="animate-spin" /> : <WandSparkles />}

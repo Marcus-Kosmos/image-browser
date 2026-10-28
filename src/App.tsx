@@ -12,6 +12,7 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
+import { UpscaleDialog, type UpscaleChoice } from "@/components/UpscaleDialog";
 import {
   confirmOwner,
   onFileDrop,
@@ -21,6 +22,7 @@ import {
   sortDropped,
   trashFile,
   upscaleImage,
+  cloudUpscaleImage,
   type ImageEntry,
 } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
@@ -589,11 +591,20 @@ export default function App() {
   };
   // AI enlargement: a new file beside the original, shown once it is read in.
   const [upscaling, setUpscaling] = useState(false);
-  const upscale = async (image: ImageEntry) => {
+  // The picture the wand was clicked for, while the dialog asks how to enlarge it.
+  const [upscaleFor, setUpscaleFor] = useState<ImageEntry | null>(null);
+  const upscale = async (image: ImageEntry, choice: UpscaleChoice) => {
     setUpscaling(true);
-    showToast(`Förstorar ${image.name} med AI. Det kan ta upp till en minut.`);
+    showToast(
+      choice.mode === "local"
+        ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
+        : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
+    );
     try {
-      const made = await upscaleImage(image);
+      const made =
+        choice.mode === "local"
+          ? await upscaleImage(image)
+          : await cloudUpscaleImage(image, { mode: choice.mode, prompt: choice.prompt, amount: choice.amount });
       const name = made.split("/").pop() ?? made;
       if (series && !locked) {
         // In a series, the copy goes into it, beside the original.
@@ -813,7 +824,7 @@ export default function App() {
           }}
           onTrash={requestTrash}
           onRemove={series && !locked ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
-          onUpscale={(i) => images[i] && void upscale(images[i])}
+          onUpscale={(i) => images[i] && setUpscaleFor(images[i])}
           upscaling={upscaling}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
@@ -838,7 +849,7 @@ export default function App() {
           savedLook={viewerLook ?? undefined}
           headingOf={(img) => settings.images[imageKey(img)]?.heading}
           shadow={settings.shadow}
-          paused={trashIndex !== null || shortcutsOpen}
+          paused={trashIndex !== null || shortcutsOpen || upscaleFor !== null}
         />
       )}
       {(() => {
@@ -862,6 +873,15 @@ export default function App() {
         image={trashIndex !== null ? images[trashIndex] ?? null : null}
         onCancel={() => setTrashIndex(null)}
         onConfirm={confirmTrash}
+      />
+      <UpscaleDialog
+        image={upscaleFor}
+        onCancel={() => setUpscaleFor(null)}
+        onStart={(choice) => {
+          const image = upscaleFor;
+          setUpscaleFor(null);
+          if (image) void upscale(image, choice);
+        }}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {dropping && <DropOverlay into={dropInto?.name ?? null} />}

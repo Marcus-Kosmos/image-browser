@@ -12,13 +12,17 @@ const MODEL: &str = "realesrgan-x4plus";
 
 /// Where the enlarged copy goes: "<name> förstorad 4x.<ext>", numbered if that name is taken.
 pub fn output_path(input: &Path) -> PathBuf {
+    copy_path(input, &format!("förstorad {SCALE}x"), output_extension(input))
+}
+
+/// "<name> <label>.<ext>" beside `input`, numbered if that name is taken.
+pub fn copy_path(input: &Path, label: &str, ext: &str) -> PathBuf {
     let dir = input.parent().unwrap_or(Path::new("."));
     let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("bild");
-    let ext = output_extension(input);
-    let mut candidate = dir.join(format!("{stem} förstorad {SCALE}x.{ext}"));
+    let mut candidate = dir.join(format!("{stem} {label}.{ext}"));
     let mut n = 2;
     while candidate.exists() {
-        candidate = dir.join(format!("{stem} förstorad {SCALE}x {n}.{ext}"));
+        candidate = dir.join(format!("{stem} {label} {n}.{ext}"));
         n += 1;
     }
     candidate
