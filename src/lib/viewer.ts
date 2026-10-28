@@ -55,6 +55,8 @@ export interface ViewerSettings {
   frame: boolean;
   /** Use the folder's background color instead of black. */
   background: boolean;
+  /** Round the corners of the pictures and their frames. */
+  rounded: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -63,6 +65,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   pinSize: "small",
   frame: false,
   background: false,
+  rounded: false,
 };
 
 const STORAGE = "image-browser:viewer";

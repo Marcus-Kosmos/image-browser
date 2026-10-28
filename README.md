@@ -52,6 +52,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   den nya bilden längst till höger, under den förra om de får plats, och allt anpassar sig efter formatet
 - Spara som serie sparar de fästa bilderna i samma ordning som en ny serie
 - Behåll zoom (under Visning): varje bild minns sin zoom, så den är kvar när du bläddrar tillbaka
+- Rundade hörn (under Visning) rundar bilderna och deras ramar i helskärm
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
