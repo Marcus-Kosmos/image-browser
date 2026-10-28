@@ -51,6 +51,53 @@ export function originalUrl(image: ImageEntry): string {
   return demo ? demoImage(image) : convertFileSrc(image.path);
 }
 
+export interface Dropped {
+  folders: string[];
+  images: string[];
+}
+
+/** Splits paths dropped from Finder into folders and image files; anything else is left out. */
+export async function sortDropped(paths: string[]): Promise<Dropped> {
+  if (demo) {
+    const isImage = (p: string) => /\.(jpe?g|png|heic|webp|gif|tiff?)$/i.test(p);
+    return { folders: paths.filter((p) => !p.includes(".")), images: paths.filter(isImage) };
+  }
+  return invoke<Dropped>("sort_dropped", { paths });
+}
+
+export type DropState = "over" | "left" | { dropped: string[] };
+
+/**
+ * Follows files and folders dragged onto the window from Finder.
+ * In the browser demo, `window.demoDragOver()` and `window.demoDrop(paths)` stand in for Finder.
+ */
+export function onFileDrop(handler: (state: DropState) => void): () => void {
+  if (demo) {
+    const hooks = window as unknown as { demoDrop: (paths: string[]) => void; demoDragOver: () => void };
+    hooks.demoDrop = (paths) => handler({ dropped: paths });
+    hooks.demoDragOver = () => handler("over");
+    return () => {};
+  }
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  void import("@tauri-apps/api/webview").then(({ getCurrentWebview }) =>
+    getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        if (payload.type === "drop") handler({ dropped: payload.paths });
+        else if (payload.type === "leave") handler("left");
+        else handler("over");
+      })
+      .then((fn) => {
+        if (stopped) fn();
+        else unlisten = fn;
+      }),
+  );
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
 export async function trashFile(path: string): Promise<void> {
   if (demo) {
     demoTrashed.add(path);
