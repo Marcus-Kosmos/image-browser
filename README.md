@@ -72,7 +72,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   Normal till Jättestor. På bilden bryts en lång rubrik på upp till tre rader; ovanför bilden krymper den
   så att den får plats på en rad
 - Släpp bilder från Finder i appen: bildens mapp öppnas och bilden visas i helskärm. En mapp du släpper
-  öppnas direkt. Står du i en serie läggs bilderna i serien (filerna ligger kvar där de är)
+  öppnas direkt. Står du i en serie läggs bilderna i serien och den första visas i helskärm (filerna ligger kvar där de är)
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
