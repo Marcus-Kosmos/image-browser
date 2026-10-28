@@ -15,8 +15,9 @@ pub fn thumbnail(src: &Path, size: u32, cache_dir: &Path) -> Result<PathBuf, Str
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
+    let quality = quality_for(size);
     let mut hasher = DefaultHasher::new();
-    (src, mtime, meta.len(), size).hash(&mut hasher);
+    (src, mtime, meta.len(), size, quality).hash(&mut hasher);
     let out = cache_dir.join(format!("{:016x}.jpg", hasher.finish()));
     if out.exists() {
         return Ok(out);
@@ -25,28 +26,47 @@ pub fn thumbnail(src: &Path, size: u32, cache_dir: &Path) -> Result<PathBuf, Str
     fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
     // Write to a temporary name first so a half-written file is never served.
     let tmp = out.with_extension("tmp.jpg");
-    render(src, size, &tmp)?;
+    render(src, size, quality, &tmp)?;
     fs::rename(&tmp, &out).map_err(|e| e.to_string())?;
     Ok(out)
+}
+
+/// Grid thumbnails stay small on disk; the large ones shown in full screen keep their detail.
+fn quality_for(size: u32) -> u8 {
+    if size >= 2000 {
+        92
+    } else {
+        80
+    }
 }
 
 /// macOS ships `sips`, which reads every format Preview can open (HEIC, RAW, ...)
 /// and keeps the EXIF orientation that WebKit then honours. Files it can't convert
 /// fall back to the built-in decoder.
 #[cfg(target_os = "macos")]
-fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
-    render_with_sips(src, size, out).or_else(|_| render_with_image(src, size, out))
+fn render(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
+    render_with_sips(src, size, quality, out)
+        .or_else(|_| render_with_image(src, size, quality, out))
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render(src: &Path, size: u32, out: &Path) -> Result<(), String> {
-    render_with_image(src, size, out)
+fn render(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
+    render_with_image(src, size, quality, out)
 }
 
 #[cfg(target_os = "macos")]
-fn render_with_sips(src: &Path, size: u32, out: &Path) -> Result<(), String> {
+fn render_with_sips(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
     let status = std::process::Command::new("/usr/bin/sips")
-        .args(["-Z", &size.to_string(), "-s", "format", "jpeg", "-s", "formatOptions", "80"])
+        .args([
+            "-Z",
+            &size.to_string(),
+            "-s",
+            "format",
+            "jpeg",
+            "-s",
+            "formatOptions",
+            &quality.to_string(),
+        ])
         .arg(src)
         .arg("--out")
         .arg(out)
@@ -61,11 +81,13 @@ fn render_with_sips(src: &Path, size: u32, out: &Path) -> Result<(), String> {
     }
 }
 
-fn render_with_image(src: &Path, size: u32, out: &Path) -> Result<(), String> {
+fn render_with_image(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
     let img = image::open(src).map_err(|e| e.to_string())?;
-    img.thumbnail(size, size)
-        .to_rgb8()
-        .save_with_format(out, image::ImageFormat::Jpeg)
+    let file = fs::File::create(out).map_err(|e| e.to_string())?;
+    let mut encoder =
+        image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(file), quality);
+    encoder
+        .encode_image(&img.thumbnail(size, size).to_rgb8())
         .map_err(|e| e.to_string())
 }
 

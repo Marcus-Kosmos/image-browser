@@ -24,7 +24,7 @@ import { SeriesPicker } from "./SeriesPicker";
 import { ViewerLookMenu } from "./ViewerLookMenu";
 import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { HeadingText } from "./HeadingText";
-import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
+import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
 interface ViewerProps {
@@ -265,7 +265,7 @@ export function Viewer({
       });
     // Show the grid thumbnail quickly, then swap in the sharp version.
     const cancelPreview = requestThumbnail(image, GRID_THUMB_SIZE, (src) => show(src, false));
-    const cancelFull = requestThumbnail(image, VIEWER_THUMB_SIZE, (src) => show(src, true));
+    const cancelFull = requestThumbnail(image, viewerSize(image), (src) => show(src, true));
     return () => {
       cancelled = true;
       cancelPreview();
@@ -285,13 +285,24 @@ export function Viewer({
   useEffect(() => {
     const cancels = [images[index - 1], images[index + 1]]
       .filter(Boolean)
-      .map((img) => requestThumbnail(img, VIEWER_THUMB_SIZE, (src) => void decoded(src)));
+      .map((img) => requestThumbnail(img, viewerSize(img), (src) => void decoded(src)));
     return () => cancels.forEach((c) => c());
   }, [images, index]);
 
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
   const [content, setContent] = useState<HTMLDivElement | null>(null);
   const [space, setSpace] = useState({ width: 0, height: 0 });
+  // The whole area below the header, which a zoomed picture fills.
+  const [area, setArea] = useState<HTMLDivElement | null>(null);
+  const [areaSize, setAreaSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!area) return;
+    const measure = () => setAreaSize({ width: area.clientWidth, height: area.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [area]);
   useEffect(() => {
     if (!content) return;
     const measure = () => setSpace({ width: content.clientWidth, height: content.clientHeight });
@@ -324,9 +335,20 @@ export function Viewer({
   const kept = useRef(new Map<string, Zoom>());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => setZoom((look.keepZoom && kept.current.get(image.path)) || WHOLE), [image]);
-  // At least 3×, more for a picture with pixels to spare, so the last step shows them one to one.
-  const maxScale = Math.min(12, Math.max(3, image.width / Math.max(1, box.picture.width)));
-  const levels = Array.from({ length: ZOOM_STEPS + 1 }, (_, k) => maxScale ** (k / ZOOM_STEPS));
+  // Zoomed, the picture is seen through the whole area, not just its own place.
+  const zoomView = areaSize.width > 0 ? areaSize : view;
+  // Where the pinned pictures' box sits in that area, to reach its corner from inside it.
+  const areaOffset = layout
+    ? { x: (content?.offsetLeft ?? 0) + (space.width - layout.width) / 2, y: (space.height - layout.height) / 2 }
+    : { x: 0, y: 0 };
+  // Beside pinned pictures the first step fills the area with the picture, then it zooms on from there.
+  const fullScale = layout ? Math.max(1, Math.min(zoomView.width / box.width, zoomView.height / box.height)) : 1;
+  // At least 3× that, more for a picture with pixels to spare, so the last step shows them one to one.
+  const maxScale = Math.min(12 * fullScale, Math.max(3 * fullScale, image.width / Math.max(1, box.picture.width)));
+  const levels = [
+    ...(fullScale > 1.05 ? [1] : []),
+    ...Array.from({ length: ZOOM_STEPS + 1 }, (_, k) => fullScale * (maxScale / fullScale) ** (k / ZOOM_STEPS)),
+  ];
   const zoomed = zoom.scale > 1.001;
   const atMax = zoom.scale >= maxScale - 0.001;
   useEffect(() => {
@@ -339,15 +361,15 @@ export function Viewer({
   /** Keeps the picture covering the stage, so it can't be dragged off screen. */
   const clamp = useCallback(
     (z: Zoom): Zoom => {
-      const limitX = Math.max(0, (box.width * z.scale - view.width) / 2);
-      const limitY = Math.max(0, (box.height * z.scale - view.height) / 2);
+      const limitX = Math.max(0, (box.width * z.scale - zoomView.width) / 2);
+      const limitY = Math.max(0, (box.height * z.scale - zoomView.height) / 2);
       return {
         scale: z.scale,
         x: Math.max(-limitX, Math.min(limitX, z.x)),
         y: Math.max(-limitY, Math.min(limitY, z.y)),
       };
     },
-    [box.width, box.height, view.width, view.height],
+    [box.width, box.height, zoomView.width, zoomView.height],
   );
 
   /** Zooms to `scale`, keeping the point `px, py` (from the stage's center) where it is. */
@@ -363,6 +385,8 @@ export function Viewer({
   );
   const stepZoom = useCallback(
     (dir: 1 | -1, px = 0, py = 0) => {
+      // From its place among pinned pictures, the picture first grows to fill the area, centered.
+      if (dir > 0 && !zoomed && fullScale > 1.05) return zoomTo(fullScale);
       const next =
         dir > 0
           ? (levels.find((l) => l > zoom.scale + 0.001) ?? maxScale)
@@ -370,7 +394,7 @@ export function Viewer({
       zoomTo(next, px, py);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zoom.scale, maxScale, zoomTo],
+    [zoom.scale, zoomed, fullScale, maxScale, zoomTo],
   );
 
   // The file itself once zoomed in, as the largest thumbnail runs out of detail.
@@ -381,15 +405,24 @@ export function Viewer({
   useEffect(() => {
     if (!zoomed || original?.path === image.path) return;
     let cancelled = false;
+    let cancelConverted = () => {};
+    const use = (src: string) =>
+      void decoded(src).then(() => {
+        if (!cancelled) setOriginal({ path: image.path, src });
+      });
     const src = originalUrl(image);
     const img = new Image();
     img.src = src;
     img
       .decode()
       .then(() => !cancelled && setOriginal({ path: image.path, src }))
-      .catch(() => {});
+      // A format the browser can't draw (RAW, some HEIC) is converted at full size instead.
+      .catch(() => {
+        if (!cancelled) cancelConverted = requestThumbnail(image, Math.max(image.width, image.height), use);
+      });
     return () => {
       cancelled = true;
+      cancelConverted();
     };
   }, [zoomed, image, original?.path]);
 
@@ -634,6 +667,7 @@ export function Viewer({
         </Button>
       </div>
       <div
+        ref={setArea}
         className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6"
         style={{ paddingLeft: pinsWidth ? pinsWidth + 48 : undefined }}
       >
@@ -686,7 +720,8 @@ export function Viewer({
               ref={setStage}
               className={cn(
                 "flex touch-none items-center justify-center overflow-hidden",
-                layout ? "absolute" : "relative size-full",
+                layout || zoomed ? "absolute" : "relative size-full",
+                zoomed && "z-10",
               )}
               style={{
                 ...(layout && {
@@ -694,6 +729,13 @@ export function Viewer({
                   top: layout.current.y + (layout.current.height - box.height - lift) / 2,
                   ...view,
                   transition: SLOT_TRANSITION,
+                }),
+                // Zoomed, it covers the whole area below the header, pinned pictures included.
+                ...(zoomed && {
+                  left: layout ? -areaOffset.x : 0,
+                  top: layout ? -areaOffset.y : 0,
+                  ...zoomView,
+                  background: look.background ? "var(--canvas)" : "#000",
                 }),
                 cursor: panning ? "grabbing" : atMax ? "zoom-out" : "zoom-in",
               }}
@@ -819,7 +861,7 @@ function NavButton({ side, disabled, onClick, style }: NavButtonProps) {
       style={style}
       title={label}
       aria-label={label}
-      className={`absolute top-1/2 ${side === "left" ? "left-2" : "right-2"} flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
+      className={`absolute top-1/2 z-20 ${side === "left" ? "left-2" : "right-2"} flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
     >
       <Icon className="size-6" />
     </button>
