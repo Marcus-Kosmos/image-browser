@@ -13,6 +13,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Klicka på en bild för att visa den stort, bläddra med ← och → (mjuk övertoning), stäng med Esc
 - Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse. Kryssa i "Fråga inte igen"
   för att slänga med ett klick; frågan slås på igen under Utseende (paletten)
+- I en serie tar mappen med minustecken bort bilden ur serien utan att röra filen, på bilden i kartan, i
+  helskärm och för flera markerade bilder på en gång
 
 ## Funktioner (steg 2)
 

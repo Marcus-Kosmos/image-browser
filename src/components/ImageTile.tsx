@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, Heart, Trash2 } from "lucide-react";
+import { Check, FolderMinus, Heart, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Tag } from "@/lib/filter";
@@ -36,6 +36,8 @@ interface ImageTileProps {
   /** A click; with ⌘ or Shift it selects rather than opens. */
   onOpen: (index: number, e: React.MouseEvent) => void;
   onTrash: (index: number) => void;
+  /** In a series: takes the image out of it; the file stays. */
+  onRemove?: (index: number) => void;
   onChange: (key: string, change: ImageSettings) => void;
   onToggleFavorite: (index: number) => void;
   onToggleSeries: (id: string, index: number) => void;
@@ -68,6 +70,7 @@ export const ImageTile = memo(function ImageTile({
   settings,
   onOpen,
   onTrash,
+  onRemove,
   onChange,
   onToggleFavorite,
   onToggleSeries,
@@ -198,6 +201,20 @@ export const ImageTile = memo(function ImageTile({
           onChange={(change) => onChange(settingsKey, change)}
           onOpenChange={setMenuOpen}
         />
+        {onRemove && (
+          <button
+            onClick={() => onRemove(box.index)}
+            className={cn(
+              "absolute top-1.5 right-10 flex size-7 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/75 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+              menuOpen && "opacity-100",
+            )}
+            title="Ta bort ur serien (filen finns kvar)"
+            aria-label={`Ta bort ${image.name} ur serien`}
+            tabIndex={-1}
+          >
+            <FolderMinus className="size-4" />
+          </button>
+        )}
         <button
           onClick={() => onTrash(box.index)}
           className={cn(
