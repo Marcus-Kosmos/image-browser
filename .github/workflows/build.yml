@@ -49,7 +49,7 @@ jobs:
         run: scripts/import-signing-cert.sh
       - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg --config src-tauri/tauri.macos-upscale.json
       - name: Show signature
-        run: codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/macos/Imagime.app 2>&1 | grep -E 'Identifier|Authority|Signature' || true
+        run: codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>&1 | grep -E 'Identifier|Authority|Signature' || true
       - uses: actions/upload-artifact@v4
         with:
           name: Imagime-macOS
