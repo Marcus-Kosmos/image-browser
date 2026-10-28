@@ -143,6 +143,24 @@ fn expect_bigger_pics(original: Option<String>) {
     popup::set_target(original.map(PathBuf::from));
 }
 
+/// Shows the pictures in Finder, selected in their folders.
+#[tauri::command]
+fn reveal_in_finder(paths: Vec<String>) -> Result<(), String> {
+    // Finder opens a window per folder; a handful is plenty.
+    let paths: Vec<&String> = paths.iter().filter(|p| std::path::Path::new(p).exists()).take(20).collect();
+    if paths.is_empty() {
+        return Err("Filen finns inte längre.".into());
+    }
+    std::process::Command::new("open").arg("-R").args(paths).spawn().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Closes the bigger.pics windows once the enlarged picture is back.
+#[tauri::command]
+fn close_bigger_pics(app: tauri::AppHandle) {
+    popup::close_all(&app);
+}
+
 /// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
 /// Returns the new file's path.
 #[tauri::command]
@@ -250,7 +268,9 @@ pub fn run() {
             has_host_password,
             image_bytes,
             save_enlarged,
-            expect_bigger_pics
+            expect_bigger_pics,
+            close_bigger_pics,
+            reveal_in_finder
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.

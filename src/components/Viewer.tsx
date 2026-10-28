@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderMinus,
+  FolderSearch,
   Heart,
   Info,
   LayoutDashboard,
@@ -52,6 +53,8 @@ interface ViewerProps {
   onRemove?: (index: number) => void;
   /** Enlarges the image with AI into a new file beside it. */
   onUpscale?: (index: number) => void;
+  /** Shows the image's file in Finder. */
+  onReveal?: (index: number) => void;
   /** Whether an enlargement is running. */
   upscaling?: boolean;
   isFavorite: (image: ImageEntry) => boolean;
@@ -225,6 +228,7 @@ export function Viewer({
   onTrash,
   onRemove,
   onUpscale,
+  onReveal,
   upscaling = false,
   isFavorite,
   tagsOf,
@@ -747,6 +751,18 @@ export function Viewer({
             aria-label="Förstora med AI"
           >
             {upscaling ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+          </Button>
+        )}
+        {onReveal && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
+            onClick={() => onReveal(index)}
+            title="Visa i Finder"
+            aria-label="Visa i Finder"
+          >
+            <FolderSearch />
           </Button>
         )}
         {onRemove && (
