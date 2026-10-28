@@ -1,5 +1,7 @@
 mod auth;
+mod cloud;
 mod fonts;
+mod popup;
 mod publish;
 mod scan;
 mod thumbs;
@@ -47,6 +49,88 @@ async fn trash_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || trash::delete(&path).map_err(|e| e.to_string()))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Enlarges a picture with Stability AI, which draws in detail to match what the picture shows.
+/// `amount` (0 to 1) is how freely it may invent detail. Returns the new file's path.
+#[tauri::command]
+async fn cloud_upscale_image(
+    app: tauri::AppHandle,
+    path: String,
+    width: u32,
+    height: u32,
+    mode: cloud::Mode,
+    prompt: String,
+    amount: f32,
+) -> Result<String, String> {
+    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("thumbs");
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = cloud::key()?;
+        cloud::enlarge(&PathBuf::from(path), width, height, mode, &prompt, amount, &key, &cache_dir)
+            .map(|p| p.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the Stability AI key in the Mac's keychain; an empty key forgets it.
+#[tauri::command]
+async fn save_cloud_key(key: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if key.trim().is_empty() {
+            cloud::forget_key()
+        } else {
+            cloud::save_key(&key)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Whether a Stability AI key is saved, without handing it out.
+#[tauri::command]
+async fn has_cloud_key() -> bool {
+    tauri::async_runtime::spawn_blocking(|| cloud::key().is_ok()).await.unwrap_or(false)
+}
+
+/// The picture's bytes to hand to bigger.pics: the file itself when it is JPEG, PNG or WebP,
+/// otherwise a full-size JPEG made from it (HEIC, TIFF, RAW and the like).
+#[tauri::command]
+async fn image_bytes(app: tauri::AppHandle, path: String, width: u32, height: u32) -> Result<tauri::ipc::Response, String> {
+    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("thumbs");
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        let plain = matches!(
+            path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref(),
+            Some("jpg") | Some("jpeg") | Some("png") | Some("webp")
+        );
+        let file = if plain { path } else { thumbs::thumbnail(&path, width.max(height), &cache_dir)? };
+        std::fs::read(file).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Saves a picture enlarged elsewhere (bigger.pics) beside its original. The bytes are the request's body;
+/// the headers name the original (percent-encoded) and the file type. Returns the new file's path.
+#[tauri::command]
+async fn save_enlarged(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let header = |name: &str| {
+        request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_string).ok_or(format!("{name} saknas"))
+    };
+    let original = PathBuf::from(popup::percent_decode(&header("x-original")?).ok_or("Ogiltig sökväg")?);
+    let ext = if header("x-format")? == "jpeg" { "jpg" } else { "png" };
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Ingen bild kom tillbaka.".into());
+    };
+    let bytes = bytes.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let output = upscale::copy_path(&original, "förstorad bigger.pics", ext);
+        std::fs::write(&output, bytes).map_err(|e| format!("Kunde inte spara den förstorade bilden: {e}"))?;
+        Ok(output.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
@@ -147,11 +231,26 @@ pub fn run() {
             list_fonts,
             confirm_owner,
             upscale_image,
+            cloud_upscale_image,
+            save_cloud_key,
+            has_cloud_key,
             write_web_page,
             publish_web_page,
             save_host_password,
-            has_host_password
+            has_host_password,
+            image_bytes,
+            save_enlarged
         ])
+        // The main window is made here rather than from the config alone, so that it can open bigger.pics
+        // in a window still linked to it.
+        .setup(|app| {
+            let config = app.config().app.windows.first().cloned().ok_or("Fönsterinställningar saknas")?;
+            let handle = app.handle().clone();
+            tauri::WebviewWindowBuilder::from_config(app, &config)?
+                .on_new_window(move |url, features| popup::open(&handle, url, features))
+                .build()?;
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -126,6 +126,47 @@ export async function upscaleImage(image: ImageEntry): Promise<string> {
   return invoke<string>("upscale_image", { path: image.path, width: image.width, height: image.height });
 }
 
+/** How the picture is enlarged: on this Mac, or by Stability AI, carefully or more freely. */
+export type UpscaleMode = "local" | "conservative" | "creative" | "bigger";
+
+export interface CloudUpscale {
+  mode: "conservative" | "creative";
+  /** What the picture shows, so the model knows what detail to draw. */
+  prompt: string;
+  /** 0 to 1: how freely the model may invent detail. */
+  amount: number;
+}
+
+let demoCloudKey = false;
+
+/** Enlarges the picture with Stability AI and saves the copy beside the original; returns its path. */
+export async function cloudUpscaleImage(image: ImageEntry, options: CloudUpscale): Promise<string> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    throw "AI-förstoring finns bara i Mac-appen.";
+  }
+  return invoke<string>("cloud_upscale_image", {
+    path: image.path,
+    width: image.width,
+    height: image.height,
+    ...options,
+  });
+}
+
+/** Keeps the Stability AI key in the Mac's keychain; an empty key forgets it. */
+export async function saveCloudKey(key: string): Promise<void> {
+  if (demo) {
+    demoCloudKey = key.trim() !== "";
+    return;
+  }
+  return invoke("save_cloud_key", { key });
+}
+
+export async function hasCloudKey(): Promise<boolean> {
+  if (demo) return demoCloudKey;
+  return invoke<boolean>("has_cloud_key");
+}
+
 /** A picture for a web page: the original, its copy's name in the page's folder, and its longest side. */
 export interface WebPictureFile {
   path: string;
@@ -193,6 +234,44 @@ export async function writeWebPage(dir: string, html: string, pictures: WebPictu
     return;
   }
   await invoke("write_web_page", { dir, html, pictures });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** The picture as a data: URL, full size, to hand to bigger.pics. */
+export async function imageDataUrl(image: ImageEntry): Promise<string> {
+  if (demo) {
+    const img = new Image();
+    img.src = demoImage(image);
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    canvas.getContext("2d")!.drawImage(img, 0, 0);
+    return canvas.toDataURL("image/png");
+  }
+  const bytes = await invoke<ArrayBuffer>("image_bytes", { path: image.path, width: image.width, height: image.height });
+  const ext = image.name.split(".").pop()?.toLowerCase();
+  const type = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+  return blobToDataUrl(new Blob([bytes], { type }));
+}
+
+/** Saves a picture enlarged by bigger.pics beside its original; returns the new file's path. */
+export async function saveEnlarged(image: ImageEntry, picture: Blob, format: "png" | "jpeg"): Promise<string> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    throw "Att spara förstorade bilder finns bara i Mac-appen.";
+  }
+  return invoke<string>("save_enlarged", new Uint8Array(await picture.arrayBuffer()), {
+    headers: { "x-original": encodeURIComponent(image.path), "x-format": format },
+  });
 }
 
 export async function trashFile(path: string): Promise<void> {

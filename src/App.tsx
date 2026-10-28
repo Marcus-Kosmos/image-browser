@@ -12,6 +12,7 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
+import { UpscaleDialog, type UpscaleChoice } from "@/components/UpscaleDialog";
 import { PublishDialog } from "@/components/PublishDialog";
 import {
   confirmOwner,
@@ -24,6 +25,9 @@ import {
   sortDropped,
   trashFile,
   upscaleImage,
+  cloudUpscaleImage,
+  imageDataUrl,
+  saveEnlarged,
   writeWebPage,
   type ImageEntry,
   type WebHost,
@@ -59,6 +63,7 @@ import {
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
 import { useBackgroundTheme } from "@/lib/theme";
 import type { ViewerSettings } from "@/lib/viewer";
+import { openBiggerPics, upscaleWithBiggerPics } from "@/lib/biggerpics";
 import { buildWebPage, pagePictures, saveWebHost } from "@/lib/webpage";
 import { folderName, parentFolder } from "@/lib/utils";
 
@@ -623,11 +628,40 @@ export default function App() {
   };
   // AI enlargement: a new file beside the original, shown once it is read in.
   const [upscaling, setUpscaling] = useState(false);
-  const upscale = async (image: ImageEntry) => {
+  // The picture the wand was clicked for, while the dialog asks how to enlarge it.
+  const [upscaleFor, setUpscaleFor] = useState<ImageEntry | null>(null);
+  /** Asks bigger.pics, open in `popup`, to enlarge the picture; null when the window was closed without it. */
+  const enlargeWithBiggerPics = async (image: ImageEntry, popup: Window | null) => {
+    if (!popup) throw "bigger.pics kunde inte öppnas.";
+    const format = /\.jpe?g$/i.test(image.name) ? "jpeg" : "png";
+    const result = await upscaleWithBiggerPics(popup, {
+      url: () => imageDataUrl(image),
+      name: image.name,
+      format,
+      context: image.path,
+    });
+    return result && (await saveEnlarged(image, result.blob, format));
+  };
+  const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
     setUpscaling(true);
-    showToast(`Förstorar ${image.name} med AI. Det kan ta upp till en minut.`);
+    showToast(
+      choice.mode === "local"
+        ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
+        : choice.mode === "bigger"
+          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back.`
+          : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
+    );
     try {
-      const made = await upscaleImage(image);
+      const made =
+        choice.mode === "local"
+          ? await upscaleImage(image)
+          : choice.mode === "bigger"
+            ? await enlargeWithBiggerPics(image, popup)
+            : await cloudUpscaleImage(image, { mode: choice.mode, prompt: choice.prompt, amount: choice.amount });
+      if (!made) {
+        showToast("bigger.pics stängdes utan att bilden skickades tillbaka.");
+        return;
+      }
       const name = made.split("/").pop() ?? made;
       if (series && !locked) {
         // In a series, the copy goes into it, beside the original.
@@ -848,7 +882,7 @@ export default function App() {
           }}
           onTrash={requestTrash}
           onRemove={series && !locked ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
-          onUpscale={(i) => images[i] && void upscale(images[i])}
+          onUpscale={(i) => images[i] && setUpscaleFor(images[i])}
           upscaling={upscaling}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
@@ -873,7 +907,7 @@ export default function App() {
           savedLook={viewerLook ?? undefined}
           headingOf={(img) => settings.images[imageKey(img)]?.heading}
           shadow={settings.shadow}
-          paused={trashIndex !== null || shortcutsOpen}
+          paused={trashIndex !== null || shortcutsOpen || upscaleFor !== null}
         />
       )}
       {(() => {
@@ -897,6 +931,17 @@ export default function App() {
         image={trashIndex !== null ? images[trashIndex] ?? null : null}
         onCancel={() => setTrashIndex(null)}
         onConfirm={confirmTrash}
+      />
+      <UpscaleDialog
+        image={upscaleFor}
+        onCancel={() => setUpscaleFor(null)}
+        onStart={(choice) => {
+          const image = upscaleFor;
+          setUpscaleFor(null);
+          // The window has to open in the click itself, before anything is awaited.
+          const popup = choice.mode === "bigger" ? openBiggerPics() : null;
+          if (image) void upscale(image, choice, popup);
+        }}
       />
       <PublishDialog
         seriesName={publishing ? libraryTitle : null}
