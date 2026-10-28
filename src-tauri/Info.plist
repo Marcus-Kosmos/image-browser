@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Imagime visar bilderna i mapparna du öppnar och sparar förstorade kopior bredvid dem.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Imagime visar bilderna i mapparna du öppnar och sparar förstorade kopior bredvid dem.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Imagime visar bilderna i mapparna du öppnar och sparar förstorade kopior bredvid dem.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>Imagime visar bilderna på den externa disken när du öppnar en mapp där.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>Imagime visar bilderna på nätverksdisken när du öppnar en mapp där.</string>
+</dict>
+</plist>
