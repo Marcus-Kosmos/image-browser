@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  CAPTION_PLACES,
+  CAPTION_PLACE_LABELS,
   PIN_SIZES,
   PIN_SIZE_LABELS,
   VIEWER_TRANSITIONS,
   VIEWER_TRANSITION_LABELS,
   type ViewerSettings,
+  type ViewerTransition,
 } from "@/lib/viewer";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +55,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
         aria-haspopup="dialog"
         className={cn("text-current/80 hover:bg-current/15 hover:text-current", open && "bg-current/15")}
         onClick={() => setOpen(!open)}
-        title="Visning: övergång, zoom, fästa bilder, ram, hörn och bakgrund"
+        title="Visning: övergång, zoom, fästa bilder, rubriker, ram, hörn och bakgrund"
         aria-label="Visning"
       >
         <SlidersHorizontal />
@@ -93,6 +96,34 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
               />
             ))}
           </div>
+          <div className="my-1 h-px bg-white/10" />
+          <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Rubriker</div>
+          <div role="radiogroup" aria-label="Rubriker" className="flex flex-col">
+            {CAPTION_PLACES.map((place) => (
+              <Radio
+                key={place}
+                checked={settings.captionPlace === place}
+                onChange={() => onChange({ captionPlace: place })}
+                label={CAPTION_PLACE_LABELS[place]}
+              />
+            ))}
+          </div>
+          {settings.captionPlace !== "off" && (
+            <label className="flex items-center gap-2 px-2 py-1.5">
+              <span className="shrink-0 text-white/80">Kommer in</span>
+              <select
+                value={settings.captionEffect}
+                onChange={(e) => onChange({ captionEffect: e.target.value as ViewerTransition })}
+                className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                {VIEWER_TRANSITIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {VIEWER_TRANSITION_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="my-1 h-px bg-white/10" />
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Som i kartan</div>
           <Toggle checked={settings.frame} onChange={(frame) => onChange({ frame })} label="Visa ram och skugga" />

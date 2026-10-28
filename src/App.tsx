@@ -692,6 +692,7 @@ export default function App() {
           onSavePinned={savePinned}
           defaultPinnedName={uniqueSeriesName(library, "Fästa bilder")}
           savedLook={viewerLook ?? undefined}
+          headingOf={(img) => settings.images[imageKey(img)]?.heading}
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen}
         />
