@@ -41,6 +41,7 @@ import {
 } from "@/lib/library";
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
 import { useBackgroundTheme } from "@/lib/theme";
+import type { ViewerSettings } from "@/lib/viewer";
 import { folderName, parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
@@ -397,6 +398,35 @@ export default function App() {
   // Images kept in the corner of the full screen view, for this folder or list only.
   const [pinned, setPinned] = useState<ImageEntry[]>([]);
   useEffect(() => setPinned([]), [viewKey]);
+  // A series' saved look while it is shown "som pussel"; the usual look comes back on close.
+  const [viewerLook, setViewerLook] = useState<ViewerSettings | null>(null);
+  const showPuzzle =
+    series?.look && images.length > 0 && !locked
+      ? () => {
+          setViewerLook(series.look!);
+          setPinned(images.slice(0, -1));
+          setViewerIndex(images.length - 1);
+        }
+      : undefined;
+
+  const savePinned = (name: string, look: ViewerSettings | undefined, appearance: boolean) => {
+    const id = crypto.randomUUID();
+    const unique = uniqueSeriesName(library, name);
+    if (appearance) {
+      // Like a series made from a whole view: its colors and frame, and the pinned images' own settings by path.
+      const copied: FolderSettings = { ...settings, images: {} };
+      for (const img of pinned) {
+        const own = settings.images[imageKey(img)];
+        if (own) copied.images[img.path] = own;
+      }
+      saveSettings(`library:series:${id}`, copied);
+    }
+    changeLibrary((lib) => createSeries(lib, id, unique, pinned, look));
+    showToast(
+      `Serien ${unique} skapades med ${pinned.length === 1 ? "bilden" : `${pinned.length} bilder`}` +
+        (look ? ". Visa den som pussel från serien." : "."),
+    );
+  };
   const selectedImages = useMemo(() => images.filter((img) => selected.has(img.path)), [images, selected]);
   // ⌘A selects every image shown, Esc clears the selection.
   useEffect(() => {
@@ -523,6 +553,7 @@ export default function App() {
         onParent={goToParent}
         onRefresh={() => void refresh()}
         refreshing={refreshing}
+        onShowPuzzle={showPuzzle}
         includeSubfolders={includeSubfolders}
         onToggleSubfolders={toggleSubfolders}
         settings={settings}
@@ -634,6 +665,10 @@ export default function App() {
           onClose={() => {
             setHighlight({ index: viewerIndex });
             setViewerIndex(null);
+            if (viewerLook) {
+              setViewerLook(null);
+              setPinned([]);
+            }
           }}
           onTrash={requestTrash}
           isFavorite={(img) => favoritePaths.has(img.path)}
@@ -654,7 +689,9 @@ export default function App() {
           frame={settings.frame}
           pinned={pinned}
           onPinnedChange={setPinned}
-          onSavePinned={() => newSeriesWith("Fästa bilder", pinned)}
+          onSavePinned={savePinned}
+          defaultPinnedName={uniqueSeriesName(library, "Fästa bilder")}
+          savedLook={viewerLook ?? undefined}
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen}
         />

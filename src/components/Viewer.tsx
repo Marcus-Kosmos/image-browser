@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, GalleryHorizontalEnd, Heart, Info, Pin, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Info, Pin, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -10,12 +10,14 @@ import {
   resolveTransition,
   useViewerSettings,
   type Rect,
+  type ViewerSettings,
   type ViewerEffect,
 } from "@/lib/viewer";
 import type { Tag } from "@/lib/filter";
 import type { Series } from "@/lib/library";
 import { SeriesPicker } from "./SeriesPicker";
 import { ViewerLookMenu } from "./ViewerLookMenu";
+import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -41,8 +43,11 @@ interface ViewerProps {
   /** Images kept in the top left corner while stepping on. */
   pinned: ImageEntry[];
   onPinnedChange: (pinned: ImageEntry[]) => void;
-  /** Saves the pinned images, in order, as a new series. */
-  onSavePinned: () => void;
+  /** Saves the pinned images, in order, as a new series, with the look when chosen. */
+  onSavePinned: (name: string, look: ViewerSettings | undefined, appearance: boolean) => void;
+  defaultPinnedName: string;
+  /** A series' saved look, used instead of the usual one while this viewer is open. */
+  savedLook?: ViewerSettings;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -187,9 +192,15 @@ export function Viewer({
   pinned,
   onPinnedChange,
   onSavePinned,
+  defaultPinnedName,
+  savedLook,
   paused,
 }: ViewerProps) {
-  const { settings: look, update: updateLook } = useViewerSettings();
+  const { settings: usual, update: updateUsual } = useViewerSettings();
+  // A saved look can be changed here for the moment, without changing the series or the usual look.
+  const [own, setOwn] = useState(savedLook);
+  const look = own ?? usual;
+  const updateLook = (change: Partial<ViewerSettings>) => (own ? setOwn({ ...own, ...change }) : updateUsual(change));
   const frame = look.frame ? folderFrame : "none";
   const shadow = look.frame ? folderShadow : "none";
   // Read when the image changes, so changing the setting doesn't replay the current one.
@@ -518,16 +529,13 @@ export function Viewer({
           </div>
         </div>
         {pinned.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-current/80 hover:bg-current/15 hover:text-current"
-            onClick={onSavePinned}
-            title="Spara de fästa bilderna, i samma ordning, som en ny serie"
-          >
-            <GalleryHorizontalEnd />
-            Spara som serie
-          </Button>
+          <SavePinnedMenu
+            count={pinned.length}
+            defaultName={defaultPinnedName}
+            onSave={({ name, look: keepLook, appearance }: SavePinnedChoice) =>
+              onSavePinned(name, keepLook ? look : undefined, appearance)
+            }
+          />
         )}
         <ViewerLookMenu settings={look} onChange={updateLook} />
         <Button
