@@ -29,6 +29,10 @@ jobs:
   macos-app:
     runs-on: macos-latest
     needs: test
+    env:
+      # Same certificate on every build, so macOS remembers folder permissions between versions.
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,7 +44,12 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - run: npm ci
       - run: scripts/fetch-upscaler.sh
+      - name: Import signing certificate
+        if: env.MACOS_CERTIFICATE != ''
+        run: scripts/import-signing-cert.sh
       - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg --config src-tauri/tauri.macos-upscale.json
+      - name: Show signature
+        run: codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/macos/Imagime.app 2>&1 | grep -E 'Identifier|Authority|Signature' || true
       - uses: actions/upload-artifact@v4
         with:
           name: Imagime-macOS
