@@ -55,6 +55,8 @@ pub struct Dropped {
 pub fn sort_dropped(paths: &[PathBuf]) -> Dropped {
     let mut dropped = Dropped::default();
     for path in paths {
+        // The real path, so it matches the one found when its folder is read (no symlinks such as /tmp).
+        let path = &fs::canonicalize(path).unwrap_or_else(|_| path.clone());
         let text = path.to_string_lossy().into_owned();
         if path.is_dir() {
             if !is_package(path) {
@@ -215,6 +217,9 @@ mod tests {
     #[test]
     fn sorts_dropped_paths_into_folders_and_images() {
         let dir = std::env::temp_dir().join(format!("ib-drop-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        // Dropped paths come back resolved, as on macOS where the temp folder is behind a symlink.
+        let dir = fs::canonicalize(&dir).unwrap();
         let folder = dir.join("Semester");
         let library = dir.join("Bilder.photoslibrary");
         fs::create_dir_all(&folder).unwrap();

@@ -546,6 +546,8 @@ export default function App() {
   const [dropping, setDropping] = useState(false);
   const [showOnLoad, setShowOnLoad] = useState<string | null>(null);
   const dropInto = series && !locked ? series : null;
+  /** Paths compare equal however their letters (å, ä, ö) were composed. */
+  const samePath = (path: string) => path.normalize("NFC");
   const handleDrop = async (paths: string[]) => {
     const { folders: droppedFolders, images: droppedImages } = await sortDropped(paths);
     if (droppedFolders.length === 0 && droppedImages.length === 0) {
@@ -555,10 +557,17 @@ export default function App() {
     if (dropInto && droppedImages.length > 0) {
       const parents = [...new Set(droppedImages.map(parentFolder).filter((p): p is string => p !== null))];
       const listings = await Promise.allSettled(parents.map((p) => scanFolder(p, false)));
-      const wanted = new Set(droppedImages);
-      const entries = listings.flatMap((r) => (r.status === "fulfilled" ? r.value.images : [])).filter((img) => wanted.has(img.path));
-      if (entries.length === 0) showToast("Kunde inte läsa bilderna.", "error");
-      else addTo(`series:${dropInto.id}`, entries);
+      const wanted = new Set(droppedImages.map(samePath));
+      const entries = listings
+        .flatMap((r) => (r.status === "fulfilled" ? r.value.images : []))
+        .filter((img) => wanted.has(samePath(img.path)));
+      if (entries.length === 0) {
+        showToast("Kunde inte läsa bilderna.", "error");
+        return;
+      }
+      addTo(`series:${dropInto.id}`, entries);
+      // Show the first one where it now is in the series.
+      setShowOnLoad(entries[0].path);
       return;
     }
     const parents = droppedImages.map(parentFolder).filter((p): p is string => p !== null);
@@ -582,14 +591,24 @@ export default function App() {
       }),
     [],
   );
-  // A dropped image opens once its folder is shown.
+  // A dropped image opens full screen once its folder, or the series it went into, is shown.
   useEffect(() => {
     if (!showOnLoad) return;
-    const i = images.findIndex((img) => img.path === showOnLoad);
+    const wanted = samePath(showOnLoad);
+    const i = images.findIndex((img) => samePath(img.path) === wanted);
     if (i < 0) return;
     setViewerIndex(i);
     setShowOnLoad(null);
   }, [images, showOnLoad]);
+  // Say so when it never turns up, rather than leaving the drop unanswered.
+  useEffect(() => {
+    if (!showOnLoad) return;
+    const t = window.setTimeout(() => {
+      setShowOnLoad(null);
+      showToast(`Kunde inte visa ${showOnLoad.split("/").pop()}.`, "error");
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [showOnLoad, showToast]);
 
   const libraryTitle = view.kind === "favorites" ? "Favoriter" : (series?.name ?? null);
   const emptyKind: EmptyKind =
