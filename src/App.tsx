@@ -450,8 +450,9 @@ export default function App() {
     series?.look && images.length > 0 && !locked
       ? () => {
           setViewerLook(series.look!);
-          setPinned(images.slice(0, -1));
-          setViewerIndex(images.length - 1);
+          // The whole series pinned, from its first page.
+          setPinned(images);
+          setViewerIndex(0);
         }
       : undefined;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, pinLayout, resolveTransition } from "./viewer";
+import { captionLineHeight, hasRoomToPin, pinLayout, pinPages, resolveTransition } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -70,6 +70,25 @@ describe("pinLayout", () => {
     expect(hasRoomToPin("medium", Array(8).fill(portrait), landscape, room, 10)).toBe(false);
     expect(hasRoomToPin("puzzle", Array(13).fill(landscape), landscape, room, 10)).toBe(true);
     expect(hasRoomToPin("puzzle", Array(80).fill(landscape), landscape, room, 10)).toBe(false);
+  });
+
+  it("puts the current picture where it stands among the pinned ones", () => {
+    const last = pinLayout("full", [portrait, landscape], portrait, room, 10);
+    const first = pinLayout("full", [portrait, landscape], portrait, room, 10, 0);
+    expect(first.current.x).toBe(0);
+    expect(first.pins[0].x).toBeGreaterThan(0);
+    expect(last.current.x).toBeGreaterThan(last.pins[1].x);
+  });
+
+  it("splits a long series into pages that each fit", () => {
+    const pages = pinPages("full", Array(14).fill(landscape), room, 10);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages.flat()).toEqual([...Array(14).keys()]);
+    for (const page of pages) {
+      const sizes = page.map(() => landscape);
+      expect(hasRoomToPin("full", sizes.slice(0, -1), landscape, room, 10)).toBe(true);
+    }
+    expect(pinPages("full", [], room, 10)).toEqual([]);
   });
 
   it("gives the whole room to the current picture when nothing is pinned", () => {

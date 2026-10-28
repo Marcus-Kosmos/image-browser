@@ -267,6 +267,8 @@ export function pinLayout(
   current: Size,
   room: Size,
   gap: number,
+  /** Where among the pinned pictures the current one stands; last unless said. Not for "medium". */
+  at: number = pins.length,
 ): PinLayout {
   if (size === "medium") {
     const tall = Math.max(0, (room.height - gap) / 2);
@@ -299,7 +301,8 @@ export function pinLayout(
       height,
     };
   }
-  const items = [...pins, current];
+  const spot = Math.max(0, Math.min(at, pins.length));
+  const items = [...pins.slice(0, spot), current, ...pins.slice(spot)];
   const placed =
     size === "full"
       ? fillRoom(
@@ -309,8 +312,8 @@ export function pinLayout(
         )
       : fillWithRows(items, room, gap);
   return {
-    pins: placed.rects.slice(0, -1),
-    current: placed.rects[placed.rects.length - 1],
+    pins: placed.rects.filter((_, i) => i !== spot),
+    current: placed.rects[spot],
     width: placed.width,
     height: placed.height,
   };
@@ -322,6 +325,33 @@ export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], curr
   // A puzzle can grow many rows, until its pictures get really small.
   if (size === "puzzle") return rect.height >= room.height * 0.12;
   return rect.height >= room.height * 0.25 && rect.width >= room.width * 0.15;
+}
+
+/**
+ * Splits pinned pictures into pages, in order: each page takes as many as fit with all of them still a
+ * useful size. Returns each page's positions in `pins`.
+ */
+export function pinPages(size: Exclude<PinSize, "small">, pins: Size[], room: Size, gap: number): number[][] {
+  const pages: number[][] = [];
+  let page: number[] = [];
+  pins.forEach((pin, i) => {
+    if (
+      page.length > 0 &&
+      !hasRoomToPin(
+        size,
+        page.map((j) => pins[j]),
+        pin,
+        room,
+        gap,
+      )
+    ) {
+      pages.push(page);
+      page = [];
+    }
+    page.push(i);
+  });
+  if (page.length > 0) pages.push(page);
+  return pages;
 }
 
 function load(): ViewerSettings {
