@@ -654,6 +654,7 @@ export default function App() {
           frame={settings.frame}
           pinned={pinned}
           onPinnedChange={setPinned}
+          onSavePinned={() => newSeriesWith("Fästa bilder", pinned)}
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen}
         />
