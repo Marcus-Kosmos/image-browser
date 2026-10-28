@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 
 export interface ImageEntry {
   path: string;
@@ -257,20 +258,44 @@ export async function imageDataUrl(image: ImageEntry): Promise<string> {
     canvas.getContext("2d")!.drawImage(img, 0, 0);
     return canvas.toDataURL("image/png");
   }
-  const bytes = await invoke<ArrayBuffer>("image_bytes", { path: image.path, width: image.width, height: image.height });
+  const bytes = await invoke<ArrayBuffer>("image_bytes", {
+    path: image.path,
+    width: image.width,
+    height: image.height,
+  });
   const ext = image.name.split(".").pop()?.toLowerCase();
   const type = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
   return blobToDataUrl(new Blob([bytes], { type }));
 }
 
+/**
+ * Lets the Download button in bigger.pics save beside `image`, and calls `onSaved` with the new file's path.
+ * Returns a function that stops it.
+ */
+export async function expectBiggerPicsDownload(
+  image: ImageEntry,
+  onSaved: (path: string) => void,
+): Promise<() => void> {
+  if (demo) return () => {};
+  const stop = await listen<string>("bigger-pics-saved", (event) => onSaved(event.payload));
+  await invoke("expect_bigger_pics", { original: image.path });
+  return () => {
+    stop();
+    void invoke("expect_bigger_pics", { original: null });
+  };
+}
+
 /** Saves a picture enlarged by bigger.pics beside its original; returns the new file's path. */
 export async function saveEnlarged(image: ImageEntry, picture: Blob, format: "png" | "jpeg"): Promise<string> {
+  // The picture's own type wins over the one asked for.
+  const type = picture.type.replace("image/", "");
+  const saveAs = type === "jpeg" || type === "png" || type === "webp" ? type : format;
   if (demo) {
     await new Promise((resolve) => setTimeout(resolve, 300));
     throw "Att spara förstorade bilder finns bara i Mac-appen.";
   }
   return invoke<string>("save_enlarged", new Uint8Array(await picture.arrayBuffer()), {
-    headers: { "x-original": encodeURIComponent(image.path), "x-format": format },
+    headers: { "x-original": encodeURIComponent(image.path), "x-format": saveAs },
   });
 }
 
@@ -296,7 +321,16 @@ let fonts: Promise<string[]> | null = null;
 /** Font families installed on the computer, for headings. Read once per session. */
 export function listFonts(): Promise<string[]> {
   fonts ??= demo
-    ? Promise.resolve(["Avenir Next", "Baskerville", "Didot", "Futura", "Georgia", "Gill Sans", "Helvetica Neue", "Courier New"])
+    ? Promise.resolve([
+        "Avenir Next",
+        "Baskerville",
+        "Didot",
+        "Futura",
+        "Georgia",
+        "Gill Sans",
+        "Helvetica Neue",
+        "Courier New",
+      ])
     : invoke<string[]>("list_fonts").catch(() => []);
   return fonts;
 }
