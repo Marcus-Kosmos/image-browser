@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, FolderTree, Hash, ImagePlus, Images, Info, PanelLeft, Puzzle, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, FolderTree, Globe, Hash, ImagePlus, Images, Info, PanelLeft, Puzzle, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ interface ToolbarProps {
   refreshing: boolean;
   /** Shows a series saved from pinned images the way it was laid out, when it was saved with its look. */
   onShowPuzzle?: () => void;
+  /** Opens "Publicera som webbsida" for the series or Favoriter shown. */
+  onPublish?: () => void;
   includeSubfolders: boolean;
   onToggleSubfolders: () => void;
   settings: FolderSettings;
@@ -63,6 +65,7 @@ export function Toolbar({
   onRefresh,
   refreshing,
   onShowPuzzle,
+  onPublish,
   includeSubfolders,
   onToggleSubfolders,
   settings,
@@ -103,18 +106,32 @@ export function Toolbar({
         </div>
       ) : null}
       {libraryTitle !== null ? (
-        onShowPuzzle && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-2 shrink-0"
-            onClick={onShowPuzzle}
-            title="Visa serien i helskärm som den sparades"
-          >
-            <Puzzle />
-            Visa som pussel
-          </Button>
-        )
+        <>
+          {onShowPuzzle && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2 shrink-0"
+              onClick={onShowPuzzle}
+              title="Visa serien i helskärm som den sparades"
+            >
+              <Puzzle />
+              Visa som pussel
+            </Button>
+          )}
+          {onPublish && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2 shrink-0"
+              onClick={onPublish}
+              title="Gör en webbsida av bilderna och lägg den på ditt webbhotell"
+            >
+              <Globe />
+              Publicera
+            </Button>
+          )}
+        </>
       ) : folders.length > 0 && (
         <>
           <Button
