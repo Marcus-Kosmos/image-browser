@@ -234,7 +234,7 @@ export function Sidebar({
       )}
       {library.series.length === 0 && (
         <p className="px-4 py-1 text-xs text-muted-foreground">
-          Spara det som visas som en serie med plus-knappen, eller lägg till bilder via bildens inställningar.
+          Spara det som visas som en serie med plus-knappen, eller dra bilder hit.
         </p>
       )}
       {visibleSeries.map((s) =>
@@ -273,6 +273,15 @@ export function Sidebar({
           />
         ),
       )}
+
+      {/* Shown while pictures are dragged from the gallery: dropping them here makes a new series. */}
+      <div
+        data-drop-target="new-series"
+        className="mx-2 mt-1 hidden items-center gap-2 rounded-md border border-dashed border-current/30 px-3 py-1.5 text-sm text-muted-foreground data-drop-active:border-ring data-drop-active:bg-accent data-drop-active:text-foreground [.reordering_&]:flex"
+      >
+        <Plus className="size-4 shrink-0" />
+        Släpp för en ny serie
+      </div>
 
       <Dialog open={deleting !== null} onClose={() => setDeleting(null)} labelledBy="delete-series-title">
         <h2 id="delete-series-title" className="text-lg font-semibold">

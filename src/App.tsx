@@ -438,12 +438,17 @@ export default function App() {
   );
 
   const onDropOnLibrary = useCallback(
-    (indices: number[], target: string) =>
-      addTo(
-        target,
-        indices.flatMap((i) => (images[i] ? [images[i]] : [])),
-      ),
-    [images, addTo],
+    (indices: number[], target: string) => {
+      const dropped = indices.flatMap((i) => (images[i] ? [images[i]] : []));
+      if (target !== "new-series") return addTo(target, dropped);
+      // Dropped below the series: a new one, named right away in the sidebar.
+      const id = crypto.randomUUID();
+      const name = uniqueSeriesName(library, "Ny serie");
+      changeLibrary((lib) => createSeries(lib, id, name, dropped));
+      setRenamingId(id);
+      showToast(`Serien ${name} skapades med ${dropped.length === 1 ? "bilden" : `${dropped.length} bilder`}.`);
+    },
+    [images, addTo, library, changeLibrary, showToast],
   );
 
   // Images selected with ⌘-click, Shift-click or a rectangle; cleared when another view opens.

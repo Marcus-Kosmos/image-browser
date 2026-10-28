@@ -95,7 +95,11 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   och bilden visas i helskärm. Inget kopieras, bilderna visas där de ligger
 - Släpp bilder från Finder i appen: bildens mapp öppnas och bilden visas i helskärm. En mapp du släpper
   öppnas direkt. Står du i en serie läggs bilderna i serien och den första visas i helskärm (filerna ligger kvar där de är)
-- Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
+- Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där.
+  Under serierna dyker "Släpp för en ny serie" upp medan du drar: släpp där så blir bilden (eller de
+  markerade bilderna) en ny serie, som du namnger direkt
+- Frågar macOS om tillgång till en mapp (Skrivbord, Dokument, Hämtade filer) står det varför. Bygget är
+  inte signerat, så macOS frågar igen efter varje ny version
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
   lägg till eller ta bort bilder via bildens inställningar; byt namn eller ta bort serien i panelen
