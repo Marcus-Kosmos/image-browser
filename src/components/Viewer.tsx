@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, FolderMinus, Heart, Info, Pin, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { originalUrl, type ImageEntry } from "@/lib/api";
+import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
 import {
@@ -9,6 +9,7 @@ import {
   DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
+  nextScreenFit,
   resolveTransition,
   useViewerSettings,
   type CaptionPlace,
@@ -166,11 +167,26 @@ function framePad(frame: Frame, width: number, height: number) {
   return (typeof style.padding === "number" ? style.padding : 0) + (style.border ? 1 : 0);
 }
 
-/** The largest box with the picture's shape that fits with its frame, never larger than the picture. */
-function fit(room: { width: number; height: number }, width: number, height: number, frame: Frame) {
-  const first = Math.min(room.width / width, room.height / height, 1);
+/**
+ * The largest box with the picture's shape that fits with its frame, never larger than the picture.
+ * "grow" lets it grow past its own size to fill the room; "cover" fills the room, cut at the edges.
+ */
+function fit(
+  room: { width: number; height: number },
+  width: number,
+  height: number,
+  frame: Frame,
+  mode: "fit" | "grow" | "cover" = "fit",
+) {
+  if (mode === "cover") {
+    const scale = Math.max(room.width / width, room.height / height);
+    const picture = { width: Math.round(width * scale), height: Math.round(height * scale) };
+    return { picture, ...picture };
+  }
+  const most = mode === "grow" ? Infinity : 1;
+  const first = Math.min(room.width / width, room.height / height, most);
   const room0 = framePad(frame, width * first, height * first);
-  const scale = Math.max(0, Math.min((room.width - 2 * room0) / width, (room.height - 2 * room0) / height, 1));
+  const scale = Math.max(0, Math.min((room.width - 2 * room0) / width, (room.height - 2 * room0) / height, most));
   const picture = {
     width: Math.round(width * scale),
     height: Math.round(height * scale),
@@ -214,6 +230,19 @@ export function Viewer({
   const [own, setOwn] = useState(savedLook && { ...DEFAULT_VIEWER_SETTINGS, ...savedLook });
   const look = own ?? usual;
   const updateLook = (change: Partial<ViewerSettings>) => (own ? setOwn({ ...own, ...change }) : updateUsual(change));
+  // On the whole screen the header shows while the mouse moves, and fades when it rests.
+  const [chrome, setChrome] = useState(true);
+  const resting = useRef(0);
+  const wake = () => {
+    setChrome(true);
+    window.clearTimeout(resting.current);
+    resting.current = window.setTimeout(() => setChrome(false), 2500);
+  };
+  useEffect(() => {
+    wake();
+    return () => window.clearTimeout(resting.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [look.screen]);
   const frame = look.frame ? folderFrame : "none";
   const shadow = look.frame ? folderShadow : "none";
   // Read when the image changes, so changing the setting doesn't replay the current one.
@@ -315,6 +344,12 @@ export function Viewer({
   const pinSize = look.pinSize;
   const beside = pinSize === "small" ? [] : pinned.filter((p) => p.path !== image.path);
   const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP);
+  // One image at a time can take the whole screen: the header steps aside and the margins go.
+  const wide = !layout && look.screen !== "margins";
+  const fitMode = !wide ? "fit" : look.screen === "fill" ? "cover" : "grow";
+  // A frame cut off at the screen's edges would look broken, so a filling picture goes without.
+  const pictureFrame = fitMode === "cover" ? "none" : frame;
+  useWindowFullscreen(wide);
   const room = layout ? { width: layout.current.width, height: layout.current.height } : space;
   // The largest box with the picture's shape that fits, never larger than the picture itself.
   // A heading above the picture takes a line from its room.
@@ -323,9 +358,11 @@ export function Viewer({
   const captionHeight = heading ? captionLineHeight(heading.level, look.captionSize, room.height) : 0;
   const lift = heading && look.captionPlace === "above" ? captionHeight : 0;
   const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
-  const box = fit(pictureRoom, image.width, image.height, frame);
+  const box = fit(pictureRoom, image.width, image.height, pictureFrame, fitMode);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
   const view = layout ? { width: box.width, height: box.height + lift } : room;
+  // The part of the picture on screen, where the heart and heading go when it's cut at the edges.
+  const shown = { width: Math.min(box.width, pictureRoom.width), height: Math.min(box.height, pictureRoom.height) };
   const top = layers[layers.length - 1];
 
   // Zoom: each click magnifies where it points, three clicks reach the closest view.
@@ -553,6 +590,7 @@ export function Viewer({
       else if (e.key === "-") stepZoom(-1);
       else if (e.key === "0") setZoom(WHOLE);
       else if (e.key === "p") togglePin();
+      else if (e.key === "h") updateLook({ screen: nextScreenFit(look.screen) });
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
         onToggleSeries(series[digit - 1].id, index);
       else if (e.key === "s") setPicking((p) => !p);
@@ -579,6 +617,8 @@ export function Viewer({
     zoomed,
     stepZoom,
     togglePin,
+    look.screen,
+    updateLook,
   ]);
 
   return (
@@ -599,9 +639,25 @@ export function Viewer({
       role="dialog"
       aria-modal="true"
       aria-label={image.name}
+      onPointerMove={wide ? wake : undefined}
     >
       {/* Trash and close sit at opposite ends so one isn't clicked by mistake for the other. */}
-      <div className="flex h-12 shrink-0 items-center gap-3 px-3">
+      <div
+        className={cn(
+          "flex h-12 shrink-0 items-center gap-3 px-3",
+          wide && "absolute inset-x-0 top-0 z-30 transition-opacity duration-300",
+          wide && !chrome && "opacity-0 focus-within:opacity-100 hover:opacity-100",
+        )}
+        style={
+          wide
+            ? {
+                background: look.background
+                  ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
+                  : "linear-gradient(rgb(0 0 0 / 0.6), transparent)",
+              }
+            : undefined
+        }
+      >
         <Button
           variant="ghost"
           size="icon-sm"
@@ -668,8 +724,8 @@ export function Viewer({
       </div>
       <div
         ref={setArea}
-        className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6"
-        style={{ paddingLeft: pinsWidth ? pinsWidth + 48 : undefined }}
+        className={cn("relative flex min-h-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
+        style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
       >
         {pinSize === "small" && pinned.length > 0 && (
           <div
@@ -753,9 +809,9 @@ export function Viewer({
                   layer={
                     original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer
                   }
-                  box={fit(pictureRoom, layer.width, layer.height, frame)}
+                  box={fit(pictureRoom, layer.width, layer.height, pictureFrame, fitMode)}
                   lift={lift}
-                  frame={frame}
+                  frame={pictureFrame}
                   shadow={shadow}
                   rounded={look.rounded}
                   animate={i > 0}
@@ -771,8 +827,7 @@ export function Viewer({
                   zoomed ? "opacity-0" : "*:pointer-events-auto",
                 )}
                 style={{
-                  width: box.width,
-                  height: box.height,
+                  ...shown,
                   transform: lift ? `translateY(${lift / 2}px)` : undefined,
                 }}
               >
@@ -782,8 +837,8 @@ export function Viewer({
                     heading={heading}
                     place={look.captionPlace}
                     height={captionHeight}
-                    inset={framePad(frame, box.picture.width, box.picture.height) + 16}
-                    width={box.width}
+                    inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
+                    width={shown.width}
                     effect={look.captionEffect}
                     animate
                   />
