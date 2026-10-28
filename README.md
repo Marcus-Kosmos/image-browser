@@ -56,6 +56,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Under Visning väljer du hur fästa bilder visas: små i hörnet, mellanstora med bilden du bläddrar till
   i resten av skärmen, hela i en rad med den, eller som ett pussel som fyller skärmen. Pusslet bryts
   i rader som i kartan när bilderna blir fler, och den nya bilden hamnar sist, nere till höger
+- När en sida är full fortsätter de större lägena på nästa sida. Bläddra mellan sidorna med pilarna
+  längst ned eller Page Up och Page Down
 - Spara som serie sparar de fästa bilderna i samma ordning som en ny serie. Välj om visningen (pussel,
   hörn, övergång) och mappens bakgrundsfärg, ram och skugga ska följa med. En serie sparad med visningen
   får knappen Visa som pussel, som öppnar helskärm med bilderna lagda som när de sparades

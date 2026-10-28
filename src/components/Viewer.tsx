@@ -21,6 +21,7 @@ import {
   DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
+  pinPages,
   nextScreenFit,
   resolveTransition,
   useViewerSettings,
@@ -361,8 +362,30 @@ export function Viewer({
   }, [content]);
   // Larger pinned pictures share the space with the current one, which is shown once, on the right.
   const pinSize = look.pinSize;
-  const beside = pinSize === "small" ? [] : pinned.filter((p) => p.path !== image.path);
-  const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP);
+  // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
+  // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
+  // as the start of the next.
+  const pages = pinSize === "small" ? [] : pinPages(pinSize, pinned, space, PIN_ROW_GAP);
+  const pinnedAt = pinned.findIndex((p) => p.path === image.path);
+  let page = pages.findIndex((pg) => pg.includes(pinnedAt));
+  let beside: ImageEntry[] = [];
+  let at: number | undefined;
+  if (pinSize !== "small" && page >= 0) {
+    beside = pages[page].filter((i) => i !== pinnedAt).map((i) => pinned[i]);
+    at = pages[page].indexOf(pinnedAt);
+  } else if (pinSize !== "small") {
+    const last = (pages[pages.length - 1] ?? []).map((i) => pinned[i]);
+    const fits = last.length > 0 && hasRoomToPin(pinSize, last, image, space, PIN_ROW_GAP);
+    if (fits) beside = last;
+    page = fits ? pages.length - 1 : pages.length;
+  }
+  const pageCount = Math.max(pages.length, page + 1);
+  const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP, at);
+  const goToPage = (k: number) => {
+    const first = pages[k]?.[0];
+    const i = first === undefined ? -1 : images.findIndex((img) => img.path === pinned[first].path);
+    if (i >= 0) onIndexChange(i);
+  };
   // One image at a time can take the whole screen: the header steps aside and the margins go.
   const wide = !layout && look.screen !== "margins";
   const fitMode = !wide ? "fit" : look.screen === "fill" ? "cover" : "grow";
@@ -562,11 +585,8 @@ export function Viewer({
   const pinsWidth = pinSize === "small" && pinColumns ? 16 + pinColumns * (PIN_W + PIN_GAP) : 0;
   const isPinned = pinned.some((p) => p.path === image.path);
   // Larger ones stop when the next picture, assumed shaped like this one, would get too small.
-  const pinsFull =
-    !isPinned &&
-    (pinSize === "small"
-      ? pinned.length >= pinRows * PIN_COLUMNS
-      : !hasRoomToPin(pinSize, [...pinned, image], image, space, PIN_ROW_GAP));
+  // Larger ones never run out: a full page is followed by another.
+  const pinsFull = !isPinned && pinSize === "small" && pinned.length >= pinRows * PIN_COLUMNS;
   const togglePin = useCallback(() => {
     if (pinned.some((p) => p.path === image.path)) onPinnedChange(pinned.filter((p) => p.path !== image.path));
     else if (!pinsFull) onPinnedChange([...pinned, image]);
@@ -642,6 +662,8 @@ export function Viewer({
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
         onToggleSeries(series[digit - 1].id, index);
       else if (e.key === "s") setPicking((p) => !p);
+      else if (e.key === "PageUp" && page > 0) goToPage(page - 1);
+      else if (e.key === "PageDown" && page < pages.length - 1) goToPage(page + 1);
       else if (e.key === "ArrowLeft" && hasPrev) onIndexChange(index - 1);
       else if (e.key === "ArrowRight" && hasNext) onIndexChange(index + 1);
       else if (e.key === "Delete" || e.key === "Backspace") onTrash(index);
@@ -668,6 +690,9 @@ export function Viewer({
     look.screen,
     look.collections,
     updateLook,
+    page,
+    pages.length,
+    goToPage,
   ]);
 
   return (
@@ -815,6 +840,34 @@ export function Viewer({
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
           style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
         >
+          {pageCount > 1 && !zoomed && (
+            <nav
+              aria-label="Sidor"
+              className="absolute bottom-0 left-1/2 z-20 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full bg-current/10 px-1 text-xs"
+            >
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page <= 0}
+                title="Föregående sida (Page Up)"
+                aria-label="Föregående sida"
+                className="flex size-5 items-center justify-center rounded-full hover:bg-current/15 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none disabled:opacity-30"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <span className="px-1 tabular-nums">
+                Sida {page + 1} av {pageCount}
+              </span>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= pages.length - 1}
+                title="Nästa sida (Page Down)"
+                aria-label="Nästa sida"
+                className="flex size-5 items-center justify-center rounded-full hover:bg-current/15 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none disabled:opacity-30"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+            </nav>
+          )}
           {pinSize === "small" && pinned.length > 0 && (
             <div
               className="absolute top-0 left-4 flex flex-col flex-wrap content-start"
