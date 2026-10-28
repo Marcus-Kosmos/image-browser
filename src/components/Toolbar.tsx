@@ -2,6 +2,7 @@ import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, Info, Puzzle,
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { ImageFilter, Tag } from "@/lib/filter";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
@@ -180,19 +181,19 @@ export function Toolbar({
             </Button>
           )}
           <label className="relative flex items-center" title="Effekt när bilder visas">
-            <Sparkles className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground" aria-hidden />
+            <Sparkles className="pointer-events-none absolute left-2.5 z-10 size-4 text-muted-foreground" aria-hidden />
             <span className="sr-only">Effekt när bilder visas</span>
-            <select
+            <NativeSelect
               value={settings.reveal}
               onChange={(e) => onSettingsChange({ reveal: e.target.value as Reveal })}
-              className="h-8 appearance-none rounded-md border bg-background pr-3 pl-8 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="h-8 rounded-md border bg-background pl-8 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               {(Object.keys(REVEAL_LABELS) as Reveal[]).map((r) => (
                 <option key={r} value={r}>
                   {REVEAL_LABELS[r]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <AppearanceMenu
             settings={settings}

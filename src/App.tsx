@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, type EmptyKind } from "@/components/EmptyState";
 import { Gallery } from "@/components/Gallery";
 import { HeadingDialog, type HeadingKind } from "@/components/HeadingDialog";
@@ -11,7 +11,8 @@ import { TrashDialog } from "@/components/TrashDialog";
 import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
-import { confirmOwner, pickFolders, scanFolder, trashFile, type ImageEntry } from "@/lib/api";
+import { DropOverlay } from "@/components/DropOverlay";
+import { confirmOwner, onFileDrop, pickFolders, scanFolder, sortDropped, trashFile, type ImageEntry } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
 import {
   addToFavorites,
@@ -540,6 +541,56 @@ export default function App() {
     if (image) void trashImage(image);
   };
 
+  // Files and folders dragged in from Finder. In a series the images are added to it;
+  // otherwise their folders open and the first image is shown in full screen.
+  const [dropping, setDropping] = useState(false);
+  const [showOnLoad, setShowOnLoad] = useState<string | null>(null);
+  const dropInto = series && !locked ? series : null;
+  const handleDrop = async (paths: string[]) => {
+    const { folders: droppedFolders, images: droppedImages } = await sortDropped(paths);
+    if (droppedFolders.length === 0 && droppedImages.length === 0) {
+      showToast("Det finns inga bilder eller mappar bland det du släppte.", "error");
+      return;
+    }
+    if (dropInto && droppedImages.length > 0) {
+      const parents = [...new Set(droppedImages.map(parentFolder).filter((p): p is string => p !== null))];
+      const listings = await Promise.allSettled(parents.map((p) => scanFolder(p, false)));
+      const wanted = new Set(droppedImages);
+      const entries = listings.flatMap((r) => (r.status === "fulfilled" ? r.value.images : [])).filter((img) => wanted.has(img.path));
+      if (entries.length === 0) showToast("Kunde inte läsa bilderna.", "error");
+      else addTo(`series:${dropInto.id}`, entries);
+      return;
+    }
+    const parents = droppedImages.map(parentFolder).filter((p): p is string => p !== null);
+    const targets = [...new Set([...droppedFolders, ...parents])];
+    setFilter(NO_FILTER);
+    setShowOnLoad(droppedImages[0] ?? null);
+    const count = await loadFolders(targets);
+    if (count !== null) changeLibrary((lib) => rememberFolders(lib, targets));
+  };
+  const latestDrop = useRef(handleDrop);
+  latestDrop.current = handleDrop;
+  useEffect(
+    () =>
+      onFileDrop((state) => {
+        if (state === "over") setDropping(true);
+        else if (state === "left") setDropping(false);
+        else {
+          setDropping(false);
+          void latestDrop.current(state.dropped);
+        }
+      }),
+    [],
+  );
+  // A dropped image opens once its folder is shown.
+  useEffect(() => {
+    if (!showOnLoad) return;
+    const i = images.findIndex((img) => img.path === showOnLoad);
+    if (i < 0) return;
+    setViewerIndex(i);
+    setShowOnLoad(null);
+  }, [images, showOnLoad]);
+
   const libraryTitle = view.kind === "favorites" ? "Favoriter" : (series?.name ?? null);
   const emptyKind: EmptyKind =
     filtering && allImages.length > 0
@@ -741,6 +792,7 @@ export default function App() {
         onConfirm={confirmTrash}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      {dropping && <DropOverlay into={dropInto?.name ?? null} />}
       <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} raised={selectedImages.length > 0} />
     </div>
   );
