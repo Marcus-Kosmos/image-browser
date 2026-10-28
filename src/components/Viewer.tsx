@@ -5,13 +5,14 @@ import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
 import {
-  CAPTION_HEIGHT,
+  captionLineHeight,
   DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
   resolveTransition,
   useViewerSettings,
   type CaptionPlace,
+  type CaptionSize,
   type Rect,
   type ViewerSettings,
   type ViewerTransition,
@@ -308,7 +309,7 @@ export function Viewer({
   // A heading above the picture takes a line from its room.
   const captionOf = (img: ImageEntry) => (look.captionPlace === "off" ? undefined : headingOf(img));
   const heading = captionOf(image);
-  const captionHeight = heading ? CAPTION_HEIGHT[heading.level] : 0;
+  const captionHeight = heading ? captionLineHeight(heading.level, look.captionSize, room.height) : 0;
   const lift = heading && look.captionPlace === "above" ? captionHeight : 0;
   const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
   const box = fit(pictureRoom, image.width, image.height, frame);
@@ -674,6 +675,7 @@ export function Viewer({
                 rounded={look.rounded}
                 heading={captionOf(beside[i])}
                 place={look.captionPlace}
+                size={look.captionSize}
                 dragging={dragging === beside[i].path}
                 onDragStart={(e) => startPinDrag(beside[i].path, e)}
                 onOpen={() => openPinned(beside[i])}
@@ -739,6 +741,7 @@ export function Viewer({
                     place={look.captionPlace}
                     height={captionHeight}
                     inset={framePad(frame, box.picture.width, box.picture.height) + 16}
+                    width={box.width}
                     effect={look.captionEffect}
                     animate
                   />
@@ -966,6 +969,7 @@ interface PinnedPictureProps {
   rounded: boolean;
   heading?: Heading;
   place: CaptionPlace;
+  size: CaptionSize;
   dragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
@@ -981,6 +985,7 @@ function PinnedPicture({
   rounded,
   heading,
   place,
+  size,
   dragging,
   onDragStart,
   onOpen,
@@ -990,7 +995,7 @@ function PinnedPicture({
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
   // Headings shrink with smaller pictures, but stay readable.
   const captionHeight = heading
-    ? Math.max(18, Math.round(CAPTION_HEIGHT[heading.level] * Math.min(1, rect.height / 600)))
+    ? Math.max(18, Math.round(captionLineHeight(heading.level, size, rect.height) * Math.min(1, rect.height / 600)))
     : 0;
   const lift = heading && place === "above" ? captionHeight : 0;
   const box = fit({ width: rect.width, height: Math.max(0, rect.height - lift) }, image.width, image.height, frame);
@@ -1042,6 +1047,7 @@ function PinnedPicture({
           place={place}
           height={captionHeight}
           inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(captionHeight / 3)}
+          width={box.width}
           effect="none"
           animate={false}
         />
@@ -1065,13 +1071,31 @@ interface CaptionProps {
   height: number;
   /** Distance from the picture's edges when the heading sits on it. */
   inset: number;
+  /** Width of the picture; a heading above it shrinks to fit rather than being cut. */
+  width: number;
   effect: ViewerTransition;
   /** Comes in with the effect a moment after its picture. */
   animate: boolean;
 }
 
+let measure: CanvasRenderingContext2D | null = null;
+
+/** The largest line height, up to `height`, at which the heading fits in `width` on one line. */
+function fitLine(heading: Heading, height: number, width: number): number {
+  measure ??= document.createElement("canvas").getContext("2d");
+  if (!measure) return height;
+  const weight = heading.level === 3 ? 500 : 600;
+  const family = heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
+  measure.font = `${weight} 100px ${family}`;
+  // Text width grows with its size, so one measurement at 100px gives the size that fits.
+  const per100 = measure.measureText(heading.text).width;
+  if (per100 <= 0) return height;
+  const fits = Math.floor(((width * 0.98) / per100) * (100 / 0.62));
+  return Math.max(18, Math.min(height, fits));
+}
+
 /** An image's heading in full screen, above the picture or in one of its corners. */
-function Caption({ heading, place, height, inset, effect, animate }: CaptionProps) {
+function Caption({ heading, place, height, inset, width, effect, animate }: CaptionProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     if (!animate) return;
@@ -1083,6 +1107,7 @@ function Caption({ heading, place, height, inset, effect, animate }: CaptionProp
     : { ...enterStyle(resolveTransition(effect, 0), 1), transition: "none" };
   const over = place !== "above";
   const right = place.endsWith("right");
+  const line = over ? height : fitLine(heading, height, width);
   const position: React.CSSProperties = over
     ? {
         [place.startsWith("top") ? "top" : "bottom"]: inset,
@@ -1094,7 +1119,7 @@ function Caption({ heading, place, height, inset, effect, animate }: CaptionProp
     <div className="pointer-events-none absolute" style={{ ...position, ...motion }}>
       <HeadingText
         heading={heading}
-        height={height}
+        height={line}
         scale={0.62}
         style={
           over
@@ -1102,6 +1127,14 @@ function Caption({ heading, place, height, inset, effect, animate }: CaptionProp
                 color: heading.color ?? "#fff",
                 textAlign: right ? "right" : "left",
                 textShadow: "0 1px 3px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 0 0 / 0.35)",
+                // On the picture a long heading wraps onto up to three lines instead of being cut.
+                height: "auto",
+                lineHeight: 1.1,
+                whiteSpace: "normal",
+                overflowWrap: "break-word",
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
               }
             : undefined
         }

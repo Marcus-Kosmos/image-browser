@@ -60,7 +60,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Behåll zoom (under Visning): varje bild minns sin zoom, så den är kvar när du bläddrar tillbaka
 - Rundade hörn (under Visning) rundar bilderna och deras ramar i helskärm
 - Rubriker i helskärm (under Visning): visa bildernas rubriker ovanför bilden eller på bilden i ett hörn,
-  och välj hur de kommer in (tona fram, glid in, parallax med flera)
+  och välj hur de kommer in (tona fram, glid in, parallax med flera). Storleken går från
+  Normal till Jättestor. På bilden bryts en lång rubrik på upp till tre rader; ovanför bilden krymper den
+  så att den får plats på en rad
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;
