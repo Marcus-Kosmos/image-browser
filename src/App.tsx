@@ -28,6 +28,7 @@ import {
   cloudUpscaleImage,
   imageDataUrl,
   saveEnlarged,
+  revealInFinder,
   expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
@@ -168,9 +169,16 @@ export default function App() {
     if (view.kind === "series" && !series) selectView({ kind: "folders" });
   }, [view, series, selectView]);
 
-  const showToast = useCallback((text: string, tone: ToastMessage["tone"] = "success") => {
-    setToast({ id: Date.now(), text, tone });
-  }, []);
+  const showToast = useCallback(
+    (text: string, tone: ToastMessage["tone"] = "success", action?: ToastMessage["action"]) => {
+      setToast({ id: Date.now(), text, tone, action });
+    },
+    [],
+  );
+  const reveal = useCallback(
+    (paths: string[]) => revealInFinder(paths).catch((e) => showToast(String(e), "error")),
+    [showToast],
+  );
 
   const itemName = useCallback(
     (item: LibraryView) =>
@@ -657,6 +665,8 @@ export default function App() {
         window,
         stopWaiting.signal,
       );
+      // The picture is back: a download bigger.pics makes as well would only be a copy.
+      stopDownloads();
       if (downloaded) return downloaded;
       return result && (await saveEnlarged(image, result.blob, format));
     } finally {
@@ -691,7 +701,10 @@ export default function App() {
         await loadFolders(listing.folders, includeSubfolders, true);
       }
       setShowOnLoad(made);
-      showToast(`Sparad som ${name}, bredvid originalet.`);
+      showToast(`Sparad som ${name}, bredvid originalet.`, "success", {
+        label: "Visa i Finder",
+        run: () => void reveal([made]),
+      });
     } catch (e) {
       showToast(typeof e === "string" ? e : "AI-förstoringen misslyckades.", "error");
     } finally {
@@ -855,6 +868,7 @@ export default function App() {
               onSelectAll={() => setSelected(new Set(images.map((img) => img.path)))}
               allSelected={selectedImages.length === images.length}
               onClear={() => setSelected(new Set())}
+              onReveal={() => void reveal(selectedImages.map((img) => img.path))}
             />
           )}
           {listing && inFolders && (
@@ -915,6 +929,7 @@ export default function App() {
           onTrash={requestTrash}
           onRemove={series && !locked ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
           onUpscale={(i) => images[i] && setUpscaleFor(images[i])}
+          onReveal={(i) => images[i] && void reveal([images[i].path])}
           upscaling={upscaling}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}

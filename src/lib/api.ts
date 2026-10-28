@@ -270,7 +270,7 @@ export async function imageDataUrl(image: ImageEntry): Promise<string> {
 
 /**
  * Lets the Download button in bigger.pics save beside `image`, and calls `onSaved` with the new file's path.
- * Returns a function that stops it.
+ * Returns a function that stops it and closes the bigger.pics window.
  */
 export async function expectBiggerPicsDownload(
   image: ImageEntry,
@@ -279,9 +279,12 @@ export async function expectBiggerPicsDownload(
   if (demo) return () => {};
   const stop = await listen<string>("bigger-pics-saved", (event) => onSaved(event.payload));
   await invoke("expect_bigger_pics", { original: image.path });
+  let stopped = false;
   return () => {
+    if (stopped) return;
+    stopped = true;
     stop();
-    void invoke("expect_bigger_pics", { original: null });
+    void invoke("expect_bigger_pics", { original: null }).then(() => invoke("close_bigger_pics"));
   };
 }
 
@@ -297,6 +300,12 @@ export async function saveEnlarged(image: ImageEntry, picture: Blob, format: "pn
   return invoke<string>("save_enlarged", new Uint8Array(await picture.arrayBuffer()), {
     headers: { "x-original": encodeURIComponent(image.path), "x-format": saveAs },
   });
+}
+
+/** Shows the files in Finder, selected in their folders. */
+export async function revealInFinder(paths: string[]): Promise<void> {
+  if (demo) throw "Visa i Finder finns bara i Mac-appen.";
+  await invoke("reveal_in_finder", { paths });
 }
 
 export async function trashFile(path: string): Promise<void> {

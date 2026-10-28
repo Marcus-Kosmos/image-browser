@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderMinus, FolderPlus, Heart, HeartOff, X } from "lucide-react";
+import { ChevronDown, FolderMinus, FolderPlus, FolderSearch, Heart, HeartOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,8 @@ interface SelectionBarProps {
   onSelectAll: () => void;
   allSelected: boolean;
   onClear: () => void;
+  /** Shows the selected files in Finder. */
+  onReveal: () => void;
 }
 
 /** Shown while images are selected: what can be done with all of them at once. */
@@ -36,6 +38,7 @@ export function SelectionBar({
   onSelectAll,
   allSelected,
   onClear,
+  onReveal,
 }: SelectionBarProps) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
@@ -117,7 +120,11 @@ export function SelectionBar({
           <ChevronDown className="text-muted-foreground" />
         </Button>
         {open && (
-          <div role="menu" aria-label="Serier" className="absolute right-0 bottom-10 w-60 rounded-lg border bg-popover p-1 shadow-lg">
+          <div
+            role="menu"
+            aria-label="Serier"
+            className="absolute right-0 bottom-10 w-60 rounded-lg border bg-popover p-1 shadow-lg"
+          >
             <SeriesMenuList
               series={series}
               onPick={(id) => done(() => onAddToSeries(id))}
@@ -138,6 +145,9 @@ export function SelectionBar({
           Ta bort ur serien
         </Button>
       )}
+      <Button variant="ghost" size="icon-sm" onClick={onReveal} title="Visa i Finder" aria-label="Visa i Finder">
+        <FolderSearch />
+      </Button>
       <div className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button variant="ghost" size="icon-sm" onClick={onClear} title="Avmarkera (Esc)" aria-label="Avmarkera">
         <X />
