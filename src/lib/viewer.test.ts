@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasRoomToPin, pinLayout, resolveTransition } from "./viewer";
+import { captionLineHeight, hasRoomToPin, pinLayout, resolveTransition } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -76,5 +76,14 @@ describe("pinLayout", () => {
     const layout = pinLayout("full", [], portrait, room, 10);
     expect(layout.pins).toEqual([]);
     expect(layout.current).toEqual({ x: 0, y: 0, width: 400, height: 600 });
+  });
+});
+
+describe("captionLineHeight", () => {
+  it("draws larger sizes larger, but never more than a third of the room", () => {
+    expect(captionLineHeight(1, "normal", 900)).toBe(52);
+    expect(captionLineHeight(1, "huge", 900)).toBe(208);
+    expect(captionLineHeight(1, "huge", 300)).toBe(100);
+    expect(captionLineHeight(3, "large", 900)).toBe(48);
   });
 });

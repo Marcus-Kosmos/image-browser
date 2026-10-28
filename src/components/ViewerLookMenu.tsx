@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import {
   CAPTION_PLACES,
   CAPTION_PLACE_LABELS,
+  CAPTION_SIZES,
+  CAPTION_SIZE_LABELS,
   PIN_SIZES,
   PIN_SIZE_LABELS,
   VIEWER_TRANSITIONS,
   VIEWER_TRANSITION_LABELS,
+  type CaptionSize,
   type ViewerSettings,
   type ViewerTransition,
 } from "@/lib/viewer";
@@ -110,7 +113,23 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
           </div>
           {settings.captionPlace !== "off" && (
             <label className="flex items-center gap-2 px-2 py-1.5">
-              <span className="shrink-0 text-white/80">Kommer in</span>
+              <span className="w-16 shrink-0 text-white/80">Storlek</span>
+              <select
+                value={settings.captionSize}
+                onChange={(e) => onChange({ captionSize: e.target.value as CaptionSize })}
+                className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                {CAPTION_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {CAPTION_SIZE_LABELS[size]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {settings.captionPlace !== "off" && (
+            <label className="flex items-center gap-2 px-2 py-1.5">
+              <span className="w-16 shrink-0 text-white/80">Kommer in</span>
               <select
                 value={settings.captionEffect}
                 onChange={(e) => onChange({ captionEffect: e.target.value as ViewerTransition })}

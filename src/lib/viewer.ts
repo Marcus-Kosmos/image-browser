@@ -63,6 +63,24 @@ export const CAPTION_PLACE_LABELS: Record<CaptionPlace, string> = {
 /** Height of a heading's line in full screen, per level. */
 export const CAPTION_HEIGHT: Record<1 | 2 | 3, number> = { 1: 52, 2: 40, 3: 30 };
 
+export const CAPTION_SIZES = ["normal", "large", "x-large", "huge"] as const;
+export type CaptionSize = (typeof CAPTION_SIZES)[number];
+
+export const CAPTION_SIZE_LABELS: Record<CaptionSize, string> = {
+  normal: "Normal",
+  large: "Stor",
+  "x-large": "Mycket stor",
+  huge: "Jättestor",
+};
+
+/** How much larger than normal each size draws the headings. */
+export const CAPTION_SCALE: Record<CaptionSize, number> = { normal: 1, large: 1.6, "x-large": 2.5, huge: 4 };
+
+/** A heading's line height in full screen, kept to at most a third of the room it sits in. */
+export function captionLineHeight(level: 1 | 2 | 3, size: CaptionSize, roomHeight: number): number {
+  return Math.round(Math.min(CAPTION_HEIGHT[level] * CAPTION_SCALE[size], roomHeight / 3));
+}
+
 export interface ViewerSettings {
   transition: ViewerTransition;
   /** Each image keeps its zoom, so stepping back to it shows the same detail. */
@@ -78,6 +96,7 @@ export interface ViewerSettings {
   captionPlace: CaptionPlace;
   /** How a heading comes in with its image. */
   captionEffect: ViewerTransition;
+  captionSize: CaptionSize;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -89,6 +108,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   rounded: false,
   captionPlace: "above",
   captionEffect: "fade",
+  captionSize: "normal",
 };
 
 const STORAGE = "image-browser:viewer";
