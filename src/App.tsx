@@ -25,6 +25,7 @@ import {
   moveInSeries,
   privacyOf,
   removeFromFavorites,
+  removeFromSeries,
   removeImage,
   renamePlace,
   rememberFolders,
@@ -378,6 +379,23 @@ export default function App() {
     [favoritePaths, changeLibrary, showToast],
   );
 
+  /** Takes images out of the series shown; unlike the trash, the files stay where they are. */
+  const takeOutOfSeries = (removed: ImageEntry[]) => {
+    if (!series || removed.length === 0) return;
+    changeLibrary((lib) => removeFromSeries(lib, series.id, removed));
+    setSelected(new Set());
+    if (viewerIndex !== null) {
+      // The next image takes its place; after the last one, the one before it.
+      if (images.length <= removed.length) setViewerIndex(null);
+      else if (viewerIndex >= images.length - removed.length) setViewerIndex(images.length - removed.length - 1);
+    }
+    showToast(
+      removed.length === 1
+        ? `${removed[0].name} togs bort ur ${series.name}. Filen finns kvar.`
+        : `${removed.length} bilder togs bort ur ${series.name}. Filerna finns kvar.`,
+    );
+  };
+
   const newSeriesWith = useCallback(
     (name: string, added: ImageEntry[]) => {
       const unique = uniqueSeriesName(library, name);
@@ -613,6 +631,7 @@ export default function App() {
               onUnfavorite={() => unfavorite(selectedImages)}
               onAddToSeries={(id) => addTo(`series:${id}`, selectedImages)}
               onCreateSeries={(name) => newSeriesWith(name, selectedImages)}
+              onRemoveFromSeries={series ? () => takeOutOfSeries(selectedImages) : undefined}
               newSeriesName={uniqueSeriesName(library, "Ny serie")}
               onSelectAll={() => setSelected(new Set(images.map((img) => img.path)))}
               allSelected={selectedImages.length === images.length}
@@ -631,6 +650,7 @@ export default function App() {
               settings={settings}
               onOpen={setViewerIndex}
               onTrash={requestTrash}
+              onRemove={series ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
               onChangeImage={updateImage}
               favorites={favoritePaths}
               series={listedSeries}
@@ -671,6 +691,7 @@ export default function App() {
             }
           }}
           onTrash={requestTrash}
+          onRemove={series && !locked ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
           onToggleFavorite={onToggleFavorite}

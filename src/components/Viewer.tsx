@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, Info, Pin, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderMinus, Heart, Info, Pin, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -32,6 +32,8 @@ interface ViewerProps {
   onIndexChange: (index: number) => void;
   onClose: () => void;
   onTrash: (index: number) => void;
+  /** Shown in a series: takes the image out of it; the file stays. */
+  onRemove?: (index: number) => void;
   isFavorite: (image: ImageEntry) => boolean;
   /** Favoriter and the series the image is in. */
   tagsOf: (image: ImageEntry) => Tag[];
@@ -186,6 +188,7 @@ export function Viewer({
   onIndexChange,
   onClose,
   onTrash,
+  onRemove,
   isFavorite,
   tagsOf,
   onToggleFavorite,
@@ -575,6 +578,18 @@ export function Viewer({
         >
           <Trash2 />
         </Button>
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
+            onClick={() => onRemove(index)}
+            title="Ta bort ur serien (filen finns kvar)"
+            aria-label="Ta bort ur serien"
+          >
+            <FolderMinus />
+          </Button>
+        )}
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">

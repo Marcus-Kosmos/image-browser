@@ -124,6 +124,12 @@ export function deleteSeries(library: Library, id: string): Library {
   return { ...library, series: library.series.filter((s) => s.id !== id) };
 }
 
+/** Takes the images out of the series; the files themselves are untouched. */
+export function removeFromSeries(library: Library, id: string, images: ImageEntry[]): Library {
+  const paths = new Set(images.map((img) => img.path));
+  return updateSeries(library, id, (s) => ({ ...s, images: s.images.filter((img) => !paths.has(img.path)) }));
+}
+
 export function toggleInSeries(library: Library, id: string, image: ImageEntry): Library {
   return updateSeries(library, id, (s) => ({
     ...s,

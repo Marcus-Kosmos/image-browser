@@ -27,6 +27,8 @@ interface GalleryProps {
   settings: FolderSettings;
   onOpen: (index: number) => void;
   onTrash: (index: number) => void;
+  /** Given in a series: takes the image out of it, leaving the file where it is. */
+  onRemove?: (index: number) => void;
   onChangeImage: (key: string, change: ImageSettings) => void;
   /** Paths of favorite images. */
   favorites: Set<string>;
@@ -95,6 +97,7 @@ export function Gallery({
   settings,
   onOpen,
   onTrash,
+  onRemove,
   onChangeImage,
   favorites,
   tags,
@@ -487,6 +490,7 @@ export function Gallery({
         settings={imageSettings}
         onOpen={clickTile}
         onTrash={onTrash}
+        onRemove={onRemove}
         onChange={onChangeImage}
         onToggleFavorite={onToggleFavorite}
         onToggleSeries={onToggleSeries}

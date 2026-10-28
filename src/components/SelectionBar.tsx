@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderPlus, Heart, HeartOff, X } from "lucide-react";
+import { ChevronDown, FolderMinus, FolderPlus, Heart, HeartOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ interface SelectionBarProps {
   onUnfavorite: () => void;
   onAddToSeries: (id: string) => void;
   onCreateSeries: (name: string) => void;
+  /** In a series: takes the selected images out of it; the files stay. */
+  onRemoveFromSeries?: () => void;
   newSeriesName: string;
   onSelectAll: () => void;
   allSelected: boolean;
@@ -29,6 +31,7 @@ export function SelectionBar({
   onUnfavorite,
   onAddToSeries,
   onCreateSeries,
+  onRemoveFromSeries,
   newSeriesName,
   onSelectAll,
   allSelected,
@@ -124,6 +127,17 @@ export function SelectionBar({
           </div>
         )}
       </div>
+      {onRemoveFromSeries && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRemoveFromSeries}
+          title="Ta bort de markerade ur serien. Filerna finns kvar."
+        >
+          <FolderMinus />
+          Ta bort ur serien
+        </Button>
+      )}
       <div className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button variant="ghost" size="icon-sm" onClick={onClear} title="Avmarkera (Esc)" aria-label="Avmarkera">
         <X />
