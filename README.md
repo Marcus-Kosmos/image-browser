@@ -47,7 +47,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   in helt och nästa klick visar hela bilden igen. Dra eller scrolla för att flytta runt, Alt-klick zoomar
   ut ett steg, + och − zoomar, 0 eller Esc visar hela bilden. Zoomad fyller bilden hela
   ytan under raden längst upp, även bredvid fästa bilder, där första klicket gör bilden så stor som
-  fönstret. Helskärm visar bilden i skärmens fulla upplösning, och zoomad visar den originalfilen
+  fönstret. Helskärm visar bilden i skärmens fulla upplösning, och zoomad visas originalfilen
 - Fäst bilder i helskärm: nålen bredvid mappknappen (eller P) lägger bilden som en liten förhandsvisning
   uppe till vänster medan du bläddrar vidare. Nästa fästa bild hamnar under, sedan i en kolumn bredvid,
   tills det inte får plats fler. Klicka på en fäst bild för att visa den igen, krysset lossar den
