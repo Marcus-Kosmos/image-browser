@@ -28,6 +28,7 @@ import {
   cloudUpscaleImage,
   imageDataUrl,
   saveEnlarged,
+  expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
   type WebHost,
@@ -141,9 +142,11 @@ export default function App() {
     : view.kind === "favorites"
       ? "library:favorites"
       : `library:series:${view.id}`;
-  const { settings, update: updateSettings, updateImage } = useFolderSettings(
-    inFolders ? (listing ? viewKey : null) : viewKey,
-  );
+  const {
+    settings,
+    update: updateSettings,
+    updateImage,
+  } = useFolderSettings(inFolders ? (listing ? viewKey : null) : viewKey);
   useBackgroundTheme(settings.background);
   // File names can repeat across folders: one folder keys settings by the path inside it
   // (just the name for its own files), several folders and the library by full path.
@@ -318,13 +321,7 @@ export default function App() {
 
   const allImages = useMemo(
     () =>
-      locked
-        ? []
-        : view.kind === "favorites"
-          ? library.favorites
-          : series
-            ? series.images
-            : (listing?.images ?? []),
+      locked ? [] : view.kind === "favorites" ? library.favorites : series ? series.images : (listing?.images ?? []),
     [locked, view.kind, library.favorites, series, listing],
   );
   // Tags are Favoriter and the series an image is in; hidden ones count only while shown.
@@ -384,8 +381,9 @@ export default function App() {
       changeLibrary((lib) => (seriesId ? addToSeries(lib, seriesId, fresh) : addToFavorites(lib, fresh)));
       const already = added.length - fresh.length;
       showToast(
-        (fresh.length === 1 ? `${fresh[0].name} lades till i ${name}.` : `${fresh.length} bilder lades till i ${name}.`) +
-          (already > 0 ? ` ${already} fanns redan där.` : ""),
+        (fresh.length === 1
+          ? `${fresh[0].name} lades till i ${name}.`
+          : `${fresh.length} bilder lades till i ${name}.`) + (already > 0 ? ` ${already} fanns redan där.` : ""),
       );
     },
     [library, changeLibrary, showToast],
@@ -396,7 +394,11 @@ export default function App() {
       const gone = removed.filter((img) => favoritePaths.has(img.path));
       if (gone.length === 0) return;
       changeLibrary((lib) => removeFromFavorites(lib, gone));
-      showToast(gone.length === 1 ? `${gone[0].name} togs bort från Favoriter.` : `${gone.length} bilder togs bort från Favoriter.`);
+      showToast(
+        gone.length === 1
+          ? `${gone[0].name} togs bort från Favoriter.`
+          : `${gone.length} bilder togs bort från Favoriter.`,
+      );
     },
     [favoritePaths, changeLibrary, showToast],
   );
@@ -428,7 +430,11 @@ export default function App() {
   );
 
   const onDropOnLibrary = useCallback(
-    (indices: number[], target: string) => addTo(target, indices.flatMap((i) => (images[i] ? [images[i]] : []))),
+    (indices: number[], target: string) =>
+      addTo(
+        target,
+        indices.flatMap((i) => (images[i] ? [images[i]] : [])),
+      ),
     [images, addTo],
   );
 
@@ -514,7 +520,9 @@ export default function App() {
 
   const libraryImages = useCallback(
     (item: LibraryView) =>
-      item.kind === "favorites" ? library.favorites : (library.series.find((s) => s.id === (item as { id: string }).id)?.images ?? []),
+      item.kind === "favorites"
+        ? library.favorites
+        : (library.series.find((s) => s.id === (item as { id: string }).id)?.images ?? []),
     [library],
   );
 
@@ -634,13 +642,25 @@ export default function App() {
   const enlargeWithBiggerPics = async (image: ImageEntry, popup: Window | null) => {
     if (!popup) throw "bigger.pics kunde inte öppnas.";
     const format = /\.jpe?g$/i.test(image.name) ? "jpeg" : "png";
-    const result = await upscaleWithBiggerPics(popup, {
-      url: () => imageDataUrl(image),
-      name: image.name,
-      format,
-      context: image.path,
+    // The Download button there saves beside the original too, and closes the window.
+    let downloaded = null as string | null;
+    const stopWaiting = new AbortController();
+    const stopDownloads = await expectBiggerPicsDownload(image, (path) => {
+      downloaded = path;
+      stopWaiting.abort();
     });
-    return result && (await saveEnlarged(image, result.blob, format));
+    try {
+      const result = await upscaleWithBiggerPics(
+        popup,
+        { url: () => imageDataUrl(image), name: image.name, format, context: image.path },
+        window,
+        stopWaiting.signal,
+      );
+      if (downloaded) return downloaded;
+      return result && (await saveEnlarged(image, result.blob, format));
+    } finally {
+      stopDownloads();
+    }
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
     setUpscaling(true);
@@ -648,7 +668,7 @@ export default function App() {
       choice.mode === "local"
         ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
         : choice.mode === "bigger"
-          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back.`
+          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back eller Download.`
           : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
     );
     try {
@@ -731,7 +751,13 @@ export default function App() {
   const emptyKind: EmptyKind =
     filtering && allImages.length > 0
       ? "no-match"
-      : view.kind === "favorites" ? "favorites" : series ? "series" : listing ? "empty-folder" : "no-folder";
+      : view.kind === "favorites"
+        ? "favorites"
+        : series
+          ? "series"
+          : listing
+            ? "empty-folder"
+            : "no-folder";
 
   return (
     <div className="flex h-full flex-col">
@@ -790,8 +816,11 @@ export default function App() {
             onSavePlace={() => {
               if (!listing) return;
               const id = crypto.randomUUID();
-              const name = listing.folders.length === 1 ? folderName(listing.folders[0]) : `${listing.folders.length} mappar`;
-              changeLibrary((lib) => savePlace(lib, { id, name, folders: listing.folders, recursive: includeSubfolders }));
+              const name =
+                listing.folders.length === 1 ? folderName(listing.folders[0]) : `${listing.folders.length} mappar`;
+              changeLibrary((lib) =>
+                savePlace(lib, { id, name, folders: listing.folders, recursive: includeSubfolders }),
+              );
               selectView({ kind: "folders" });
               setRenamingId(id);
             }}
@@ -827,7 +856,9 @@ export default function App() {
               onClear={() => setSelected(new Set())}
             />
           )}
-          {listing && inFolders && <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />}
+          {listing && inFolders && (
+            <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />
+          )}
           {locked ? (
             <LockedState name={itemName(view)} onUnlock={() => void unlock(view)} />
           ) : images.length > 0 ? (
@@ -928,7 +959,7 @@ export default function App() {
         );
       })()}
       <TrashDialog
-        image={trashIndex !== null ? images[trashIndex] ?? null : null}
+        image={trashIndex !== null ? (images[trashIndex] ?? null) : null}
         onCancel={() => setTrashIndex(null)}
         onConfirm={confirmTrash}
       />

@@ -119,7 +119,11 @@ async fn save_enlarged(request: tauri::ipc::Request<'_>) -> Result<String, Strin
         request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_string).ok_or(format!("{name} saknas"))
     };
     let original = PathBuf::from(popup::percent_decode(&header("x-original")?).ok_or("Ogiltig sökväg")?);
-    let ext = if header("x-format")? == "jpeg" { "jpg" } else { "png" };
+    let ext = match header("x-format")?.as_str() {
+        "jpeg" => "jpg",
+        "webp" => "webp",
+        _ => "png",
+    };
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
         return Err("Ingen bild kom tillbaka.".into());
     };
@@ -131,6 +135,12 @@ async fn save_enlarged(request: tauri::ipc::Request<'_>) -> Result<String, Strin
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Names the picture being enlarged in bigger.pics, so its Download button saves beside it; none stops it.
+#[tauri::command]
+fn expect_bigger_pics(original: Option<String>) {
+    popup::set_target(original.map(PathBuf::from));
 }
 
 /// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
@@ -239,7 +249,8 @@ pub fn run() {
             save_host_password,
             has_host_password,
             image_bytes,
-            save_enlarged
+            save_enlarged,
+            expect_bigger_pics
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.

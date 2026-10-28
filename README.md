@@ -82,9 +82,10 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   förstoring drar krediter från ditt eget konto där; API-nyckeln sparas i Macens nyckelring. Kopian sparas
   som "namn förstorad AI" bredvid originalet
 - **bigger.pics, gratis**: öppnar [bigger.pics](https://bigger.pics) i ett eget fönster och lämnar över bilden.
-  När du klickat på "Send this back" sparas den förstorade bilden som "namn förstorad bigger.pics" bredvid
-  originalet. Tjänsten är gratis med reklam; bilden skickas till bigger.pics. Andra länkar från fönstret
-  öppnas i webbläsaren
+  När du klickat på "Send this back" eller "Download" sparas den förstorade bilden som "namn förstorad
+  bigger.pics" bredvid originalet, och fönstret stängs. Tjänsten är gratis med reklam; bilden skickas till
+  bigger.pics. Andra länkar från fönstret öppnas i webbläsaren. Högerklicka och välj Inspektera element för
+  att se felmeddelanden från sidan
 - Välj bland bilderna (knappen bredvid Öppna mapp, eller ⇧⌘O): Macens väljarfönster visar bilderna som
   miniatyrer, och mellanslag visar en större förhandsvisning. Väljer du en bild öppnas mappen den ligger i
   och bilden visas i helskärm. Inget kopieras, bilderna visas där de ligger
