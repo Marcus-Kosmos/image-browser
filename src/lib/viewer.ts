@@ -43,7 +43,7 @@ export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   small: "Små i hörnet",
   medium: "Mellan, bilden fyller resten",
   full: "Hela, i en rad",
-  puzzle: "Pussel som fyller skärmen",
+  puzzle: "Pussel i rader som fyller skärmen",
 };
 
 export interface ViewerSettings {
@@ -55,6 +55,8 @@ export interface ViewerSettings {
   frame: boolean;
   /** Use the folder's background color instead of black. */
   background: boolean;
+  /** Round the corners of the pictures and their frames. */
+  rounded: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -63,6 +65,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   pinSize: "small",
   frame: false,
   background: false,
+  rounded: false,
 };
 
 const STORAGE = "image-browser:viewer";
@@ -94,8 +97,6 @@ export interface PinLayout extends Size {
 
 /** A pinned picture is never wider than this share of the room in the medium size. */
 const MEDIUM_MAX_SHARE = 0.3;
-/** In a puzzle a column takes a second picture only if it stays at least this wide, in room heights. */
-const PUZZLE_MIN_COLUMN = 0.4;
 
 const aspect = (s: Size) => s.width / Math.max(1, s.height);
 
@@ -123,6 +124,60 @@ function placeColumns(columns: Size[][], height: number, gap: number) {
   return { rects, width: Math.max(0, Math.round(x - gap)) };
 }
 
+/** Splits pictures, in order, into `count` rows of about the same total width at one height. */
+function splitRows(items: Size[], count: number): Size[][] {
+  const total = items.reduce((sum, s) => sum + aspect(s), 0);
+  const rows: Size[][] = [[]];
+  let before = 0;
+  items.forEach((s, i) => {
+    const row = rows[rows.length - 1];
+    const rowsLeft = count - rows.length;
+    const itemsLeft = items.length - i;
+    // Break where the picture's middle passes the row's share, or when every later row needs one.
+    const passes = before + aspect(s) / 2 > (total / count) * rows.length;
+    if (row.length > 0 && rowsLeft > 0 && (passes || itemsLeft === rowsLeft)) rows.push([s]);
+    else row.push(s);
+    before += aspect(s);
+  });
+  return rows;
+}
+
+/** Rows filling the room's width, shrunk together when they are too tall for it. */
+function placeRows(rows: Size[][], room: Size, gap: number) {
+  const heights = rows.map((row) => (room.width - gap * (row.length - 1)) / row.reduce((sum, s) => sum + aspect(s), 0));
+  const tall = heights.reduce((sum, h) => sum + h, 0);
+  const scale = Math.min(1, Math.max(0, room.height - gap * (rows.length - 1)) / tall);
+  const rects: Rect[] = [];
+  let y = 0;
+  rows.forEach((row, r) => {
+    const height = heights[r] * scale;
+    let x = 0;
+    for (const s of row) {
+      const width = height * aspect(s);
+      rects.push({ x: Math.round(x), y: Math.round(y), width: Math.floor(width), height: Math.floor(height) });
+      x += width + gap;
+    }
+    y += height + gap;
+  });
+  const width = Math.round(scale * (room.width - gap * (rows[0].length - 1)) + gap * (rows[0].length - 1));
+  return { rects, width: Math.min(room.width, width), height: Math.round(y - gap) };
+}
+
+/** The number of rows that covers the most of the room, and fewer rows when it is a tie. */
+function fillWithRows(items: Size[], room: Size, gap: number) {
+  let best = placeRows([items], room, gap);
+  let bestArea = 0;
+  for (let count = 1; count <= items.length; count++) {
+    const placed = placeRows(splitRows(items, count), room, gap);
+    const area = placed.rects.reduce((sum, r) => sum + r.width * r.height, 0);
+    if (area > bestArea * 1.02) {
+      best = placed;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
 /** Columns that keep the tallest height their pictures fit the room at. */
 function fillRoom(columns: Size[][], room: Size, gap: number) {
   let height = room.height;
@@ -138,10 +193,16 @@ function fillRoom(columns: Size[][], room: Size, gap: number) {
 
 /**
  * Places pinned pictures and the current one. "full" puts them all in one row at the same height;
- * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" fills the
- * room with columns, stacking a picture under the one before when the column stays wide enough.
+ * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" breaks
+ * them into as many full-width rows as cover the room best, like the map, the current one last.
  */
-export function pinLayout(size: Exclude<PinSize, "small">, pins: Size[], current: Size, room: Size, gap: number): PinLayout {
+export function pinLayout(
+  size: Exclude<PinSize, "small">,
+  pins: Size[],
+  current: Size,
+  room: Size,
+  gap: number,
+): PinLayout {
   if (size === "medium") {
     const tall = Math.max(0, (room.height - gap) / 2);
     const columns: Size[][] = [];
@@ -174,18 +235,14 @@ export function pinLayout(size: Exclude<PinSize, "small">, pins: Size[], current
     };
   }
   const items = [...pins, current];
-  const columns: Size[][] =
+  const placed =
     size === "full"
-      ? items.map((s) => [s])
-      : items.reduce<Size[][]>((cols, s) => {
-          const last = cols[cols.length - 1];
-          const joined = last && last.length < 2 ? [...last, s] : null;
-          const width = joined ? (room.height - gap) / joined.reduce((sum, t) => sum + 1 / aspect(t), 0) : 0;
-          if (joined && width >= room.height * PUZZLE_MIN_COLUMN) cols[cols.length - 1] = joined;
-          else cols.push([s]);
-          return cols;
-        }, []);
-  const placed = fillRoom(columns, room, gap);
+      ? fillRoom(
+          items.map((s) => [s]),
+          room,
+          gap,
+        )
+      : fillWithRows(items, room, gap);
   return {
     pins: placed.rects.slice(0, -1),
     current: placed.rects[placed.rects.length - 1],
@@ -197,6 +254,8 @@ export function pinLayout(size: Exclude<PinSize, "small">, pins: Size[], current
 /** Whether one more pinned picture still leaves the current one a useful size. */
 export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], current: Size, room: Size, gap: number) {
   const { current: rect } = pinLayout(size, pins, current, room, gap);
+  // A puzzle can grow many rows, until its pictures get really small.
+  if (size === "puzzle") return rect.height >= room.height * 0.12;
   return rect.height >= room.height * 0.25 && rect.width >= room.width * 0.15;
 }
 

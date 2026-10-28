@@ -42,32 +42,34 @@ describe("pinLayout", () => {
     expect(layout.current.x + layout.current.width).toBeLessThanOrEqual(1000);
   });
 
-  it("stacks a wide picture under a wide one in a puzzle", () => {
-    const wide = { width: 1500, height: 600 };
-    const layout = pinLayout("puzzle", [wide], wide, { width: 1600, height: 600 }, 10);
-    const [top] = layout.pins;
-    expect(layout.current.x).toBe(top.x);
-    expect(layout.current.y).toBeGreaterThan(top.y);
-    expect(layout.current.y + layout.current.height).toBeLessThanOrEqual(layout.height);
-  });
-
-  it("gives tall pictures a column each in a puzzle", () => {
+  it("keeps a short puzzle in one row", () => {
     const layout = pinLayout("puzzle", [portrait], portrait, { width: 1600, height: 600 }, 10);
+    expect(layout.current.y).toBe(layout.pins[0].y);
     expect(layout.current.x).toBeGreaterThan(layout.pins[0].x);
-    expect(layout.height - layout.pins[0].height).toBeLessThanOrEqual(1);
   });
 
-  it("puts a tall picture under a wide one with the height left", () => {
-    const layout = pinLayout("puzzle", [landscape], portrait, { width: 1600, height: 600 }, 10);
-    expect(layout.current.x).toBe(layout.pins[0].x);
-    expect(layout.current.height).toBeGreaterThan(layout.pins[0].height);
+  it("moves a long puzzle into rows that fill the room, the current picture last", () => {
+    const room = { width: 1600, height: 900 };
+    const layout = pinLayout("puzzle", Array(9).fill(landscape), landscape, room, 10);
+    const rows = new Set([...layout.pins, layout.current].map((r) => r.y));
+    expect(rows.size).toBeGreaterThan(1);
+    expect(layout.height).toBeLessThanOrEqual(900);
+    expect(layout.width).toBeLessThanOrEqual(1600);
+    expect(layout.current.y).toBe(Math.max(...rows));
+    expect(layout.current.x).toBe(
+      Math.max(...[...layout.pins, layout.current].filter((r) => r.y === layout.current.y).map((r) => r.x)),
+    );
+    // Covers most of the room, unlike one long, low row.
+    const area = [...layout.pins, layout.current].reduce((sum, r) => sum + r.width * r.height, 0);
+    expect(area).toBeGreaterThan(room.width * room.height * 0.7);
   });
 
   it("stops pinning when the current picture would get too small", () => {
     expect(hasRoomToPin("full", [portrait], portrait, room, 10)).toBe(true);
     expect(hasRoomToPin("full", Array(6).fill(landscape), landscape, room, 10)).toBe(false);
     expect(hasRoomToPin("medium", Array(8).fill(portrait), landscape, room, 10)).toBe(false);
-    expect(hasRoomToPin("puzzle", Array(13).fill(landscape), landscape, room, 10)).toBe(false);
+    expect(hasRoomToPin("puzzle", Array(13).fill(landscape), landscape, room, 10)).toBe(true);
+    expect(hasRoomToPin("puzzle", Array(80).fill(landscape), landscape, room, 10)).toBe(false);
   });
 
   it("gives the whole room to the current picture when nothing is pinned", () => {
