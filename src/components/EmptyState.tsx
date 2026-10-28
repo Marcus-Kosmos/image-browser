@@ -1,4 +1,4 @@
-import { FolderOpen, FolderTree, GalleryHorizontalEnd, Heart, ImageOff, RefreshCw, SearchX } from "lucide-react";
+import { FolderOpen, FolderTree, GalleryHorizontalEnd, Heart, ImageOff, ImagePlus, RefreshCw, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type EmptyKind = "no-folder" | "empty-folder" | "favorites" | "series" | "no-match";
@@ -34,12 +34,14 @@ const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text:
 export function EmptyState({
   kind,
   onOpenFolder,
+  onOpenImages,
   onClearFilter,
   onRefresh,
   onShowSubfolders,
 }: {
   kind: EmptyKind;
   onOpenFolder: () => void;
+  onOpenImages: () => void;
   onClearFilter?: () => void;
   onRefresh?: () => void;
   /** Set when the folder has subfolders whose images are not shown. */
@@ -60,10 +62,16 @@ export function EmptyState({
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
       </div>
       {kind === "no-folder" && (
-        <Button onClick={onOpenFolder}>
-          <FolderOpen />
-          Öppna mapp
-        </Button>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button onClick={onOpenFolder}>
+            <FolderOpen />
+            Öppna mapp
+          </Button>
+          <Button variant="outline" onClick={onOpenImages} title="Se bilderna som miniatyrer först">
+            <ImagePlus />
+            Välj bland bilderna
+          </Button>
+        </div>
       )}
       {kind === "empty-folder" && (
         <div className="flex flex-wrap justify-center gap-2">

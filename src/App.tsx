@@ -12,7 +12,7 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
-import { confirmOwner, onFileDrop, pickFolders, scanFolder, sortDropped, trashFile, type ImageEntry } from "@/lib/api";
+import { confirmOwner, onFileDrop, pickFolders, pickImages, scanFolder, sortDropped, trashFile, type ImageEntry } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
 import {
   addToFavorites,
@@ -577,6 +577,23 @@ export default function App() {
     const count = await loadFolders(targets);
     if (count !== null) changeLibrary((lib) => rememberFolders(lib, targets));
   };
+  // Picked in a dialog that previews the pictures, they open like pictures dropped from Finder.
+  const openImages = async () => {
+    const paths = await pickImages();
+    if (paths.length > 0) await handleDrop(paths);
+  };
+  const latestOpenImages = useRef(openImages);
+  latestOpenImages.current = openImages;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        void latestOpenImages.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const latestDrop = useRef(handleDrop);
   latestDrop.current = handleDrop;
   useEffect(
@@ -638,6 +655,7 @@ export default function App() {
           store(STORAGE_ROW_HEIGHT, String(value));
         }}
         onOpenFolder={() => void openFolders()}
+        onOpenImages={() => void openImages()}
         onParent={goToParent}
         onRefresh={() => void refresh()}
         refreshing={refreshing}
@@ -738,6 +756,7 @@ export default function App() {
             <EmptyState
               kind={emptyKind}
               onOpenFolder={() => void openFolders()}
+              onOpenImages={() => void openImages()}
               onClearFilter={() => setFilter(NO_FILTER)}
               onRefresh={() => void refresh()}
               onShowSubfolders={
