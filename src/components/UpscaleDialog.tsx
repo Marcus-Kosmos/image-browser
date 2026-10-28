@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cloud, KeyRound, Laptop, Sparkles, WandSparkles } from "lucide-react";
+import { Cloud, ExternalLink, KeyRound, Laptop, Sparkles, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { hasCloudKey, saveCloudKey, type ImageEntry, type UpscaleMode } from "@/lib/api";
@@ -37,6 +37,12 @@ const MODES: { mode: UpscaleMode; icon: React.ReactNode; title: string; text: st
     title: "Kreativ, med Stability AI",
     text: "Ritar om detaljerna friare. För små eller suddiga bilder; kan ändra till exempel ansikten.",
   },
+  {
+    mode: "bigger",
+    icon: <ExternalLink className="size-4" />,
+    title: "bigger.pics, gratis",
+    text: "Öppnas i ett eget fönster med reklam. Förstora där och klicka på Send this back, så sparas bilden här.",
+  },
 ];
 
 const STORAGE = "image-browser:upscale";
@@ -67,7 +73,7 @@ export function UpscaleDialog({ image, onCancel, onStart }: UpscaleDialogProps) 
     hasCloudKey().then(setHasKey, () => setHasKey(false));
   }, [image]);
 
-  const cloud = choice.mode !== "local";
+  const cloud = choice.mode === "conservative" || choice.mode === "creative";
   const needsKey = cloud && (!hasKey || editingKey);
   const ready = !needsKey || key.trim() !== "";
 
@@ -186,6 +192,12 @@ export function UpscaleDialog({ image, onCancel, onStart }: UpscaleDialogProps) 
             Bilden skickas till Stability AI, och varje förstoring drar krediter från ditt konto där.
           </p>
         </>
+      )}
+
+      {choice.mode === "bigger" && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Bilden skickas till bigger.pics. Är den redan stor kan förstoringen ta en stund.
+        </p>
       )}
 
       {error && (
