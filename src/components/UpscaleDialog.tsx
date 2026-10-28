@@ -41,7 +41,7 @@ const MODES: { mode: UpscaleMode; icon: React.ReactNode; title: string; text: st
     mode: "bigger",
     icon: <ExternalLink className="size-4" />,
     title: "bigger.pics, gratis",
-    text: "Öppnas i ett eget fönster med reklam. Förstora där och klicka på Send this back, så sparas bilden här.",
+    text: "Öppnas i ett eget fönster med reklam. Förstora där och klicka på Send this back eller Download, så sparas bilden bredvid originalet.",
   },
 ];
 

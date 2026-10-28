@@ -5,6 +5,7 @@ import {
   FolderMinus,
   Heart,
   Info,
+  LayoutDashboard,
   Loader2,
   PanelLeft,
   Pin,
@@ -362,25 +363,29 @@ export function Viewer({
   }, [content]);
   // Larger pinned pictures share the space with the current one, which is shown once, on the right.
   const pinSize = look.pinSize;
+  // A pinned picture clicked in the arrangement is shown on its own, large; the arrangement comes back as it
+  // was, with the picture that was shown before, on Escape or "Visa serien".
+  const [solo, setSolo] = useState<number | null>(null);
+  const arranged = pinSize !== "small" && solo === null ? pinSize : null;
   // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
   // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
   // as the start of the next.
-  const pages = pinSize === "small" ? [] : pinPages(pinSize, pinned, space, PIN_ROW_GAP);
+  const pages = arranged ? pinPages(arranged, pinned, space, PIN_ROW_GAP) : [];
   const pinnedAt = pinned.findIndex((p) => p.path === image.path);
   let page = pages.findIndex((pg) => pg.includes(pinnedAt));
   let beside: ImageEntry[] = [];
   let at: number | undefined;
-  if (pinSize !== "small" && page >= 0) {
+  if (arranged && page >= 0) {
     beside = pages[page].filter((i) => i !== pinnedAt).map((i) => pinned[i]);
     at = pages[page].indexOf(pinnedAt);
-  } else if (pinSize !== "small") {
+  } else if (arranged) {
     const last = (pages[pages.length - 1] ?? []).map((i) => pinned[i]);
-    const fits = last.length > 0 && hasRoomToPin(pinSize, last, image, space, PIN_ROW_GAP);
+    const fits = last.length > 0 && hasRoomToPin(arranged, last, image, space, PIN_ROW_GAP);
     if (fits) beside = last;
     page = fits ? pages.length - 1 : pages.length;
   }
-  const pageCount = Math.max(pages.length, page + 1);
-  const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP, at);
+  const pageCount = arranged ? Math.max(pages.length, page + 1) : 0;
+  const layout = arranged ? pinLayout(arranged, beside, image, space, PIN_ROW_GAP, at) : null;
   const goToPage = (k: number) => {
     const first = pages[k]?.[0];
     const i = first === undefined ? -1 : images.findIndex((img) => img.path === pinned[first].path);
@@ -598,8 +603,19 @@ export function Viewer({
       return;
     }
     const i = images.findIndex((img) => img.path === p.path);
-    if (i >= 0) onIndexChange(i);
+    if (i < 0) return;
+    if (layout) setSolo(index);
+    onIndexChange(i);
   };
+  const backToSeries = useCallback(() => {
+    if (solo === null) return;
+    if (solo < images.length) onIndexChange(solo);
+    setSolo(null);
+  }, [solo, images.length, onIndexChange]);
+  // Nothing left to arrange, nothing to go back to.
+  useEffect(() => {
+    if (pinned.length === 0 || pinSize === "small") setSolo(null);
+  }, [pinned.length, pinSize]);
 
   // A pinned image dragged onto another takes its place; the others make room as it passes.
   const [dragging, setDragging] = useState<string | null>(null);
@@ -652,6 +668,7 @@ export function Viewer({
       const digit = Number(e.key);
       if (e.key === "Escape") {
         if (zoomed) setZoom(WHOLE);
+        else if (solo !== null) backToSeries();
         else onClose();
       } else if (e.key === "+" || e.key === "=") stepZoom(1);
       else if (e.key === "-") stepZoom(-1);
@@ -693,6 +710,8 @@ export function Viewer({
     page,
     pages.length,
     goToPage,
+    solo,
+    backToSeries,
   ]);
 
   return (
@@ -840,6 +859,16 @@ export function Viewer({
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
           style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
         >
+          {solo !== null && (
+            <button
+              onClick={backToSeries}
+              title="Tillbaka till de fästa bilderna (Esc)"
+              className="absolute top-3 left-3 z-20 flex h-9 items-center gap-2 rounded-full bg-black/35 px-3.5 text-sm text-white hover:bg-black/55 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+            >
+              <LayoutDashboard className="size-4" />
+              Visa serien
+            </button>
+          )}
           {pageCount > 1 && !zoomed && (
             <nav
               aria-label="Sidor"

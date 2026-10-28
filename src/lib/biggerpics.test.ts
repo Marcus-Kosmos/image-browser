@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BIGGER_PICS_ORIGIN, upscaleWithBiggerPics } from "./biggerpics";
+import { BIGGER_PICS_ORIGIN, isBiggerPicsOrigin, upscaleWithBiggerPics } from "./biggerpics";
 
 class FakeHost {
   listeners: ((e: MessageEvent) => void)[] = [];
@@ -47,7 +47,7 @@ describe("upscaleWithBiggerPics", () => {
 
     const blob = new Blob(["x"]);
     host.send("https://evil.example", { type: "bigger-pics-result", blob, context: picture.context });
-    host.send(BIGGER_PICS_ORIGIN, { type: "bigger-pics-result", blob, width: 8, height: 8 });
+    host.send(BIGGER_PICS_ORIGIN, { type: "bigger-pics-result", blob, width: 8, height: 8, context: "/Annan.png" });
     host.send(BIGGER_PICS_ORIGIN, {
       type: "bigger-pics-result",
       blob,
@@ -67,5 +67,34 @@ describe("upscaleWithBiggerPics", () => {
     popup.closed = true;
     await vi.advanceTimersByTimeAsync(1100);
     await expect(waiting).resolves.toBeNull();
+  });
+
+  it("takes the result as bytes or an address, from any bigger.pics site", async () => {
+    const host = new FakeHost();
+    const popup = { closed: false };
+    const waiting = upscaleWithBiggerPics(popup as unknown as Window, picture, host as unknown as Window);
+    host.send("https://bigger.pics", { type: "bigger-pics-result", blob: new Uint8Array([1, 2, 3]) });
+    const result = await waiting;
+    expect(result?.blob.size).toBe(3);
+  });
+
+  it("stops waiting when told to", async () => {
+    const host = new FakeHost();
+    const popup = { closed: false };
+    const stop = new AbortController();
+    const waiting = upscaleWithBiggerPics(popup as unknown as Window, picture, host as unknown as Window, stop.signal);
+    stop.abort();
+    await expect(waiting).resolves.toBeNull();
+    expect(host.listeners).toHaveLength(0);
+  });
+});
+
+describe("isBiggerPicsOrigin", () => {
+  it("accepts bigger.pics and its subdomains over https only", () => {
+    expect(isBiggerPicsOrigin("https://bigger.pics")).toBe(true);
+    expect(isBiggerPicsOrigin("https://app.bigger.pics")).toBe(true);
+    expect(isBiggerPicsOrigin("http://app.bigger.pics")).toBe(false);
+    expect(isBiggerPicsOrigin("https://evilbigger.pics")).toBe(false);
+    expect(isBiggerPicsOrigin("https://bigger.pics.evil.example")).toBe(false);
   });
 });

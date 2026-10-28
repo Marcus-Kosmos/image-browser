@@ -28,6 +28,7 @@ import {
   cloudUpscaleImage,
   imageDataUrl,
   saveEnlarged,
+  expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
   type WebHost,
@@ -642,13 +643,25 @@ export default function App() {
   const enlargeWithBiggerPics = async (image: ImageEntry, popup: Window | null) => {
     if (!popup) throw "bigger.pics kunde inte öppnas.";
     const format = /\.jpe?g$/i.test(image.name) ? "jpeg" : "png";
-    const result = await upscaleWithBiggerPics(popup, {
-      url: () => imageDataUrl(image),
-      name: image.name,
-      format,
-      context: image.path,
+    // The Download button there saves beside the original too, and closes the window.
+    let downloaded = null as string | null;
+    const stopWaiting = new AbortController();
+    const stopDownloads = await expectBiggerPicsDownload(image, (path) => {
+      downloaded = path;
+      stopWaiting.abort();
     });
-    return result && (await saveEnlarged(image, result.blob, format));
+    try {
+      const result = await upscaleWithBiggerPics(
+        popup,
+        { url: () => imageDataUrl(image), name: image.name, format, context: image.path },
+        window,
+        stopWaiting.signal,
+      );
+      if (downloaded) return downloaded;
+      return result && (await saveEnlarged(image, result.blob, format));
+    } finally {
+      stopDownloads();
+    }
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
     setUpscaling(true);
@@ -656,7 +669,7 @@ export default function App() {
       choice.mode === "local"
         ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
         : choice.mode === "bigger"
-          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back.`
+          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back eller Download.`
           : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
     );
     try {
