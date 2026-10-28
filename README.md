@@ -75,8 +75,11 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   sparar den bredvid originalet som "namn förstorad 4x". Originalet lämnas orört. Det sker på din Mac med
   Real-ESRGAN, utan nät, och kan ta upp till en minut. AI:n fyller i detaljer som ser rimliga ut, så
   resultatet är skarpare men inte alltid helt troget. Bilder större än 4000 pixlar förstoras inte
+- Välj bland bilderna (knappen bredvid Öppna mapp, eller ⇧⌘O): Macens väljarfönster visar bilderna som
+  miniatyrer, och mellanslag visar en större förhandsvisning. Väljer du en bild öppnas mappen den ligger i
+  och bilden visas i helskärm. Inget kopieras, bilderna visas där de ligger
 - Släpp bilder från Finder i appen: bildens mapp öppnas och bilden visas i helskärm. En mapp du släpper
-  öppnas direkt. Står du i en serie läggs bilderna i serien (filerna ligger kvar där de är)
+  öppnas direkt. Står du i en serie läggs bilderna i serien och den första visas i helskärm (filerna ligger kvar där de är)
 - Dra en bild från kartan till Favoriter eller till en serie i sidopanelen för att lägga till den där
 - Sidopanelen (knappen längst till vänster) samlar mapparna, **Favoriter** och dina **Serier**
 - Serier: plus-knappen sparar det som visas som en namngiven serie med samma layout;

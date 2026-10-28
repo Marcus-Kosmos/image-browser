@@ -7,6 +7,7 @@ const GROUPS: Array<{ title: string; keys: Array<[string[], string]> }> = [
     title: "Överallt",
     keys: [
       [["⌘", "O"], "Öppna mapp"],
+      [["⇧", "⌘", "O"], "Välj bland bilderna med förhandsvisning och öppna mappen"],
       [["⌘", "R"], "Läs in mappen igen"],
       [["⌘", "↑"], "Överordnad mapp"],
       [["⌘", "F"], "Sök på namn eller tagg"],

@@ -22,6 +22,21 @@ export interface FolderListing {
 /** Outside Tauri (plain `npm run dev` in a browser) the app runs against generated demo images. */
 const demo = !isTauri();
 
+/** Picture files the open dialogs show, the same ones a folder is read for. */
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp"];
+
+/** Lets the user pick pictures in a dialog that shows them as thumbnails, with Quick Look on space. */
+export async function pickImages(): Promise<string[]> {
+  if (demo) return ["/Demo/Bilder/IMG_0004.jpg"];
+  const result = await open({
+    multiple: true,
+    title: "Välj en bild att visa. Mappen den ligger i öppnas.",
+    filters: [{ name: "Bilder", extensions: IMAGE_EXTENSIONS }],
+  });
+  if (result === null) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
 /** Lets the user pick one or more folders (⌘-click in the dialog). */
 export async function pickFolders(): Promise<string[]> {
   if (demo) return ["/Demo/Bilder", "/Demo/Bilder/Studio"];
