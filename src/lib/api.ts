@@ -167,6 +167,75 @@ export async function hasCloudKey(): Promise<boolean> {
   return invoke<boolean>("has_cloud_key");
 }
 
+/** A picture for a web page: the original, its copy's name in the page's folder, and its longest side. */
+export interface WebPictureFile {
+  path: string;
+  file: string;
+  size: number;
+}
+
+export type WebProtocol = "sftp" | "ftps" | "ftp";
+
+/** The user's web host. The password is not here: it lives in the Mac's keychain. */
+export interface WebHost {
+  protocol: WebProtocol;
+  host: string;
+  port: number;
+  user: string;
+  /** Folder on the server that `url` shows. */
+  folder: string;
+  url: string;
+  /** The SFTP server's key as first seen. */
+  fingerprint?: string;
+}
+
+const demoPasswords = new Set<string>();
+const hostAccount = (host: WebHost) => `${host.user}@${host.host}`;
+
+/** Keeps the host's password in the Mac's keychain. */
+export async function saveHostPassword(host: WebHost, password: string): Promise<void> {
+  if (demo) {
+    demoPasswords.add(hostAccount(host));
+    return;
+  }
+  return invoke("save_host_password", { host, password });
+}
+
+export async function hasHostPassword(host: WebHost): Promise<boolean> {
+  if (demo) return demoPasswords.has(hostAccount(host));
+  return invoke<boolean>("has_host_password", { host });
+}
+
+/** Uploads the page and its pictures to the folder `name` on the host; returns its address. */
+export async function publishWebPage(
+  host: WebHost,
+  name: string,
+  html: string,
+  pictures: WebPictureFile[],
+): Promise<{ url: string; fingerprint: string | null }> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return { url: `${host.url.replace(/\/+$/, "")}/${name}/`, fingerprint: null };
+  }
+  return invoke("publish_web_page", { host, name, html, pictures });
+}
+
+/** Lets the user pick a folder to save a web page in; null when cancelled. */
+export async function pickSaveFolder(): Promise<string | null> {
+  if (demo) return "/Demo/Webbsidor";
+  const result = await open({ directory: true, multiple: false, title: "Välj var webbsidan ska sparas" });
+  return typeof result === "string" ? result : null;
+}
+
+/** Writes the page and its pictures into `dir` on this Mac. */
+export async function writeWebPage(dir: string, html: string, pictures: WebPictureFile[]): Promise<void> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return;
+  }
+  await invoke("write_web_page", { dir, html, pictures });
+}
+
 export async function trashFile(path: string): Promise<void> {
   if (demo) {
     demoTrashed.add(path);

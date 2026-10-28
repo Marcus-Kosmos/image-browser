@@ -13,17 +13,22 @@ import { SelectionBar } from "@/components/SelectionBar";
 import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
 import { UpscaleDialog, type UpscaleChoice } from "@/components/UpscaleDialog";
+import { PublishDialog } from "@/components/PublishDialog";
 import {
   confirmOwner,
   onFileDrop,
   pickFolders,
   pickImages,
+  pickSaveFolder,
+  publishWebPage,
   scanFolder,
   sortDropped,
   trashFile,
   upscaleImage,
   cloudUpscaleImage,
+  writeWebPage,
   type ImageEntry,
+  type WebHost,
 } from "@/lib/api";
 import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
 import {
@@ -56,6 +61,7 @@ import {
 import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
 import { useBackgroundTheme } from "@/lib/theme";
 import type { ViewerSettings } from "@/lib/viewer";
+import { buildWebPage, pagePictures, saveWebHost } from "@/lib/webpage";
 import { folderName, parentFolder } from "@/lib/utils";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
@@ -440,6 +446,34 @@ export default function App() {
         }
       : undefined;
 
+  // The series or Favoriter as a web page, to put on the user's own web host or save on the Mac.
+  const [publishing, setPublishing] = useState(false);
+  const webPage = (title: string) => {
+    const { pictures, files } = pagePictures(images, (img) => settings.images[imageKey(img)]);
+    const html = buildWebPage(title, pictures, {
+      background: settings.background,
+      frame: settings.frame,
+      shadow: settings.shadow,
+      rounded: series?.look?.rounded ?? false,
+    });
+    return { html, files };
+  };
+  const publishPage = async (host: WebHost, name: string) => {
+    const { html, files } = webPage(libraryTitle ?? name);
+    const result = await publishWebPage(host, name, html, files);
+    // Remember the SFTP server's key, so a different server answering later is noticed.
+    if (result.fingerprint) saveWebHost({ ...host, fingerprint: result.fingerprint });
+    return result.url;
+  };
+  const savePageLocally = async (name: string) => {
+    const parent = await pickSaveFolder();
+    if (!parent) return null;
+    const dir = `${parent.replace(/\/+$/, "")}/${name}`;
+    const { html, files } = webPage(libraryTitle ?? name);
+    await writeWebPage(dir, html, files);
+    return dir;
+  };
+
   const savePinned = (name: string, look: ViewerSettings | undefined, appearance: boolean) => {
     const id = crypto.randomUUID();
     const unique = uniqueSeriesName(library, name);
@@ -703,6 +737,7 @@ export default function App() {
         onRefresh={() => void refresh()}
         refreshing={refreshing}
         onShowPuzzle={showPuzzle}
+        onPublish={libraryTitle !== null && images.length > 0 && !locked ? () => setPublishing(true) : undefined}
         includeSubfolders={includeSubfolders}
         onToggleSubfolders={toggleSubfolders}
         settings={settings}
@@ -882,6 +917,12 @@ export default function App() {
           setUpscaleFor(null);
           if (image) void upscale(image, choice);
         }}
+      />
+      <PublishDialog
+        seriesName={publishing ? libraryTitle : null}
+        onClose={() => setPublishing(false)}
+        onPublish={publishPage}
+        onSaveLocal={savePageLocally}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {dropping && <DropOverlay into={dropInto?.name ?? null} />}

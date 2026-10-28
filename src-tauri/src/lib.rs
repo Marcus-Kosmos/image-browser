@@ -1,9 +1,11 @@
 mod auth;
 mod cloud;
 mod fonts;
+mod publish;
 mod scan;
 mod thumbs;
 mod upscale;
+mod web;
 
 use std::path::PathBuf;
 
@@ -107,6 +109,59 @@ async fn upscale_image(app: tauri::AppHandle, path: String, width: u32, height: 
     .map_err(|e| e.to_string())?
 }
 
+/// Writes a series as a web page into `dir`: index.html and web-sized copies of the pictures.
+/// Returns the files written, relative to `dir`.
+#[tauri::command]
+async fn write_web_page(
+    app: tauri::AppHandle,
+    dir: String,
+    html: String,
+    pictures: Vec<web::WebPicture>,
+) -> Result<Vec<String>, String> {
+    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("thumbs");
+    tauri::async_runtime::spawn_blocking(move || web::write_page(&PathBuf::from(dir), &html, &pictures, &cache_dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Makes the series' web page and uploads it to the host, into a folder named `name`.
+/// Returns the page's address and, for SFTP, the server's key to remember.
+#[tauri::command]
+async fn publish_web_page(
+    app: tauri::AppHandle,
+    host: publish::Host,
+    name: String,
+    html: String,
+    pictures: Vec<web::WebPicture>,
+) -> Result<publish::Published, String> {
+    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    let thumbs = cache.join("thumbs");
+    let dir = cache.join("web").join(&name);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = std::fs::remove_dir_all(&dir);
+        let files = web::write_page(&dir, &html, &pictures, &thumbs)?;
+        let result = publish::upload(&host, &dir, &files, &name);
+        let _ = std::fs::remove_dir_all(&dir);
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the host's password in the Mac's keychain.
+#[tauri::command]
+async fn save_host_password(host: publish::Host, password: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || publish::save_password(&host, &password))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Whether the keychain has a password for the host, without handing it out.
+#[tauri::command]
+async fn has_host_password(host: publish::Host) -> bool {
+    tauri::async_runtime::spawn_blocking(move || publish::has_password(&host)).await.unwrap_or(false)
+}
+
 /// Font families installed on this computer, for headings.
 #[tauri::command]
 async fn list_fonts() -> Result<Vec<String>, String> {
@@ -137,7 +192,11 @@ pub fn run() {
             upscale_image,
             cloud_upscale_image,
             save_cloud_key,
-            has_cloud_key
+            has_cloud_key,
+            write_web_page,
+            publish_web_page,
+            save_host_password,
+            has_host_password
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

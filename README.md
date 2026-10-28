@@ -117,6 +117,19 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Bildrubriken får en egen rad ovanför bilden; sidrubriken får en egen rad och bilden börjar en ny sida (i flödesläget en ny rad)
 - Klicka på en rubrik för att ändra eller ta bort den
 
+## Publicera som webbsida
+
+- **Publicera** i verktygsfältet när en serie eller Favoriter visas gör en webbsida av bilderna:
+  rader som fyller bredden, samma bakgrund, ramar, skugga och rubriker som i appen, och en helskärmsvisning
+  med pilar och tangentbord. På mobilen visas en bild per rad
+- Sidan laddas upp till ditt eget webbhotell med SFTP, FTP med kryptering (FTPS) eller vanlig FTP,
+  till `<mapp på servern>/<sidans namn>/`, och nås på `<webbadress>/<sidans namn>/`.
+  Publicerar du igen ersätts sidan
+- Bilderna läggs upp som JPEG, högst 2048 pixlar på längsta sidan och aldrig större än originalet
+- Lösenordet sparas i Macens nyckelring, aldrig i appen. Vid SFTP minns appen serverns nyckel och
+  varnar om en annan server svarar senare
+- **Spara på Macen** sparar samma sida i en mapp i stället, att öppna direkt eller ladda upp själv
+
 ## Installera
 
 Varje push till `main` bygger en `.dmg` i GitHub Actions. Hämta den under fliken
