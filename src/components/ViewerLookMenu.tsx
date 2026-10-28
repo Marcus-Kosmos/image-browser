@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   CAPTION_PLACES,
   CAPTION_PLACE_LABELS,
@@ -113,34 +114,36 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
           </div>
           {settings.captionPlace !== "off" && (
             <label className="flex items-center gap-2 px-2 py-1.5">
-              <span className="w-16 shrink-0 text-white/80">Storlek</span>
-              <select
+              <span className="w-20 shrink-0 whitespace-nowrap text-white/80">Storlek</span>
+              <NativeSelect
                 value={settings.captionSize}
                 onChange={(e) => onChange({ captionSize: e.target.value as CaptionSize })}
-                className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
+                wrapperClassName="flex-1 text-white"
+                className="rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {CAPTION_SIZES.map((size) => (
                   <option key={size} value={size}>
                     {CAPTION_SIZE_LABELS[size]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
           {settings.captionPlace !== "off" && (
             <label className="flex items-center gap-2 px-2 py-1.5">
-              <span className="w-16 shrink-0 text-white/80">Kommer in</span>
-              <select
+              <span className="w-20 shrink-0 whitespace-nowrap text-white/80">Kommer in</span>
+              <NativeSelect
                 value={settings.captionEffect}
                 onChange={(e) => onChange({ captionEffect: e.target.value as ViewerTransition })}
-                className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
+                wrapperClassName="flex-1 text-white"
+                className="rounded-md border border-white/20 bg-black/40 px-1.5 py-1 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {VIEWER_TRANSITIONS.map((t) => (
                   <option key={t} value={t}>
                     {VIEWER_TRANSITION_LABELS[t]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
           <div className="my-1 h-px bg-white/10" />

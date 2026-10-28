@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Dialog } from "@/components/ui/dialog";
 import { listFonts } from "@/lib/api";
 import type { Heading, HeadingLevel } from "@/lib/settings";
@@ -154,8 +155,9 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
         <label className="text-xs font-medium text-muted-foreground" htmlFor="heading-font">
           Typsnitt
         </label>
-        <select
+        <NativeSelect
           id="heading-font"
+          wrapperClassName="w-full"
           value={draft.font ?? ""}
           onChange={(e) => update({ font: e.target.value || undefined })}
           className="h-9 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -167,7 +169,7 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
               {f}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
 
       <div className="mt-4 rounded-md border px-3" style={{ background: "var(--canvas)" }} aria-hidden>
