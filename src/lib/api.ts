@@ -99,6 +99,18 @@ export function onFileDrop(handler: (state: DropState) => void): () => void {
   };
 }
 
+/**
+ * Enlarges a picture 4× with AI on this Mac and saves it as a new file beside the original.
+ * Returns the new file's path. Not available in the browser demo.
+ */
+export async function upscaleImage(image: ImageEntry): Promise<string> {
+  if (demo) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    throw "AI-förstoring finns bara i Mac-appen.";
+  }
+  return invoke<string>("upscale_image", { path: image.path, width: image.width, height: image.height });
+}
+
 export async function trashFile(path: string): Promise<void> {
   if (demo) {
     demoTrashed.add(path);

@@ -39,7 +39,8 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - run: npm ci
-      - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
+      - run: scripts/fetch-upscaler.sh
+      - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg --config src-tauri/tauri.macos-upscale.json
       - uses: actions/upload-artifact@v4
         with:
           name: Imagime-macOS

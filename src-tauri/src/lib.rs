@@ -2,6 +2,7 @@ mod auth;
 mod fonts;
 mod scan;
 mod thumbs;
+mod upscale;
 
 use std::path::PathBuf;
 
@@ -46,6 +47,23 @@ async fn trash_file(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
+/// Returns the new file's path.
+#[tauri::command]
+async fn upscale_image(app: tauri::AppHandle, path: String, width: u32, height: u32) -> Result<String, String> {
+    // The program sits beside the app's own executable; its model is among the app's resources.
+    let program = std::env::current_exe()
+        .map_err(|e| e.to_string())?
+        .with_file_name("realesrgan-ncnn-vulkan");
+    let models = app.path().resource_dir().map_err(|e| e.to_string())?.join("upscale-models");
+    tauri::async_runtime::spawn_blocking(move || {
+        upscale::enlarge(&PathBuf::from(path), &program, &models, width, height)
+            .map(|p| p.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Font families installed on this computer, for headings.
 #[tauri::command]
 async fn list_fonts() -> Result<Vec<String>, String> {
@@ -66,7 +84,15 @@ async fn confirm_owner(reason: String) -> Result<bool, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_folder, thumbnail, sort_dropped, trash_file, list_fonts, confirm_owner])
+        .invoke_handler(tauri::generate_handler![
+            scan_folder,
+            thumbnail,
+            sort_dropped,
+            trash_file,
+            list_fonts,
+            confirm_owner,
+            upscale_image
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
