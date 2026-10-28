@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { ImageEntry } from "./api";
+import type { ViewerSettings } from "./viewer";
 
 /** Kept out of sight: hidden ones show only on request, locked ones open with Touch ID. */
 export interface Privacy {
@@ -12,6 +13,8 @@ export interface Series extends Privacy {
   id: string;
   name: string;
   images: ImageEntry[];
+  /** The full screen look it was pinned together in, for "Visa som pussel". */
+  look?: ViewerSettings;
 }
 
 /** A set of folders opened together, saved under a name of its own. */
@@ -98,8 +101,15 @@ export function addToSeries(library: Library, id: string, images: ImageEntry[]):
   return updateSeries(library, id, (s) => ({ ...s, images: appendNew(s.images, images) }));
 }
 
-export function createSeries(library: Library, id: string, name: string, images: ImageEntry[]): Library {
-  return { ...library, series: [...library.series, { id, name, images: appendNew([], images) }] };
+export function createSeries(
+  library: Library,
+  id: string,
+  name: string,
+  images: ImageEntry[],
+  look?: ViewerSettings,
+): Library {
+  const created: Series = { id, name, images: appendNew([], images), ...(look && { look }) };
+  return { ...library, series: [...library.series, created] };
 }
 
 function updateSeries(library: Library, id: string, change: (s: Series) => Series): Library {

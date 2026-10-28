@@ -110,7 +110,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
   );
 }
 
-function Toggle({
+export function Toggle({
   checked,
   onChange,
   label,
@@ -121,6 +121,7 @@ function Toggle({
 }) {
   return (
     <button
+      type="button"
       role="checkbox"
       aria-checked={checked}
       onClick={() => onChange(!checked)}

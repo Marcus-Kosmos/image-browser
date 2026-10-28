@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, Info, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
+import { ArrowUp, FolderOpen, PanelLeft, FolderTree, Hash, Images, Info, Puzzle, RectangleHorizontal, RefreshCw, Rows3, Sparkles } from "lucide-react";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ interface ToolbarProps {
   onRefresh: () => void;
   /** Reading the folder in again; the button spins meanwhile. */
   refreshing: boolean;
+  /** Shows a series saved from pinned images the way it was laid out, when it was saved with its look. */
+  onShowPuzzle?: () => void;
   includeSubfolders: boolean;
   onToggleSubfolders: () => void;
   settings: FolderSettings;
@@ -56,6 +58,7 @@ export function Toolbar({
   onParent,
   onRefresh,
   refreshing,
+  onShowPuzzle,
   includeSubfolders,
   onToggleSubfolders,
   settings,
@@ -85,6 +88,20 @@ export function Toolbar({
           <div className="truncate text-sm font-semibold">{libraryTitle}</div>
           <Count shown={imageCount} total={totalCount} />
         </div>
+      ) : null}
+      {libraryTitle !== null ? (
+        onShowPuzzle && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-2 shrink-0"
+            onClick={onShowPuzzle}
+            title="Visa serien i helskärm som den sparades"
+          >
+            <Puzzle />
+            Visa som pussel
+          </Button>
+        )
       ) : folders.length > 0 && (
         <>
           <Button
