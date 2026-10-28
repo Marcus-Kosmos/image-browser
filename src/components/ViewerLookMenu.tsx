@@ -9,6 +9,8 @@ import {
   CAPTION_SIZE_LABELS,
   PIN_SIZES,
   PIN_SIZE_LABELS,
+  SCREEN_FITS,
+  SCREEN_FIT_LABELS,
   VIEWER_TRANSITIONS,
   VIEWER_TRANSITION_LABELS,
   type CaptionSize,
@@ -78,6 +80,18 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
                 checked={settings.transition === t}
                 onChange={() => onChange({ transition: t })}
                 label={VIEWER_TRANSITION_LABELS[t]}
+              />
+            ))}
+          </div>
+          <div className="my-1 h-px bg-white/10" />
+          <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">En bild i taget (H)</div>
+          <div role="radiogroup" aria-label="En bild i taget" className="flex flex-col">
+            {SCREEN_FITS.map((fit) => (
+              <Radio
+                key={fit}
+                checked={settings.screen === fit}
+                onChange={() => onChange({ screen: fit })}
+                label={SCREEN_FIT_LABELS[fit]}
               />
             ))}
           </div>

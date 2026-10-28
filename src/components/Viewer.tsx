@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FolderMinus, Heart, Info, Pin, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderMinus, Heart, Info, PanelLeft, Pin, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { originalUrl, type ImageEntry } from "@/lib/api";
+import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
 import {
@@ -9,6 +9,7 @@ import {
   DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
+  nextScreenFit,
   resolveTransition,
   useViewerSettings,
   type CaptionPlace,
@@ -21,6 +22,7 @@ import {
 import type { Tag } from "@/lib/filter";
 import type { Series } from "@/lib/library";
 import { SeriesPicker } from "./SeriesPicker";
+import { CollectionsPanel, FAVORITES_TARGET } from "./CollectionsPanel";
 import { ViewerLookMenu } from "./ViewerLookMenu";
 import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { HeadingText } from "./HeadingText";
@@ -166,11 +168,26 @@ function framePad(frame: Frame, width: number, height: number) {
   return (typeof style.padding === "number" ? style.padding : 0) + (style.border ? 1 : 0);
 }
 
-/** The largest box with the picture's shape that fits with its frame, never larger than the picture. */
-function fit(room: { width: number; height: number }, width: number, height: number, frame: Frame) {
-  const first = Math.min(room.width / width, room.height / height, 1);
+/**
+ * The largest box with the picture's shape that fits with its frame, never larger than the picture.
+ * "grow" lets it grow past its own size to fill the room; "cover" fills the room, cut at the edges.
+ */
+function fit(
+  room: { width: number; height: number },
+  width: number,
+  height: number,
+  frame: Frame,
+  mode: "fit" | "grow" | "cover" = "fit",
+) {
+  if (mode === "cover") {
+    const scale = Math.max(room.width / width, room.height / height);
+    const picture = { width: Math.round(width * scale), height: Math.round(height * scale) };
+    return { picture, ...picture };
+  }
+  const most = mode === "grow" ? Infinity : 1;
+  const first = Math.min(room.width / width, room.height / height, most);
   const room0 = framePad(frame, width * first, height * first);
-  const scale = Math.max(0, Math.min((room.width - 2 * room0) / width, (room.height - 2 * room0) / height, 1));
+  const scale = Math.max(0, Math.min((room.width - 2 * room0) / width, (room.height - 2 * room0) / height, most));
   const picture = {
     width: Math.round(width * scale),
     height: Math.round(height * scale),
@@ -214,6 +231,19 @@ export function Viewer({
   const [own, setOwn] = useState(savedLook && { ...DEFAULT_VIEWER_SETTINGS, ...savedLook });
   const look = own ?? usual;
   const updateLook = (change: Partial<ViewerSettings>) => (own ? setOwn({ ...own, ...change }) : updateUsual(change));
+  // On the whole screen the header shows while the mouse moves, and fades when it rests.
+  const [chrome, setChrome] = useState(true);
+  const resting = useRef(0);
+  const wake = () => {
+    setChrome(true);
+    window.clearTimeout(resting.current);
+    resting.current = window.setTimeout(() => setChrome(false), 2500);
+  };
+  useEffect(() => {
+    wake();
+    return () => window.clearTimeout(resting.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [look.screen]);
   const frame = look.frame ? folderFrame : "none";
   const shadow = look.frame ? folderShadow : "none";
   // Read when the image changes, so changing the setting doesn't replay the current one.
@@ -315,6 +345,12 @@ export function Viewer({
   const pinSize = look.pinSize;
   const beside = pinSize === "small" ? [] : pinned.filter((p) => p.path !== image.path);
   const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP);
+  // One image at a time can take the whole screen: the header steps aside and the margins go.
+  const wide = !layout && look.screen !== "margins";
+  const fitMode = !wide ? "fit" : look.screen === "fill" ? "cover" : "grow";
+  // A frame cut off at the screen's edges would look broken, so a filling picture goes without.
+  const pictureFrame = fitMode === "cover" ? "none" : frame;
+  useWindowFullscreen(wide);
   const room = layout ? { width: layout.current.width, height: layout.current.height } : space;
   // The largest box with the picture's shape that fits, never larger than the picture itself.
   // A heading above the picture takes a line from its room.
@@ -323,9 +359,11 @@ export function Viewer({
   const captionHeight = heading ? captionLineHeight(heading.level, look.captionSize, room.height) : 0;
   const lift = heading && look.captionPlace === "above" ? captionHeight : 0;
   const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
-  const box = fit(pictureRoom, image.width, image.height, frame);
+  const box = fit(pictureRoom, image.width, image.height, pictureFrame, fitMode);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
   const view = layout ? { width: box.width, height: box.height + lift } : room;
+  // The part of the picture on screen, where the heart and heading go when it's cut at the edges.
+  const shown = { width: Math.min(box.width, pictureRoom.width), height: Math.min(box.height, pictureRoom.height) };
   const top = layers[layers.length - 1];
 
   // Zoom: each click magnifies where it points, three clicks reach the closest view.
@@ -433,6 +471,21 @@ export function Viewer({
     from: Zoom;
     moved: boolean;
   } | null>(null);
+  // Dragging the whole picture carries it to Favoriter or a series beside it; zoomed, a drag pans instead.
+  const [carry, setCarry] = useState<{ x: number; y: number; over: string | null } | null>(null);
+  const [added, setAdded] = useState<string | null>(null);
+  useEffect(() => {
+    if (!added) return;
+    const t = window.setTimeout(() => setAdded(null), 1200);
+    return () => window.clearTimeout(t);
+  }, [added]);
+  const inSeries = (id: string) => !!series.find((s) => s.id === id)?.images.some((img) => img.path === image.path);
+  const dropIn = (target: string) => {
+    if (target === FAVORITES_TARGET) {
+      if (!favorite) onToggleFavorite(index);
+    } else if (!inSeries(target)) onToggleSeries(target, index);
+    setAdded(target);
+  };
   const onStageDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu]")) return;
     press.current = { x: e.clientX, y: e.clientY, from: zoom, moved: false };
@@ -440,9 +493,17 @@ export function Viewer({
   };
   const onStageMove = (e: React.PointerEvent) => {
     const p = press.current;
-    if (!p || !zoomed) return;
+    if (!p) return;
     const dx = e.clientX - p.x;
     const dy = e.clientY - p.y;
+    if (!zoomed) {
+      if (!p.moved && Math.hypot(dx, dy) < 6) return;
+      p.moved = true;
+      if (!look.collections) updateLook({ collections: true });
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-collection]");
+      setCarry({ x: e.clientX, y: e.clientY, over: target?.dataset.collection ?? null });
+      return;
+    }
     if (!p.moved && Math.hypot(dx, dy) < 4) return;
     p.moved = true;
     setPanning(true);
@@ -452,6 +513,11 @@ export function Viewer({
     const p = press.current;
     press.current = null;
     setPanning(false);
+    if (carry) {
+      if (carry.over) dropIn(carry.over);
+      setCarry(null);
+      return;
+    }
     if (!p || p.moved || !stage) return;
     const rect = stage.getBoundingClientRect();
     const px = e.clientX - rect.left - rect.width / 2;
@@ -553,6 +619,8 @@ export function Viewer({
       else if (e.key === "-") stepZoom(-1);
       else if (e.key === "0") setZoom(WHOLE);
       else if (e.key === "p") togglePin();
+      else if (e.key === "h") updateLook({ screen: nextScreenFit(look.screen) });
+      else if (e.key === "c") updateLook({ collections: !look.collections });
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
         onToggleSeries(series[digit - 1].id, index);
       else if (e.key === "s") setPicking((p) => !p);
@@ -579,6 +647,9 @@ export function Viewer({
     zoomed,
     stepZoom,
     togglePin,
+    look.screen,
+    look.collections,
+    updateLook,
   ]);
 
   return (
@@ -599,9 +670,25 @@ export function Viewer({
       role="dialog"
       aria-modal="true"
       aria-label={image.name}
+      onPointerMove={wide ? wake : undefined}
     >
       {/* Trash and close sit at opposite ends so one isn't clicked by mistake for the other. */}
-      <div className="flex h-12 shrink-0 items-center gap-3 px-3">
+      <div
+        className={cn(
+          "flex h-12 shrink-0 items-center gap-3 px-3",
+          wide && "absolute inset-x-0 top-0 z-30 transition-opacity duration-300",
+          wide && !chrome && "opacity-0 focus-within:opacity-100 hover:opacity-100",
+        )}
+        style={
+          wide
+            ? {
+                background: look.background
+                  ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
+                  : "linear-gradient(rgb(0 0 0 / 0.6), transparent)",
+              }
+            : undefined
+        }
+      >
         <Button
           variant="ghost"
           size="icon-sm"
@@ -644,6 +731,20 @@ export function Viewer({
             }
           />
         )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-pressed={look.collections}
+          className={cn(
+            "text-current/80 hover:bg-current/15 hover:text-current",
+            look.collections && "bg-current/15 text-current",
+          )}
+          onClick={() => updateLook({ collections: !look.collections })}
+          title={look.collections ? "Dölj samlingarna (C)" : "Visa Favoriter och serierna, att dra bilden till (C)"}
+          aria-label="Samlingar"
+        >
+          <PanelLeft />
+        </Button>
         <ViewerLookMenu settings={look} onChange={updateLook} />
         <Button
           variant="ghost"
@@ -666,180 +767,201 @@ export function Viewer({
           <X />
         </Button>
       </div>
-      <div
-        ref={setArea}
-        className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6"
-        style={{ paddingLeft: pinsWidth ? pinsWidth + 48 : undefined }}
-      >
-        {pinSize === "small" && pinned.length > 0 && (
-          <div
-            className="absolute top-0 left-4 flex flex-col flex-wrap content-start"
-            style={{
-              gap: PIN_GAP,
-              height: pinRows * (PIN_H + PIN_GAP) - PIN_GAP,
-            }}
-            aria-label="Fästa bilder"
-          >
-            {pinned.map((p) => (
-              <PinnedPreview
-                key={p.path}
-                image={p}
-                current={p.path === image.path}
-                dragging={dragging === p.path}
-                onDragStart={(e) => startPinDrag(p.path, e)}
-                onOpen={() => openPinned(p)}
-                onUnpin={() => unpin(p)}
-              />
-            ))}
-          </div>
+      <div className={cn("flex min-h-0 flex-1", wide && look.collections && "pt-12")}>
+        {look.collections && (
+          <CollectionsPanel
+            series={series}
+            favorite={favorite}
+            inSeries={inSeries}
+            onToggleFavorite={() => onToggleFavorite(index)}
+            onToggleSeries={(id) => onToggleSeries(id, index)}
+            over={carry?.over ?? null}
+            added={added}
+          />
         )}
-        <div ref={setContent} className="flex size-full min-w-0 items-center justify-center">
-          <div
-            className={layout ? "relative shrink-0" : "contents"}
-            style={layout ? { width: layout.width, height: layout.height } : undefined}
-            aria-label={layout ? "Fästa bilder och bilden som visas" : undefined}
-          >
-            {layout?.pins.map((rect, i) => (
-              <PinnedPicture
-                key={beside[i].path}
-                image={beside[i]}
-                rect={rect}
-                frame={frame}
-                shadow={shadow}
-                rounded={look.rounded}
-                heading={captionOf(beside[i])}
-                place={look.captionPlace}
-                size={look.captionSize}
-                dragging={dragging === beside[i].path}
-                onDragStart={(e) => startPinDrag(beside[i].path, e)}
-                onOpen={() => openPinned(beside[i])}
-                onUnpin={() => unpin(beside[i])}
-              />
-            ))}
+        <div
+          ref={setArea}
+          className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
+          style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
+        >
+          {pinSize === "small" && pinned.length > 0 && (
             <div
-              ref={setStage}
-              className={cn(
-                "flex touch-none items-center justify-center overflow-hidden",
-                layout || zoomed ? "absolute" : "relative size-full",
-                zoomed && "z-10",
-              )}
+              className="absolute top-0 left-4 flex flex-col flex-wrap content-start"
               style={{
-                ...(layout && {
-                  left: layout.current.x + (layout.current.width - box.width) / 2,
-                  top: layout.current.y + (layout.current.height - box.height - lift) / 2,
-                  ...view,
-                  transition: SLOT_TRANSITION,
-                }),
-                // Zoomed, it covers the whole area below the header, pinned pictures included.
-                ...(zoomed && {
-                  left: layout ? -areaOffset.x : 0,
-                  top: layout ? -areaOffset.y : 0,
-                  ...zoomView,
-                  background: look.background ? "var(--canvas)" : "#000",
-                }),
-                cursor: panning ? "grabbing" : atMax ? "zoom-out" : "zoom-in",
+                gap: PIN_GAP,
+                height: pinRows * (PIN_H + PIN_GAP) - PIN_GAP,
               }}
-              onPointerDown={onStageDown}
-              onPointerMove={onStageMove}
-              onPointerUp={onStageUp}
-              onPointerCancel={() => {
-                press.current = null;
-                setPanning(false);
-              }}
+              aria-label="Fästa bilder"
             >
-              {layers.map((layer, i) => (
-                <LayerView
-                  key={layer.id}
-                  layer={
-                    original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer
-                  }
-                  box={fit(pictureRoom, layer.width, layer.height, frame)}
-                  lift={lift}
+              {pinned.map((p) => (
+                <PinnedPreview
+                  key={p.path}
+                  image={p}
+                  current={p.path === image.path}
+                  dragging={dragging === p.path}
+                  onDragStart={(e) => startPinDrag(p.path, e)}
+                  onOpen={() => openPinned(p)}
+                  onUnpin={() => unpin(p)}
+                />
+              ))}
+            </div>
+          )}
+          <div ref={setContent} className="flex size-full min-w-0 items-center justify-center">
+            <div
+              className={layout ? "relative shrink-0" : "contents"}
+              style={layout ? { width: layout.width, height: layout.height } : undefined}
+              aria-label={layout ? "Fästa bilder och bilden som visas" : undefined}
+            >
+              {layout?.pins.map((rect, i) => (
+                <PinnedPicture
+                  key={beside[i].path}
+                  image={beside[i]}
+                  rect={rect}
                   frame={frame}
                   shadow={shadow}
                   rounded={look.rounded}
-                  animate={i > 0}
-                  exit={i < layers.length - 1 ? top : undefined}
-                  zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
-                  panning={panning}
+                  heading={captionOf(beside[i])}
+                  place={look.captionPlace}
+                  size={look.captionSize}
+                  dragging={dragging === beside[i].path}
+                  onDragStart={(e) => startPinDrag(beside[i].path, e)}
+                  onOpen={() => openPinned(beside[i])}
+                  onUnpin={() => unpin(beside[i])}
                 />
               ))}
-              {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
               <div
+                ref={setStage}
                 className={cn(
-                  "pointer-events-none relative shrink-0 transition-opacity",
-                  zoomed ? "opacity-0" : "*:pointer-events-auto",
+                  "flex touch-none items-center justify-center overflow-hidden",
+                  layout || zoomed ? "absolute" : "relative size-full",
+                  zoomed && "z-10",
                 )}
                 style={{
-                  width: box.width,
-                  height: box.height,
-                  transform: lift ? `translateY(${lift / 2}px)` : undefined,
+                  ...(layout && {
+                    left: layout.current.x + (layout.current.width - box.width) / 2,
+                    top: layout.current.y + (layout.current.height - box.height - lift) / 2,
+                    ...view,
+                    transition: SLOT_TRANSITION,
+                  }),
+                  // Zoomed, it covers the whole area below the header, pinned pictures included.
+                  ...(zoomed && {
+                    left: layout ? -areaOffset.x : 0,
+                    top: layout ? -areaOffset.y : 0,
+                    ...zoomView,
+                    background: look.background ? "var(--canvas)" : "#000",
+                  }),
+                  cursor: panning || carry ? "grabbing" : atMax ? "zoom-out" : "zoom-in",
+                }}
+                onPointerDown={onStageDown}
+                onPointerMove={onStageMove}
+                onPointerUp={onStageUp}
+                onPointerCancel={() => {
+                  press.current = null;
+                  setPanning(false);
+                  setCarry(null);
                 }}
               >
-                {heading && (
-                  <Caption
-                    key={image.path}
-                    heading={heading}
-                    place={look.captionPlace}
-                    height={captionHeight}
-                    inset={framePad(frame, box.picture.width, box.picture.height) + 16}
-                    width={box.width}
-                    effect={look.captionEffect}
-                    animate
+                {layers.map((layer, i) => (
+                  <LayerView
+                    key={layer.id}
+                    layer={
+                      original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer
+                    }
+                    box={fit(pictureRoom, layer.width, layer.height, pictureFrame, fitMode)}
+                    lift={lift}
+                    frame={pictureFrame}
+                    shadow={shadow}
+                    rounded={look.rounded}
+                    animate={i > 0}
+                    exit={i < layers.length - 1 ? top : undefined}
+                    zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
+                    panning={panning}
                   />
-                )}
-                <button
-                  onClick={togglePin}
-                  disabled={pinsFull}
-                  aria-pressed={isPinned}
-                  title={
-                    isPinned
-                      ? "Lossa bilden (P)"
-                      : pinsFull
-                        ? "Det får inte plats fler fästa bilder"
-                        : "Fäst bilden medan du bläddrar vidare (P)"
-                  }
-                  aria-label={isPinned ? "Lossa bilden" : "Fäst bilden"}
+                ))}
+                {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
+                <div
                   className={cn(
-                    "absolute right-29 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-30",
-                    isPinned ? "opacity-100" : "opacity-70 hover:opacity-100",
+                    "pointer-events-none relative shrink-0 transition-opacity",
+                    zoomed ? "opacity-0" : "*:pointer-events-auto",
                   )}
+                  style={{
+                    ...shown,
+                    transform: lift ? `translateY(${lift / 2}px)` : undefined,
+                  }}
                 >
-                  <Pin className={cn("size-6 drop-shadow", isPinned && "fill-current")} />
-                </button>
-                <button
-                  onClick={() => onToggleFavorite(index)}
-                  aria-pressed={favorite}
-                  title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
-                  aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-                  className={cn(
-                    "absolute right-3 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                    favorite ? "opacity-100" : "opacity-70 hover:opacity-100",
+                  {heading && (
+                    <Caption
+                      key={image.path}
+                      heading={heading}
+                      place={look.captionPlace}
+                      height={captionHeight}
+                      inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
+                      width={shown.width}
+                      effect={look.captionEffect}
+                      animate
+                    />
                   )}
-                >
-                  <Heart className={cn("size-6 drop-shadow", favorite && "fill-current")} />
-                </button>
-                <SeriesPicker
-                  path={image.path}
-                  series={series}
-                  open={picking}
-                  onOpenChange={setPicking}
-                  onToggle={(id) => onToggleSeries(id, index)}
-                  onCreate={(name) => onCreateSeries(name, index)}
-                  defaultName={newSeriesName}
-                />
+                  <button
+                    onClick={togglePin}
+                    disabled={pinsFull}
+                    aria-pressed={isPinned}
+                    title={
+                      isPinned
+                        ? "Lossa bilden (P)"
+                        : pinsFull
+                          ? "Det får inte plats fler fästa bilder"
+                          : "Fäst bilden medan du bläddrar vidare (P)"
+                    }
+                    aria-label={isPinned ? "Lossa bilden" : "Fäst bilden"}
+                    className={cn(
+                      "absolute right-29 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-30",
+                      isPinned ? "opacity-100" : "opacity-70 hover:opacity-100",
+                    )}
+                  >
+                    <Pin className={cn("size-6 drop-shadow", isPinned && "fill-current")} />
+                  </button>
+                  <button
+                    onClick={() => onToggleFavorite(index)}
+                    aria-pressed={favorite}
+                    title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+                    aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+                    className={cn(
+                      "absolute right-3 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                      favorite ? "opacity-100" : "opacity-70 hover:opacity-100",
+                    )}
+                  >
+                    <Heart className={cn("size-6 drop-shadow", favorite && "fill-current")} />
+                  </button>
+                  <SeriesPicker
+                    path={image.path}
+                    series={series}
+                    open={picking}
+                    onOpenChange={setPicking}
+                    onToggle={(id) => onToggleSeries(id, index)}
+                    onCreate={(name) => onCreateSeries(name, index)}
+                    defaultName={newSeriesName}
+                  />
+                </div>
               </div>
             </div>
           </div>
+          <NavButton
+            side="left"
+            disabled={!hasPrev}
+            onClick={() => onIndexChange(index - 1)}
+            style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
+          />
+          <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
         </div>
-        <NavButton
-          side="left"
-          disabled={!hasPrev}
-          onClick={() => onIndexChange(index - 1)}
-          style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
-        />
-        <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
       </div>
+      {carry && (
+        <img
+          src={top.src}
+          alt=""
+          className="pointer-events-none fixed z-50 max-h-24 max-w-24 rounded-md opacity-80 shadow-xl"
+          style={{ left: carry.x + 8, top: carry.y + 8 }}
+        />
+      )}
     </div>
   );
 }

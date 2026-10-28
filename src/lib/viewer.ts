@@ -81,6 +81,22 @@ export function captionLineHeight(level: 1 | 2 | 3, size: CaptionSize, roomHeigh
   return Math.round(Math.min(CAPTION_HEIGHT[level] * CAPTION_SCALE[size], roomHeight / 3));
 }
 
+/** How large one image at a time is shown in full screen. */
+export type ScreenFit = "margins" | "fit" | "fill";
+
+export const SCREEN_FITS: ScreenFit[] = ["margins", "fit", "fill"];
+
+export const SCREEN_FIT_LABELS: Record<ScreenFit, string> = {
+  margins: "Med marginaler",
+  fit: "Hela skärmen, hela bilden syns",
+  fill: "Fyll skärmen, kanterna beskärs",
+};
+
+/** The next of the sizes, for the shortcut that steps through them. */
+export function nextScreenFit(fit: ScreenFit): ScreenFit {
+  return SCREEN_FITS[(SCREEN_FITS.indexOf(fit) + 1) % SCREEN_FITS.length];
+}
+
 export interface ViewerSettings {
   transition: ViewerTransition;
   /** Each image keeps its zoom, so stepping back to it shows the same detail. */
@@ -97,6 +113,10 @@ export interface ViewerSettings {
   /** How a heading comes in with its image. */
   captionEffect: ViewerTransition;
   captionSize: CaptionSize;
+  /** Margins around the picture, or the whole screen for it. */
+  screen: ScreenFit;
+  /** Favoriter and the series beside the picture, to drop it in. */
+  collections: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -109,6 +129,8 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   captionPlace: "above",
   captionEffect: "fade",
   captionSize: "normal",
+  screen: "margins",
+  collections: false,
 };
 
 const STORAGE = "image-browser:viewer";

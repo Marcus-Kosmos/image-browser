@@ -45,6 +45,8 @@ const GROUPS: Array<{ title: string; keys: Array<[string[], string]> }> = [
       [["Alt + klick"], "Zooma ut ett steg"],
       [["+", "−"], "Zooma in eller ut"],
       [["0"], "Visa hela bilden igen"],
+      [["H"], "Marginaler, hela skärmen eller fyll skärmen"],
+      [["C"], "Visa eller dölj samlingarna att dra bilden till"],
       [["⌫"], "Flytta till papperskorgen"],
       [["Esc"], "Visa hela bilden, sedan stäng helskärm"],
     ],

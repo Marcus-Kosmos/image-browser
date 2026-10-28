@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -156,4 +157,31 @@ function demoImage(image: ImageEntry): string {
     <path d="M0 ${image.height} L${image.width * 0.35} ${image.height * 0.55} L${image.width * 0.6} ${image.height * 0.8} L${image.width * 0.8} ${image.height * 0.6} L${image.width} ${image.height} Z" fill="hsl(${hue} 30% 22%)" opacity="0.7"/>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Puts the app's window in full screen while `on`, and back as it was after.
+ * A window that was already in full screen is left there.
+ */
+export function useWindowFullscreen(on: boolean) {
+  useEffect(() => {
+    if (demo || !on) return;
+    let undo = false;
+    let gone = false;
+    const ready = import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
+      const win = getCurrentWindow();
+      if (gone || (await win.isFullscreen())) return win;
+      await win.setFullscreen(true);
+      undo = true;
+      return win;
+    });
+    return () => {
+      gone = true;
+      ready
+        .then((win) => {
+          if (undo) return win.setFullscreen(false);
+        })
+        .catch(() => {});
+    };
+  }, [on]);
 }
