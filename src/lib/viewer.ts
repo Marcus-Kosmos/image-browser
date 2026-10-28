@@ -46,6 +46,23 @@ export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   puzzle: "Pussel i rader som fyller skärmen",
 };
 
+/** Where an image's heading goes in full screen. */
+export type CaptionPlace = "off" | "above" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+export const CAPTION_PLACES: CaptionPlace[] = ["off", "above", "top-left", "top-right", "bottom-left", "bottom-right"];
+
+export const CAPTION_PLACE_LABELS: Record<CaptionPlace, string> = {
+  off: "Visa inte",
+  above: "Ovanför bilden",
+  "top-left": "På bilden, uppe till vänster",
+  "top-right": "På bilden, uppe till höger",
+  "bottom-left": "På bilden, nere till vänster",
+  "bottom-right": "På bilden, nere till höger",
+};
+
+/** Height of a heading's line in full screen, per level. */
+export const CAPTION_HEIGHT: Record<1 | 2 | 3, number> = { 1: 52, 2: 40, 3: 30 };
+
 export interface ViewerSettings {
   transition: ViewerTransition;
   /** Each image keeps its zoom, so stepping back to it shows the same detail. */
@@ -57,6 +74,10 @@ export interface ViewerSettings {
   background: boolean;
   /** Round the corners of the pictures and their frames. */
   rounded: boolean;
+  /** Where headings written for the images are shown. */
+  captionPlace: CaptionPlace;
+  /** How a heading comes in with its image. */
+  captionEffect: ViewerTransition;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -66,6 +87,8 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   frame: false,
   background: false,
   rounded: false,
+  captionPlace: "above",
+  captionEffect: "fade",
 };
 
 const STORAGE = "image-browser:viewer";

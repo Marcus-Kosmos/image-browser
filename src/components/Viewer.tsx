@@ -3,14 +3,18 @@ import { ChevronLeft, ChevronRight, Heart, Info, Pin, Trash2, X } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
-import type { Frame, Shadow } from "@/lib/settings";
+import type { Frame, Heading, Shadow } from "@/lib/settings";
 import {
+  CAPTION_HEIGHT,
+  DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
   resolveTransition,
   useViewerSettings,
+  type CaptionPlace,
   type Rect,
   type ViewerSettings,
+  type ViewerTransition,
   type ViewerEffect,
 } from "@/lib/viewer";
 import type { Tag } from "@/lib/filter";
@@ -18,6 +22,7 @@ import type { Series } from "@/lib/library";
 import { SeriesPicker } from "./SeriesPicker";
 import { ViewerLookMenu } from "./ViewerLookMenu";
 import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
+import { HeadingText } from "./HeadingText";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -48,6 +53,8 @@ interface ViewerProps {
   defaultPinnedName: string;
   /** A series' saved look, used instead of the usual one while this viewer is open. */
   savedLook?: ViewerSettings;
+  /** The heading written for an image, if any. */
+  headingOf: (image: ImageEntry) => Heading | undefined;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -194,11 +201,13 @@ export function Viewer({
   onSavePinned,
   defaultPinnedName,
   savedLook,
+  headingOf,
   paused,
 }: ViewerProps) {
   const { settings: usual, update: updateUsual } = useViewerSettings();
   // A saved look can be changed here for the moment, without changing the series or the usual look.
-  const [own, setOwn] = useState(savedLook);
+  // Looks saved before an option existed get its default.
+  const [own, setOwn] = useState(savedLook && { ...DEFAULT_VIEWER_SETTINGS, ...savedLook });
   const look = own ?? usual;
   const updateLook = (change: Partial<ViewerSettings>) => (own ? setOwn({ ...own, ...change }) : updateUsual(change));
   const frame = look.frame ? folderFrame : "none";
@@ -293,9 +302,15 @@ export function Viewer({
   const layout = pinSize === "small" ? null : pinLayout(pinSize, beside, image, space, PIN_ROW_GAP);
   const room = layout ? { width: layout.current.width, height: layout.current.height } : space;
   // The largest box with the picture's shape that fits, never larger than the picture itself.
-  const box = fit(room, image.width, image.height, frame);
+  // A heading above the picture takes a line from its room.
+  const captionOf = (img: ImageEntry) => (look.captionPlace === "off" ? undefined : headingOf(img));
+  const heading = captionOf(image);
+  const captionHeight = heading ? CAPTION_HEIGHT[heading.level] : 0;
+  const lift = heading && look.captionPlace === "above" ? captionHeight : 0;
+  const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
+  const box = fit(pictureRoom, image.width, image.height, frame);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
-  const view = layout ? { width: box.width, height: box.height } : room;
+  const view = layout ? { width: box.width, height: box.height + lift } : room;
   const top = layers[layers.length - 1];
 
   // Zoom: each click magnifies where it points, three clicks reach the closest view.
@@ -436,8 +451,51 @@ export function Viewer({
     else if (!pinsFull) onPinnedChange([...pinned, image]);
   }, [pinned, image, pinsFull, onPinnedChange]);
   const openPinned = (p: ImageEntry) => {
+    // The click that ends a drag doesn't open the image.
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
     const i = images.findIndex((img) => img.path === p.path);
     if (i >= 0) onIndexChange(i);
+  };
+
+  // A pinned image dragged onto another takes its place; the others make room as it passes.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const dragged = useRef(false);
+  const latestPinned = useRef(pinned);
+  latestPinned.current = pinned;
+  const startPinDrag = (path: string, e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("[data-unpin]")) return;
+    const start = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    let lastOver: string | null = null;
+    const onMove = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 5) return;
+      moved = true;
+      setDragging(path);
+      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-pin]")?.getAttribute("data-pin");
+      if (!over || over === lastOver) return;
+      lastOver = over;
+      if (over === path) return;
+      const list = latestPinned.current;
+      const from = list.findIndex((p) => p.path === path);
+      const to = list.findIndex((p) => p.path === over);
+      if (from < 0 || to < 0) return;
+      const next = [...list];
+      next.splice(to, 0, ...next.splice(from, 1));
+      onPinnedChange(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      dragged.current = moved;
+      // Forget it once the click that may follow has passed, so a drag ending elsewhere doesn't swallow the next click.
+      setTimeout(() => (dragged.current = false), 0);
+      setDragging(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
   const unpin = (p: ImageEntry) => onPinnedChange(pinned.filter((q) => q.path !== p.path));
 
@@ -577,6 +635,8 @@ export function Viewer({
                 key={p.path}
                 image={p}
                 current={p.path === image.path}
+                dragging={dragging === p.path}
+                onDragStart={(e) => startPinDrag(p.path, e)}
                 onOpen={() => openPinned(p)}
                 onUnpin={() => unpin(p)}
               />
@@ -597,6 +657,10 @@ export function Viewer({
                 frame={frame}
                 shadow={shadow}
                 rounded={look.rounded}
+                heading={captionOf(beside[i])}
+                place={look.captionPlace}
+                dragging={dragging === beside[i].path}
+                onDragStart={(e) => startPinDrag(beside[i].path, e)}
                 onOpen={() => openPinned(beside[i])}
                 onUnpin={() => unpin(beside[i])}
               />
@@ -610,7 +674,7 @@ export function Viewer({
               style={{
                 ...(layout && {
                   left: layout.current.x + (layout.current.width - box.width) / 2,
-                  top: layout.current.y + (layout.current.height - box.height) / 2,
+                  top: layout.current.y + (layout.current.height - box.height - lift) / 2,
                   ...view,
                   transition: SLOT_TRANSITION,
                 }),
@@ -630,7 +694,8 @@ export function Viewer({
                   layer={
                     original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer
                   }
-                  box={fit(room, layer.width, layer.height, frame)}
+                  box={fit(pictureRoom, layer.width, layer.height, frame)}
+                  lift={lift}
                   frame={frame}
                   shadow={shadow}
                   rounded={look.rounded}
@@ -646,8 +711,23 @@ export function Viewer({
                   "pointer-events-none relative shrink-0 transition-opacity",
                   zoomed ? "opacity-0" : "*:pointer-events-auto",
                 )}
-                style={{ width: box.width, height: box.height }}
+                style={{
+                  width: box.width,
+                  height: box.height,
+                  transform: lift ? `translateY(${lift / 2}px)` : undefined,
+                }}
               >
+                {heading && (
+                  <Caption
+                    key={image.path}
+                    heading={heading}
+                    place={look.captionPlace}
+                    height={captionHeight}
+                    inset={framePad(frame, box.picture.width, box.picture.height) + 16}
+                    effect={look.captionEffect}
+                    animate
+                  />
+                )}
                 <button
                   onClick={togglePin}
                   disabled={pinsFull}
@@ -734,6 +814,8 @@ interface LayerViewProps {
   frame: Frame;
   shadow: Shadow;
   rounded: boolean;
+  /** Room kept free above the picture for its heading. */
+  lift: number;
   /** Plays the layer's effect when added on top. */
   animate: boolean;
   /** The layer that now covers this one, whose effect decides how this one goes. */
@@ -744,7 +826,7 @@ interface LayerViewProps {
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
-function LayerView({ layer, box, frame, shadow, rounded, animate, exit, zoom, panning }: LayerViewProps) {
+function LayerView({ layer, box, frame, shadow, rounded, lift, animate, exit, zoom, panning }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     // Paint the starting position first, then move to rest.
@@ -776,7 +858,7 @@ function LayerView({ layer, box, frame, shadow, rounded, animate, exit, zoom, pa
       className="pointer-events-none absolute"
       style={{
         left: `calc(50% - ${box.width / 2}px)`,
-        top: `calc(50% - ${box.height / 2}px)`,
+        top: `calc(50% - ${(box.height - lift) / 2}px)`,
         width: box.width,
         height: box.height,
         transform: zoom.scale === 1 ? undefined : `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
@@ -814,16 +896,23 @@ function LayerView({ layer, box, frame, shadow, rounded, animate, exit, zoom, pa
 interface PinnedPreviewProps {
   image: ImageEntry;
   current: boolean;
+  dragging: boolean;
+  onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
   onUnpin: () => void;
 }
 
 /** A small pinned image; a click shows it in full again. */
-function PinnedPreview({ image, current, onOpen, onUnpin }: PinnedPreviewProps) {
+function PinnedPreview({ image, current, dragging, onDragStart, onOpen, onUnpin }: PinnedPreviewProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setSrc), [image]);
   return (
-    <div className="group relative shrink-0" style={{ width: PIN_W, height: PIN_H }}>
+    <div
+      data-pin={image.path}
+      onPointerDown={onDragStart}
+      className={cn("group relative shrink-0 touch-none", dragging && "cursor-grabbing opacity-50")}
+      style={{ width: PIN_W, height: PIN_H }}
+    >
       <button
         onClick={(e) => {
           // Keep the ring for the image shown, not the one last clicked.
@@ -841,6 +930,7 @@ function PinnedPreview({ image, current, onOpen, onUnpin }: PinnedPreviewProps) 
         {src && <img src={src} alt="" draggable={false} className="max-h-full max-w-full rounded-sm object-contain" />}
       </button>
       <button
+        data-unpin
         onClick={onUnpin}
         title="Lossa från hörnet"
         aria-label={`Lossa ${image.name} från hörnet`}
@@ -859,23 +949,46 @@ interface PinnedPictureProps {
   frame: Frame;
   shadow: Shadow;
   rounded: boolean;
+  heading?: Heading;
+  place: CaptionPlace;
+  dragging: boolean;
+  onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
   onUnpin: () => void;
 }
 
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
-function PinnedPicture({ image, rect, frame, shadow, rounded, onOpen, onUnpin }: PinnedPictureProps) {
+function PinnedPicture({
+  image,
+  rect,
+  frame,
+  shadow,
+  rounded,
+  heading,
+  place,
+  dragging,
+  onDragStart,
+  onOpen,
+  onUnpin,
+}: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
-  const box = fit(rect, image.width, image.height, frame);
+  // Headings shrink with smaller pictures, but stay readable.
+  const captionHeight = heading
+    ? Math.max(18, Math.round(CAPTION_HEIGHT[heading.level] * Math.min(1, rect.height / 600)))
+    : 0;
+  const lift = heading && place === "above" ? captionHeight : 0;
+  const box = fit({ width: rect.width, height: Math.max(0, rect.height - lift) }, image.width, image.height, frame);
   const framing = frameStyle(frame, box.picture.width, box.picture.height);
   const radius = corners(rounded, framing, box.width, box.height);
   return (
     <div
-      className="group absolute"
+      data-pin={image.path}
+      onPointerDown={onDragStart}
+      className={cn("group absolute touch-none", dragging && "z-10 cursor-grabbing opacity-60")}
       style={{
         left: rect.x + (rect.width - box.width) / 2,
-        top: rect.y + (rect.height - box.height) / 2,
+        top: rect.y + (rect.height - box.height + lift) / 2,
         width: box.width,
         height: box.height,
         transition: SLOT_TRANSITION,
@@ -908,7 +1021,18 @@ function PinnedPicture({ image, rect, frame, shadow, rounded, onOpen, onUnpin }:
           aria-hidden
         />
       )}
+      {heading && (
+        <Caption
+          heading={heading}
+          place={place}
+          height={captionHeight}
+          inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(captionHeight / 3)}
+          effect="none"
+          animate={false}
+        />
+      )}
       <button
+        data-unpin
         onClick={onUnpin}
         title="Lossa bilden"
         aria-label={`Lossa ${image.name}`}
@@ -916,6 +1040,57 @@ function PinnedPicture({ image, rect, frame, shadow, rounded, onOpen, onUnpin }:
       >
         <X className="size-4" />
       </button>
+    </div>
+  );
+}
+
+interface CaptionProps {
+  heading: Heading;
+  place: CaptionPlace;
+  height: number;
+  /** Distance from the picture's edges when the heading sits on it. */
+  inset: number;
+  effect: ViewerTransition;
+  /** Comes in with the effect a moment after its picture. */
+  animate: boolean;
+}
+
+/** An image's heading in full screen, above the picture or in one of its corners. */
+function Caption({ heading, place, height, inset, effect, animate }: CaptionProps) {
+  const [entered, setEntered] = useState(!animate);
+  useEffect(() => {
+    if (!animate) return;
+    const timer = setTimeout(() => setEntered(true), 180);
+    return () => clearTimeout(timer);
+  }, [animate]);
+  const motion: React.CSSProperties = entered
+    ? { opacity: 1, transform: "none", transition: transitionFor(resolveTransition(effect, 0)) }
+    : { ...enterStyle(resolveTransition(effect, 0), 1), transition: "none" };
+  const over = place !== "above";
+  const right = place.endsWith("right");
+  const position: React.CSSProperties = over
+    ? {
+        [place.startsWith("top") ? "top" : "bottom"]: inset,
+        [right ? "right" : "left"]: inset,
+        maxWidth: `calc(100% - ${inset * 2}px)`,
+      }
+    : { left: 0, right: 0, bottom: "100%" };
+  return (
+    <div className="pointer-events-none absolute" style={{ ...position, ...motion }}>
+      <HeadingText
+        heading={heading}
+        height={height}
+        scale={0.62}
+        style={
+          over
+            ? {
+                color: heading.color ?? "#fff",
+                textAlign: right ? "right" : "left",
+                textShadow: "0 1px 3px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 0 0 / 0.35)",
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
