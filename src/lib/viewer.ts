@@ -115,6 +115,8 @@ export interface ViewerSettings {
   captionSize: CaptionSize;
   /** Margins around the picture, or the whole screen for it. */
   screen: ScreenFit;
+  /** Favoriter and the series beside the picture, to drop it in. */
+  collections: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -128,6 +130,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   captionEffect: "fade",
   captionSize: "normal",
   screen: "margins",
+  collections: false,
 };
 
 const STORAGE = "image-browser:viewer";

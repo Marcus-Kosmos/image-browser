@@ -59,6 +59,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Spara som serie sparar de fästa bilderna i samma ordning som en ny serie. Välj om visningen (pussel,
   hörn, övergång) och mappens bakgrundsfärg, ram och skugga ska följa med. En serie sparad med visningen
   får knappen Visa som pussel, som öppnar helskärm med bilderna lagda som när de sparades
+- Samlingar i helskärm (knappen bredvid Visning, eller C): Favoriter och serierna visas till vänster. Dra
+  bilden dit för att lägga den i en samling, eller klicka för att lägga till eller ta bort den. Ett klick
+  på bilden zoomar som förut; zoomad flyttar du runt i bilden när du drar
 - En bild i taget (under Visning, eller H): med marginaler, på hela skärmen så att hela bilden syns, eller
   så att bilden fyller skärmen och kanterna beskärs. På hela skärmen går appens fönster upp i helskärm och
   raden överst tonar bort när musen vilar
