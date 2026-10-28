@@ -451,8 +451,51 @@ export function Viewer({
     else if (!pinsFull) onPinnedChange([...pinned, image]);
   }, [pinned, image, pinsFull, onPinnedChange]);
   const openPinned = (p: ImageEntry) => {
+    // The click that ends a drag doesn't open the image.
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
     const i = images.findIndex((img) => img.path === p.path);
     if (i >= 0) onIndexChange(i);
+  };
+
+  // A pinned image dragged onto another takes its place; the others make room as it passes.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const dragged = useRef(false);
+  const latestPinned = useRef(pinned);
+  latestPinned.current = pinned;
+  const startPinDrag = (path: string, e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("[data-unpin]")) return;
+    const start = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    let lastOver: string | null = null;
+    const onMove = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 5) return;
+      moved = true;
+      setDragging(path);
+      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-pin]")?.getAttribute("data-pin");
+      if (!over || over === lastOver) return;
+      lastOver = over;
+      if (over === path) return;
+      const list = latestPinned.current;
+      const from = list.findIndex((p) => p.path === path);
+      const to = list.findIndex((p) => p.path === over);
+      if (from < 0 || to < 0) return;
+      const next = [...list];
+      next.splice(to, 0, ...next.splice(from, 1));
+      onPinnedChange(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      dragged.current = moved;
+      // Forget it once the click that may follow has passed, so a drag ending elsewhere doesn't swallow the next click.
+      setTimeout(() => (dragged.current = false), 0);
+      setDragging(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
   const unpin = (p: ImageEntry) => onPinnedChange(pinned.filter((q) => q.path !== p.path));
 
@@ -592,6 +635,8 @@ export function Viewer({
                 key={p.path}
                 image={p}
                 current={p.path === image.path}
+                dragging={dragging === p.path}
+                onDragStart={(e) => startPinDrag(p.path, e)}
                 onOpen={() => openPinned(p)}
                 onUnpin={() => unpin(p)}
               />
@@ -614,6 +659,8 @@ export function Viewer({
                 rounded={look.rounded}
                 heading={captionOf(beside[i])}
                 place={look.captionPlace}
+                dragging={dragging === beside[i].path}
+                onDragStart={(e) => startPinDrag(beside[i].path, e)}
                 onOpen={() => openPinned(beside[i])}
                 onUnpin={() => unpin(beside[i])}
               />
@@ -849,16 +896,23 @@ function LayerView({ layer, box, frame, shadow, rounded, lift, animate, exit, zo
 interface PinnedPreviewProps {
   image: ImageEntry;
   current: boolean;
+  dragging: boolean;
+  onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
   onUnpin: () => void;
 }
 
 /** A small pinned image; a click shows it in full again. */
-function PinnedPreview({ image, current, onOpen, onUnpin }: PinnedPreviewProps) {
+function PinnedPreview({ image, current, dragging, onDragStart, onOpen, onUnpin }: PinnedPreviewProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setSrc), [image]);
   return (
-    <div className="group relative shrink-0" style={{ width: PIN_W, height: PIN_H }}>
+    <div
+      data-pin={image.path}
+      onPointerDown={onDragStart}
+      className={cn("group relative shrink-0 touch-none", dragging && "cursor-grabbing opacity-50")}
+      style={{ width: PIN_W, height: PIN_H }}
+    >
       <button
         onClick={(e) => {
           // Keep the ring for the image shown, not the one last clicked.
@@ -876,6 +930,7 @@ function PinnedPreview({ image, current, onOpen, onUnpin }: PinnedPreviewProps) 
         {src && <img src={src} alt="" draggable={false} className="max-h-full max-w-full rounded-sm object-contain" />}
       </button>
       <button
+        data-unpin
         onClick={onUnpin}
         title="Lossa från hörnet"
         aria-label={`Lossa ${image.name} från hörnet`}
@@ -896,12 +951,26 @@ interface PinnedPictureProps {
   rounded: boolean;
   heading?: Heading;
   place: CaptionPlace;
+  dragging: boolean;
+  onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
   onUnpin: () => void;
 }
 
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
-function PinnedPicture({ image, rect, frame, shadow, rounded, heading, place, onOpen, onUnpin }: PinnedPictureProps) {
+function PinnedPicture({
+  image,
+  rect,
+  frame,
+  shadow,
+  rounded,
+  heading,
+  place,
+  dragging,
+  onDragStart,
+  onOpen,
+  onUnpin,
+}: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
   // Headings shrink with smaller pictures, but stay readable.
@@ -914,7 +983,9 @@ function PinnedPicture({ image, rect, frame, shadow, rounded, heading, place, on
   const radius = corners(rounded, framing, box.width, box.height);
   return (
     <div
-      className="group absolute"
+      data-pin={image.path}
+      onPointerDown={onDragStart}
+      className={cn("group absolute touch-none", dragging && "z-10 cursor-grabbing opacity-60")}
       style={{
         left: rect.x + (rect.width - box.width) / 2,
         top: rect.y + (rect.height - box.height + lift) / 2,
@@ -961,6 +1032,7 @@ function PinnedPicture({ image, rect, frame, shadow, rounded, heading, place, on
         />
       )}
       <button
+        data-unpin
         onClick={onUnpin}
         title="Lossa bilden"
         aria-label={`Lossa ${image.name}`}

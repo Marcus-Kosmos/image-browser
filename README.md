@@ -47,6 +47,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Fäst bilder i helskärm: nålen bredvid mappknappen (eller P) lägger bilden som en liten förhandsvisning
   uppe till vänster medan du bläddrar vidare. Nästa fästa bild hamnar under, sedan i en kolumn bredvid,
   tills det inte får plats fler. Klicka på en fäst bild för att visa den igen, krysset lossar den
+- Dra en fäst bild till en ny plats för att ändra ordningen, både i hörnet och i de större lägena. De andra
+  bilderna glider undan medan du drar, och serien du sparar får den nya ordningen
 - Under Visning väljer du hur fästa bilder visas: små i hörnet, mellanstora med bilden du bläddrar till
   i resten av skärmen, hela i en rad med den, eller som ett pussel som fyller skärmen. Pusslet bryts
   i rader som i kartan när bilderna blir fler, och den nya bilden hamnar sist, nere till höger
