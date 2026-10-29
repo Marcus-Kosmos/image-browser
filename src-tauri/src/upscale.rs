@@ -89,6 +89,8 @@ pub fn enlarge(input: &Path, program: &Path, models: &Path, width: u32, height: 
         let last = detail.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("okänt fel");
         return Err(format!("AI-förstoringen misslyckades: {last}"));
     }
+    // An unmarked copy is still worth keeping.
+    let _ = crate::aimark::mark(&output, "Real-ESRGAN");
     Ok(output)
 }
 

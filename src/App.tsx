@@ -94,6 +94,7 @@ interface Collection {
   subfolders: string[];
 }
 const STORAGE_ROW_HEIGHT = "image-browser:row-height";
+const STORAGE_SHOW_AI = "image-browser:show-ai-mark";
 
 function readStored(key: string): string | null {
   try {
@@ -125,6 +126,11 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Off when the user chose to trash with one click, without the question.
   const [askBeforeTrash, setAskBeforeTrash] = useState(() => readStored(STORAGE_ASK_TRASH) !== "false");
+  const [showAiMark, setShowAiMark] = useState(() => readStored(STORAGE_SHOW_AI) !== "false");
+  const changeShowAiMark = (show: boolean) => {
+    setShowAiMark(show);
+    store(STORAGE_SHOW_AI, String(show));
+  };
   const [headingEdit, setHeadingEdit] = useState<{ index: number; kind: HeadingKind } | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => readStored(STORAGE_SIDEBAR) !== "false");
@@ -895,6 +901,8 @@ export default function App() {
         onSettingsChange={updateSettings}
         askBeforeTrash={askBeforeTrash}
         onAskBeforeTrashChange={changeAskBeforeTrash}
+        showAiMark={showAiMark}
+        onShowAiMarkChange={changeShowAiMark}
         onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
@@ -987,6 +995,7 @@ export default function App() {
               selected={selected}
               onSelectionChange={setSelected}
               highlight={highlight}
+              showAiMark={showAiMark}
               waiting={waiting}
             />
           ) : (
@@ -1021,6 +1030,7 @@ export default function App() {
           onUpscale={(i) => images[i] && setUpscaleFor(images[i])}
           onReveal={(i) => images[i] && void reveal([images[i].path])}
           upscaling={upscaling}
+          showAiMark={showAiMark}
           waiting={waiting}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
