@@ -33,11 +33,11 @@ const demo = !isTauri();
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp"];
 
 /** Lets the user pick pictures in a dialog that shows them as thumbnails, with Quick Look on space. */
-export async function pickImages(): Promise<string[]> {
+export async function pickImages(title = "Välj en bild att visa. Mappen den ligger i öppnas."): Promise<string[]> {
   if (demo) return ["/Demo/Bilder/IMG_0004.jpg"];
   const result = await open({
     multiple: true,
-    title: "Välj en bild att visa. Mappen den ligger i öppnas.",
+    title,
     filters: [{ name: "Bilder", extensions: IMAGE_EXTENSIONS }],
   });
   if (result === null) return [];

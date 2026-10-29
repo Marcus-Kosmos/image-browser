@@ -36,6 +36,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Markera flera bilder: ⌘-klick, Skift-klick, eller dra en ruta (i tomrummet mellan bilderna, eller med Skift
   nedtryckt). Raden längst ner lägger de markerade i Favoriter eller i en serie, eller tar bort dem från
   Favoriter; de kan också dras till sidopanelen tillsammans. ⌘A markerar alla, Esc avmarkerar
+- I en serie visar den tomma ytan efter sista bilden ett plus när musen är där. Klicka för att välja bilder
+  i Finder och lägga dem sist i serien. En tom serie har knappen Lägg till bilder
 - ⋯-menyn på Favoriter eller en serie har "Lägg alla i serie…" för att lägga alla bilderna i en annan serie
 - (i)-knappen längst till höger i verktygsraden, eller ?, visar alla kortkommandon
 - I helskärm lägger mappknappen bredvid hjärtat (eller S) bilden i en serie, eller i en ny serie.
