@@ -1,3 +1,4 @@
+mod aimark;
 mod auth;
 mod cloud;
 mod fonts;
@@ -131,6 +132,8 @@ async fn save_enlarged(request: tauri::ipc::Request<'_>) -> Result<String, Strin
     tauri::async_runtime::spawn_blocking(move || {
         let output = upscale::copy_path(&original, "förstorad bigger.pics", ext);
         std::fs::write(&output, bytes).map_err(|e| format!("Kunde inte spara den förstorade bilden: {e}"))?;
+        // An unmarked copy is still worth keeping.
+        let _ = aimark::mark(&output, "bigger.pics");
         Ok(output.to_string_lossy().into_owned())
     })
     .await

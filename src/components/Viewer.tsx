@@ -14,6 +14,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
+import { AiMark, aiMarkTitle } from "./AiMark";
 import { Button } from "@/components/ui/button";
 import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -59,6 +60,8 @@ interface ViewerProps {
   onReveal?: (index: number) => void;
   /** Whether an enlargement is running. */
   upscaling?: boolean;
+  /** Marks pictures made or changed by AI. */
+  showAiMark?: boolean;
   /** The picture being enlarged, shown as the old version until the copy arrives. */
   waiting?: Waiting | null;
   isFavorite: (image: ImageEntry) => boolean;
@@ -234,6 +237,7 @@ export function Viewer({
   onUpscale,
   onReveal,
   upscaling = false,
+  showAiMark = false,
   waiting = null,
   isFavorite,
   tagsOf,
@@ -742,7 +746,6 @@ export function Viewer({
       aria-label={image.name}
       onPointerMove={wide ? wake : undefined}
     >
-      {/* Trash and close sit at opposite ends so one isn't clicked by mistake for the other. */}
       <div
         className={cn(
           "flex h-12 shrink-0 items-center gap-3 px-3",
@@ -759,57 +762,20 @@ export function Viewer({
             : undefined
         }
       >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-current/80 hover:bg-destructive hover:text-white"
-          onClick={() => onTrash(index)}
-          title="Flytta till papperskorgen (⌫)"
-          aria-label="Flytta till papperskorgen"
-        >
-          <Trash2 />
-        </Button>
-        {onUpscale && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
-            onClick={() => onUpscale(index)}
-            disabled={upscaling}
-            title={upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en större kopia bredvid originalet"}
-            aria-label="Förstora med AI"
-          >
-            {upscaling ? <Loader2 className="animate-spin" /> : <WandSparkles />}
-          </Button>
-        )}
-        {onReveal && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
-            onClick={() => onReveal(index)}
-            title="Visa i Finder"
-            aria-label="Visa i Finder"
-          >
-            <FolderSearch />
-          </Button>
-        )}
-        {onRemove && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-ml-2 text-current/80 hover:bg-current/15 hover:text-current"
-            onClick={() => onRemove(index)}
-            title="Ta bort ur serien (filen finns kvar)"
-            aria-label="Ta bort ur serien"
-          >
-            <FolderMinus />
-          </Button>
-        )}
+        {/* Keeps the name centered across from the close button. */}
+        <span className="size-8 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">
             {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
+            {showAiMark && image.ai && (
+              <span
+                className="ml-1.5 inline-flex items-center gap-1 rounded-sm bg-current/15 px-1.5 py-px align-bottom"
+                title={aiMarkTitle(image.ai)}
+              >
+                <AiMark kind={image.ai} className="size-3" />
+              </span>
+            )}
             {tagsOf(image).map((t) => (
               <span key={t.key} className="ml-1.5 rounded-sm bg-current/15 px-1.5 py-px">
                 {t.name}
@@ -817,40 +783,6 @@ export function Viewer({
             ))}
           </div>
         </div>
-        {pinned.length > 0 && (
-          <SavePinnedMenu
-            count={pinned.length}
-            defaultName={defaultPinnedName}
-            onSave={({ name, look: keepLook, appearance }: SavePinnedChoice) =>
-              onSavePinned(name, keepLook ? look : undefined, appearance)
-            }
-          />
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-pressed={look.collections}
-          className={cn(
-            "text-current/80 hover:bg-current/15 hover:text-current",
-            look.collections && "bg-current/15 text-current",
-          )}
-          onClick={() => updateLook({ collections: !look.collections })}
-          title={look.collections ? "Dölj samlingarna (C)" : "Visa Favoriter och serierna, att dra bilden till (C)"}
-          aria-label="Samlingar"
-        >
-          <PanelLeft />
-        </Button>
-        <ViewerLookMenu settings={look} onChange={updateLook} />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-current/80 hover:bg-current/15 hover:text-current"
-          onClick={onShowShortcuts}
-          title="Kortkommandon (?)"
-          aria-label="Kortkommandon"
-        >
-          <Info />
-        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -888,34 +820,6 @@ export function Viewer({
               <LayoutDashboard className="size-4" />
               Visa serien
             </button>
-          )}
-          {pageCount > 1 && !zoomed && (
-            <nav
-              aria-label="Sidor"
-              className="absolute bottom-0 left-1/2 z-20 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full bg-current/10 px-1 text-xs"
-            >
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page <= 0}
-                title="Föregående sida (Page Up)"
-                aria-label="Föregående sida"
-                className="flex size-5 items-center justify-center rounded-full hover:bg-current/15 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none disabled:opacity-30"
-              >
-                <ChevronLeft className="size-3.5" />
-              </button>
-              <span className="px-1 tabular-nums">
-                Sida {page + 1} av {pageCount}
-              </span>
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= pages.length - 1}
-                title="Nästa sida (Page Down)"
-                aria-label="Nästa sida"
-                className="flex size-5 items-center justify-center rounded-full hover:bg-current/15 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none disabled:opacity-30"
-              >
-                <ChevronRight className="size-3.5" />
-              </button>
-            </nav>
           )}
           {pinSize === "small" && pinned.length > 0 && (
             <div
@@ -1036,46 +940,6 @@ export function Viewer({
                       animate
                     />
                   )}
-                  <button
-                    onClick={togglePin}
-                    disabled={pinsFull}
-                    aria-pressed={isPinned}
-                    title={
-                      isPinned
-                        ? "Lossa bilden (P)"
-                        : pinsFull
-                          ? "Det får inte plats fler fästa bilder"
-                          : "Fäst bilden medan du bläddrar vidare (P)"
-                    }
-                    aria-label={isPinned ? "Lossa bilden" : "Fäst bilden"}
-                    className={cn(
-                      "absolute right-29 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-30",
-                      isPinned ? "opacity-100" : "opacity-70 hover:opacity-100",
-                    )}
-                  >
-                    <Pin className={cn("size-6 drop-shadow", isPinned && "fill-current")} />
-                  </button>
-                  <button
-                    onClick={() => onToggleFavorite(index)}
-                    aria-pressed={favorite}
-                    title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
-                    aria-label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-                    className={cn(
-                      "absolute right-3 bottom-3 flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                      favorite ? "opacity-100" : "opacity-70 hover:opacity-100",
-                    )}
-                  >
-                    <Heart className={cn("size-6 drop-shadow", favorite && "fill-current")} />
-                  </button>
-                  <SeriesPicker
-                    path={image.path}
-                    series={series}
-                    open={picking}
-                    onOpenChange={setPicking}
-                    onToggle={(id) => onToggleSeries(id, index)}
-                    onCreate={(name) => onCreateSeries(name, index)}
-                    defaultName={newSeriesName}
-                  />
                 </div>
               </div>
             </div>
@@ -1087,6 +951,118 @@ export function Viewer({
             style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
           />
           <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
+          <Dock
+            hides={look.dockHides}
+            faded={wide && !chrome}
+            themed={look.background}
+          >
+            <DockButton
+              onClick={() => onToggleFavorite(index)}
+              pressed={favorite}
+              title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+              label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+            >
+              <Heart className={cn(favorite && "fill-current")} />
+            </DockButton>
+            <DockButton
+              onClick={togglePin}
+              disabled={pinsFull}
+              pressed={isPinned}
+              title={
+                isPinned
+                  ? "Lossa bilden (P)"
+                  : pinsFull
+                    ? "Det får inte plats fler fästa bilder"
+                    : "Fäst bilden medan du bläddrar vidare (P)"
+              }
+              label={isPinned ? "Lossa bilden" : "Fäst bilden"}
+            >
+              <Pin className={cn(isPinned && "fill-current")} />
+            </DockButton>
+            <SeriesPicker
+              path={image.path}
+              series={series}
+              open={picking}
+              onOpenChange={setPicking}
+              onToggle={(id) => onToggleSeries(id, index)}
+              onCreate={(name) => onCreateSeries(name, index)}
+              defaultName={newSeriesName}
+            />
+            {onRemove && (
+              <DockButton onClick={() => onRemove(index)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
+                <FolderMinus />
+              </DockButton>
+            )}
+            <DockDivider />
+            {onUpscale && (
+              <DockButton
+                onClick={() => onUpscale(index)}
+                disabled={upscaling}
+                title={upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en större kopia bredvid originalet"}
+                label="Förstora med AI"
+              >
+                {upscaling ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+              </DockButton>
+            )}
+            {onReveal && (
+              <DockButton onClick={() => onReveal(index)} title="Visa i Finder" label="Visa i Finder">
+                <FolderSearch />
+              </DockButton>
+            )}
+            {pageCount > 1 && !zoomed && (
+              <>
+                <DockDivider />
+                <nav aria-label="Sidor" className="flex items-center gap-0.5 text-xs">
+                  <DockButton
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page <= 0}
+                    title="Föregående sida (Page Up)"
+                    label="Föregående sida"
+                  >
+                    <ChevronLeft />
+                  </DockButton>
+                  <span className="px-1 tabular-nums">
+                    Sida {page + 1} av {pageCount}
+                  </span>
+                  <DockButton
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page >= pages.length - 1}
+                    title="Nästa sida (Page Down)"
+                    label="Nästa sida"
+                  >
+                    <ChevronRight />
+                  </DockButton>
+                </nav>
+              </>
+            )}
+            <DockDivider />
+            {pinned.length > 0 && (
+              <SavePinnedMenu
+                count={pinned.length}
+                defaultName={defaultPinnedName}
+                onSave={({ name, look: keepLook, appearance }: SavePinnedChoice) =>
+                  onSavePinned(name, keepLook ? look : undefined, appearance)
+                }
+              />
+            )}
+            <DockButton
+              onClick={() => updateLook({ collections: !look.collections })}
+              pressed={look.collections}
+              title={look.collections ? "Dölj samlingarna (C)" : "Visa Favoriter och serierna, att dra bilden till (C)"}
+              label="Samlingar"
+            >
+              <PanelLeft />
+            </DockButton>
+            <ViewerLookMenu settings={look} onChange={updateLook} />
+            <DockButton onClick={onShowShortcuts} title="Kortkommandon (?)" label="Kortkommandon">
+              <Info />
+            </DockButton>
+            {/* Set apart at the end, so it isn't clicked by mistake for something else. */}
+            <DockDivider />
+            <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
+              <Trash2 />
+            </DockButton>
+          </Dock>
         </div>
       </div>
       {carry && (
@@ -1098,6 +1074,90 @@ export function Viewer({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The floating bar at the bottom of the picture with everything that can be done with it.
+ * Half see-through, in the page's colors when chosen. It can stay hidden until the mouse
+ * comes near the bottom edge.
+ */
+function Dock({
+  hides,
+  faded,
+  themed,
+  children,
+}: {
+  hides: boolean;
+  faded: boolean;
+  themed: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "group/dock absolute inset-x-0 bottom-0 z-30 flex justify-center pb-3",
+        // Hidden, the bar still needs a strip to notice the mouse in.
+        hides ? "h-20 items-end" : "pointer-events-none",
+      )}
+    >
+      <div
+        role="toolbar"
+        aria-label="Åtgärder för bilden"
+        className={cn(
+          "pointer-events-auto flex items-center gap-0.5 rounded-2xl border border-current/10 p-1 shadow-lg backdrop-blur-md transition-opacity duration-300 focus-within:opacity-100",
+          (hides || faded) && "opacity-0 hover:opacity-100",
+          hides && "group-hover/dock:opacity-100",
+          !themed && "text-white",
+        )}
+        style={{
+          background: themed ? "color-mix(in oklab, var(--canvas) 72%, transparent)" : "rgb(0 0 0 / 0.5)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DockDivider() {
+  return <span className="mx-1 h-5 w-px bg-current/20" aria-hidden />;
+}
+
+function DockButton({
+  onClick,
+  title,
+  label,
+  pressed,
+  disabled,
+  danger,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  label: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      title={title}
+      aria-label={label}
+      className={cn(
+        "text-current/80 hover:bg-current/15 hover:text-current",
+        pressed && "bg-current/15 text-current",
+        danger && "hover:bg-destructive hover:text-white",
+      )}
+    >
+      {children}
+    </Button>
   );
 }
 
