@@ -203,6 +203,28 @@ pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
+/// A fingerprint of each file's contents, to find copies of the same picture; None for files that can't be read.
+pub fn content_hashes(paths: &[String]) -> Vec<Option<String>> {
+    use std::hash::Hasher;
+    use std::io::Read;
+    paths
+        .iter()
+        .map(|path| {
+            let mut file = std::fs::File::open(path).ok()?;
+            let mut hasher = std::hash::DefaultHasher::new();
+            let mut buf = vec![0u8; 1 << 16];
+            loop {
+                let n = file.read(&mut buf).ok()?;
+                if n == 0 {
+                    break;
+                }
+                hasher.write(&buf[..n]);
+            }
+            Some(format!("{:016x}", hasher.finish()))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,5 +313,26 @@ mod recursive_tests {
         assert_eq!(rel(&flat), vec!["a.png", "b.png"]);
         assert_eq!(rel(&deep), vec!["a.png", "b.png", "2024.06 Midsommar/m.png", "Sub 2/y.png", "Sub 2/Deep/z.png", "Sub 10/x.png", "xyz_2fe7ad2a-c39d-452c-88f8-c770a5ff251b/u.png"]);
         assert_eq!(deep.subfolders.len(), 4);
+    }
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::*;
+
+    #[test]
+    fn same_contents_give_the_same_fingerprint() {
+        let dir = std::env::temp_dir().join(format!("ib-hash-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let [a, b, c] = ["a.jpg", "b.jpg", "c.jpg"].map(|n| dir.join(n).to_string_lossy().into_owned());
+        std::fs::write(&a, b"same").unwrap();
+        std::fs::write(&b, b"same").unwrap();
+        std::fs::write(&c, b"other").unwrap();
+        let missing = dir.join("gone.jpg").to_string_lossy().into_owned();
+        let hashes = content_hashes(&[a, b, c, missing]);
+        assert_eq!(hashes[0], hashes[1]);
+        assert_ne!(hashes[0], hashes[2]);
+        assert_eq!(hashes[3], None);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

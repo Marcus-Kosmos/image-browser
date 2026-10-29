@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ImageEntry } from "./api";
-import { NO_FILTER, filterImages, libraryIndex } from "./filter";
+import { NO_FILTER, filterImages, keepDuplicates, libraryIndex, possibleDuplicates } from "./filter";
 import { EMPTY_LIBRARY, createSeries, setPrivacy, toggleFavorite } from "./library";
 
 const NOW = new Date("2026-10-27T12:00:00").getTime();
@@ -45,5 +45,39 @@ describe("filter", () => {
     const hidden = setPrivacy(lib, { kind: "series", id: "s1" }, { hidden: true });
     expect(libraryIndex(hidden, false).tags.get(forest.path)).toBeUndefined();
     expect(libraryIndex(hidden, true).tags.get(forest.path)?.map((t) => t.name)).toEqual(["Sommar"]);
+  });
+});
+
+describe("newest first and duplicates", () => {
+  const img = (name: string, size: number, modified: number): ImageEntry => ({
+    path: `/p/${name}`,
+    name,
+    width: 100,
+    height: 80,
+    size,
+    modified,
+  });
+  const a = img("a.jpg", 10, 300);
+  const b = img("b.jpg", 20, 100);
+  const aCopy = img("a kopia.jpg", 10, 200);
+  const sameSize = img("c.jpg", 10, 50);
+  const empty = libraryIndex(EMPTY_LIBRARY, true);
+
+  it("sorts on when the file was last changed, newest first", () => {
+    const sorted = filterImages([b, a, aCopy], { ...NO_FILTER, newestFirst: true }, empty);
+    expect(sorted.map((i) => i.name)).toEqual(["a.jpg", "a kopia.jpg", "b.jpg"]);
+  });
+
+  it("compares contents only of pictures of the same size", () => {
+    expect(possibleDuplicates([a, b, aCopy, sameSize]).map((i) => i.name)).toEqual(["a.jpg", "a kopia.jpg", "c.jpg"]);
+  });
+
+  it("keeps the copies, side by side", () => {
+    const hashes = new Map([
+      [a.path, "x"],
+      [aCopy.path, "x"],
+      [sameSize.path, "y"],
+    ]);
+    expect(keepDuplicates([a, b, sameSize, aCopy], hashes).map((i) => i.name)).toEqual(["a.jpg", "a kopia.jpg"]);
   });
 });

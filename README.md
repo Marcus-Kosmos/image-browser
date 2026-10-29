@@ -116,6 +116,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   Taggarna syns när du för musen över en bild och i helskärm
 - Sök och filtrera: sökfältet (⌘F) letar på filnamn och taggar; filterknappen väljer taggar och
   hur nyligen bilden lades till (annars filens datum). Under filter visas "x av y bilder"
+- Ordning i filtermenyn: **Senast ändrad först** sorterar på filens ändringsdatum, nyaste först
+- **Visa bara dubbletter** i filtermenyn visar bilder med exakt samma innehåll, sida vid sida. Bara bilder
+  med samma storlek jämförs, så det går fort. Med undermappar påslagna jämförs de också
 - Sparade mappar: bokmärkesknappen vid Mappar sparar de öppna mapparna med ett eget namn
 - Favoriter och serier finns kvar efter omstart; en bild som slängs försvinner ur dem
 
