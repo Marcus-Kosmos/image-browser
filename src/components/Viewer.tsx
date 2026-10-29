@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ALargeSmall,
+  Plus,
   ChevronLeft,
   Columns2,
   UnfoldHorizontal,
@@ -124,6 +125,9 @@ interface ViewerProps {
   headingOf: (image: ImageEntry) => Heading | undefined;
   /** Writes or removes an image's heading, typed in place over the picture. */
   onHeadingChange?: (index: number, heading: Heading | undefined) => void;
+  /** Further texts written by an image, each with a place of its own. */
+  textsOf?: (image: ImageEntry) => Heading[];
+  onTextsChange?: (index: number, texts: Heading[]) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -294,6 +298,8 @@ export function Viewer({
   savedLook,
   headingOf,
   onHeadingChange,
+  textsOf = noTexts,
+  onTextsChange,
   paused,
 }: ViewerProps) {
   const { settings: usual, update: updateUsual } = useViewerSettings();
@@ -418,7 +424,11 @@ export function Viewer({
   // was, with the picture that was shown before, on Escape or "Visa serien".
   const [solo, setSolo] = useState<number | null>(null);
   // The current picture's heading while it is written in place, with the tools for it in the bar below.
-  const [draft, setDraft] = useState<Heading | null>(null);
+  // `slot` is which text: -1 for the heading, which goes where the viewer's setting says, else one of
+  // the further texts, each with a place of its own; one past them is a new one.
+  const [writing, setWriting] = useState<{ heading: Heading; slot: number } | null>(null);
+  const draft = writing?.heading ?? null;
+  const setDraft = (heading: Heading | null) => setWriting((w) => (heading && w ? { ...w, heading } : null));
   useEffect(() => setDraft(null), [image.path]);
   // Among several pictures shown together, the bar of buttons can be pointed at a pinned one instead of
   // the current one. Stepping on points it back.
@@ -462,21 +472,33 @@ export function Viewer({
   useWindowFullscreen(wide);
   const room = layout ? { width: layout.current.width, height: layout.current.height } : space;
   // The largest box with the picture's shape that fits, never larger than the picture itself.
-  // A heading above the picture takes a line from its room.
-  const captionOf = (img: ImageEntry) => (look.captionPlace === "off" ? undefined : headingOf(img));
-  // A heading being written takes its room as it is typed; an empty one keeps the room of a short one.
-  const heading = draft ? { ...draft, text: draft.text || "Rubrik" } : captionOf(image);
-  const captionHeight = heading ? captionLineHeight(heading, look.captionSize, room.height) : 0;
-  const lift = heading && besidePicture(look.captionPlace) ? captionHeight : 0;
-  // A heading above moves the picture down, one under moves it up.
-  const shift = look.captionPlace === "below" ? -lift : lift;
-  // A heading to the left or right takes a column of its own, and moves the picture the other way.
-  const aside =
-    heading && asidePicture(look.captionPlace)
-      ? asideColumn(room, image.width, image.height, pictureFrame, fitMode, look.captionWide)
-      : 0;
-  const slide = look.captionPlace === "right" ? -aside : aside;
-  const align = captionAlignAt(look.captionPlace, look.captionAlign);
+  // The texts by each picture: the heading where the viewer's setting puts it, the further ones where
+  // each was put.
+  const textsBy = (img: ImageEntry): PlacedText[] => {
+    const heading = look.captionPlace === "off" ? undefined : headingOf(img);
+    return [
+      ...(heading ? [{ heading, place: look.captionPlace, align: captionAlignAt(look.captionPlace, look.captionAlign), slot: -1 }] : []),
+      ...textsOf(img).map((t, slot) => placed(t, slot)),
+    ];
+  };
+  // A text being written takes its room as it is typed; an empty one keeps the room of a short one.
+  const texts = textsBy(image).filter((t) => t.slot !== writing?.slot);
+  if (writing) {
+    const heading = { ...writing.heading, text: writing.heading.text || "Rubrik" };
+    texts.push(
+      writing.slot < 0
+        ? { heading, place: look.captionPlace, align: captionAlignAt(look.captionPlace, look.captionAlign), slot: -1 }
+        : placed(heading, writing.slot),
+    );
+  }
+  const textHeight = (heading: Heading) => captionLineHeight(heading, look.captionSize, room.height);
+  // Texts above and under the picture take lines from its room, those to its sides columns.
+  const edges = textEdges(texts, textHeight, room, image.width, image.height, pictureFrame, fitMode, look.captionWide);
+  const lift = edges.top + edges.bottom;
+  // A text above moves the picture down, one under moves it up.
+  const shift = edges.top - edges.bottom;
+  const aside = edges.left + edges.right;
+  const slide = edges.left - edges.right;
   const pictureRoom = { width: Math.max(0, room.width - aside), height: Math.max(0, room.height - lift) };
   const box = fit(pictureRoom, image.width, image.height, pictureFrame, fitMode);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
@@ -757,18 +779,61 @@ export function Viewer({
   const favorite = isFavorite(actOn);
 
   // Writing a heading in place: it starts from the one there is, or from the style of the last one written.
-  const startWriting = () => {
+  const startWriting = (slot = -1) => {
     setZoom(WHOLE);
     setSolo(null);
+    if (slot >= 0) {
+      const text = textsOf(image)[slot];
+      if (text) setWriting({ heading: text, slot });
+      return;
+    }
     if (look.captionPlace === "off") updateLook({ captionPlace: "above" });
     const style = lastStyle();
-    setDraft(headingOf(image) ?? { text: "", ...style, level: style.size ? levelForSize(style.size) : 3 });
+    setWriting({
+      heading: headingOf(image) ?? { text: "", ...style, level: style.size ? levelForSize(style.size) : 3 },
+      slot: -1,
+    });
   };
-  const saveDraft = (next: Heading | null = draft) => {
+  /** Saves the text written, or takes it away when `next` is null or empty; gives the further texts after. */
+  const saveDraft = (next: Heading | null = draft): Heading[] => {
+    const others = textsOf(image);
+    if (!writing) return others;
     const text = next?.text.trim();
-    if (next && text) rememberStyle(next);
-    onHeadingChange?.(index, next && text ? { ...next, text } : undefined);
-    setDraft(null);
+    const kept = next && text ? { ...next, text } : undefined;
+    if (kept) rememberStyle(kept);
+    setWriting(null);
+    if (writing.slot < 0) {
+      onHeadingChange?.(index, kept);
+      return others;
+    }
+    const after = [...others.slice(0, writing.slot), ...(kept ? [kept] : []), ...others.slice(writing.slot + 1)];
+    onTextsChange?.(index, after);
+    return after;
+  };
+  // Another text by the picture, on a side or corner not yet taken, in the style of the one written.
+  const addText = () => {
+    const current = writing;
+    const after = saveDraft();
+    const heading = current?.slot === -1 && current.heading.text.trim() ? current.heading : headingOf(image);
+    const taken = new Set([
+      ...(heading && look.captionPlace !== "off" ? [look.captionPlace] : []),
+      ...after.map((t) => t.place),
+    ]);
+    const place = FREE_PLACES.find((p) => !taken.has(p)) ?? "below";
+    const style = current?.heading ?? lastStyle();
+    setWriting({
+      heading: {
+        text: "",
+        level: style.level ?? 3,
+        size: style.size,
+        color: style.color,
+        font: style.font,
+        place,
+        // To the left it lines up with the picture's edge, not the screen's.
+        align: place === "left" ? "right" : "left",
+      },
+      slot: after.length,
+    });
   };
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
@@ -1001,9 +1066,7 @@ export function Viewer({
                   frame={frame}
                   shadow={shadow}
                   rounded={look.rounded}
-                  heading={captionOf(beside[i])}
-                  place={look.captionPlace}
-                  align={look.captionAlign}
+                  texts={textsBy(beside[i])}
                   size={look.captionSize}
                   wide={look.captionWide}
                   dragging={dragging === beside[i].path}
@@ -1084,45 +1147,56 @@ export function Viewer({
                   {!draft && beside.length > 0 && aimedIndex >= 0 && (
                     <AimButton name={image.name} onAim={() => setAimedAt(null)} className="group-hover/stage:opacity-100" />
                   )}
-                  {draft ? (
-                    <HeadingInPlace
-                      heading={draft}
-                      place={look.captionPlace}
-                      align={align}
-                      aside={aside}
-                      height={
-                        heading
-                          ? captionLine(heading, look.captionPlace, captionHeight, {
-                              width: shown.width,
-                              height: shown.height,
-                              aside,
-                              inset: framePad(pictureFrame, box.picture.width, box.picture.height) + 16,
-                            })
-                          : captionHeight
-                      }
-                      inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
-                      width={shown.width}
-                      onChange={(text) => setDraft({ ...draft, text })}
-                      onDone={() => saveDraft()}
-                    />
-                  ) : (
-                    heading && (
+                  {texts.map((t) => {
+                    const inset = framePad(pictureFrame, box.picture.width, box.picture.height) + 16;
+                    const side = t.place === "right" ? edges.right : edges.left;
+                    if (draft && t.slot === writing?.slot) {
+                      return (
+                        <HeadingInPlace
+                          key="writing"
+                          heading={draft}
+                          place={t.place}
+                          align={t.align}
+                          aside={side}
+                          height={captionLine(t.heading, t.place, textHeight(t.heading), {
+                            width: shown.width,
+                            height: shown.height,
+                            aside: side,
+                            inset,
+                          })}
+                          inset={inset}
+                          width={shown.width}
+                          onChange={(text) => setDraft({ ...draft, text })}
+                          onDone={() => saveDraft()}
+                        />
+                      );
+                    }
+                    const editable = t.slot < 0 ? onHeadingChange : onTextsChange;
+                    return (
                       <Caption
-                        key={image.path}
-                        heading={heading}
-                        place={look.captionPlace}
-                        align={align}
-                        aside={aside}
-                        height={captionHeight}
-                        inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
+                        key={`${image.path}:${t.slot}`}
+                        heading={t.heading}
+                        place={t.place}
+                        align={t.align}
+                        aside={side}
+                        height={textHeight(t.heading)}
+                        inset={inset}
                         width={shown.width}
                         pictureHeight={shown.height}
                         effect={look.captionEffect}
                         animate
-                        onEdit={onHeadingChange ? startWriting : undefined}
+                        // Another text is saved first when one is clicked while writing.
+                        onEdit={
+                          editable
+                            ? () => {
+                                if (writing) saveDraft();
+                                startWriting(t.slot);
+                              }
+                            : undefined
+                        }
                       />
-                    )
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1140,21 +1214,27 @@ export function Viewer({
             </>
           )}
           <Dock pinned={look.dockPinned || !!draft} themed={look.background}>
-            {draft ? (
+            {writing && draft ? (
               <HeadingTools
                 heading={draft}
-                place={look.captionPlace}
-                align={look.captionAlign ?? "left"}
+                place={writing.slot < 0 ? look.captionPlace : (draft.place ?? "below")}
+                align={writing.slot < 0 ? (look.captionAlign ?? "left") : (draft.align ?? "left")}
                 wide={look.captionWide}
                 themed={look.background}
                 onChange={(change) => setDraft({ ...draft, ...change })}
-                onPlace={(captionPlace) => updateLook({ captionPlace })}
-                onAlign={(captionAlign) => updateLook({ captionAlign })}
+                // The heading's place is the viewer's setting, kept for all pictures; a further text keeps its own.
+                onPlace={(place) =>
+                  writing.slot < 0 ? updateLook({ captionPlace: place }) : setDraft({ ...draft, place })
+                }
+                onAlign={(align) =>
+                  writing.slot < 0 ? updateLook({ captionAlign: align }) : setDraft({ ...draft, align })
+                }
                 onWide={(captionWide) => updateLook({ captionWide })}
+                onAdd={onTextsChange ? addText : undefined}
                 onSave={() => saveDraft()}
                 onRemove={() => saveDraft(null)}
                 onCancel={() => setDraft(null)}
-                canRemove={!!headingOf(image)}
+                canRemove={writing.slot < 0 ? !!headingOf(image) : writing.slot < textsOf(image).length}
               />
             ) : (
             <>
@@ -1180,7 +1260,7 @@ export function Viewer({
             )}
             {onHeadingChange && (
               <DockButton
-                onClick={startWriting}
+                onClick={() => startWriting()}
                 title="Skriv en rubrik direkt vid bilden"
                 label={headingOf(image) ? "Ändra rubriken" : "Skriv en rubrik"}
               >
@@ -1606,9 +1686,7 @@ interface PinnedPictureProps {
   frame: Frame;
   shadow: Shadow;
   rounded: boolean;
-  heading?: Heading;
-  place: CaptionPlace;
-  align: CaptionAlign | undefined;
+  texts: PlacedText[];
   size: CaptionSize;
   /** A heading to the side takes all the room beside the picture. */
   wide: boolean;
@@ -1653,9 +1731,7 @@ function PinnedPicture({
   frame,
   shadow,
   rounded,
-  heading,
-  place,
-  align,
+  texts,
   size,
   wide,
   dragging,
@@ -1667,16 +1743,14 @@ function PinnedPicture({
 }: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
-  // Headings shrink with smaller pictures, but stay readable.
-  const captionHeight = heading
-    ? Math.max(14, Math.round(captionLineHeight(heading, size, rect.height) * Math.min(1, rect.height / 600)))
-    : 0;
-  const lift = heading && besidePicture(place) ? captionHeight : 0;
-  const shift = place === "below" ? -lift : lift;
-  const aside = heading && asidePicture(place) ? asideColumn(rect, image.width, image.height, frame, "fit", wide) : 0;
-  const slide = place === "right" ? -aside : aside;
+  // Texts shrink with smaller pictures, but stay readable.
+  const textHeight = (heading: Heading) =>
+    Math.max(14, Math.round(captionLineHeight(heading, size, rect.height) * Math.min(1, rect.height / 600)));
+  const edges = textEdges(texts, textHeight, rect, image.width, image.height, frame, "fit", wide);
+  const shift = edges.top - edges.bottom;
+  const slide = edges.left - edges.right;
   const box = fit(
-    { width: Math.max(0, rect.width - aside), height: Math.max(0, rect.height - lift) },
+    { width: Math.max(0, rect.width - edges.left - edges.right), height: Math.max(0, rect.height - edges.top - edges.bottom) },
     image.width,
     image.height,
     frame,
@@ -1724,20 +1798,21 @@ function PinnedPicture({
           aria-hidden
         />
       )}
-      {heading && (
+      {texts.map((t) => (
         <Caption
-          heading={heading}
-          place={place}
-          align={captionAlignAt(place, align)}
-          aside={aside}
-          height={captionHeight}
-          inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(captionHeight / 3)}
+          key={t.slot}
+          heading={t.heading}
+          place={t.place}
+          align={t.align}
+          aside={t.place === "right" ? edges.right : edges.left}
+          height={textHeight(t.heading)}
+          inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(textHeight(t.heading) / 3)}
           width={box.width}
           pictureHeight={box.height}
           effect="none"
           animate={false}
         />
-      )}
+      ))}
       {onAim && !aimed && <AimButton name={image.name} onAim={onAim} className="group-hover:opacity-100" />}
       <button
         data-unpin
@@ -1790,23 +1865,52 @@ function asideWidth(room: number) {
   return Math.round(Math.min(360, Math.max(140, room * 0.24)));
 }
 
+/** A text by a picture, where it goes; `slot` -1 is the heading, else one of the further texts. */
+interface PlacedText {
+  heading: Heading;
+  place: CaptionPlace;
+  align: CaptionAlign;
+  slot: number;
+}
+
+const noTexts = (): Heading[] => [];
+
+function placed(heading: Heading, slot: number): PlacedText {
+  const place = heading.place ?? "below";
+  return { heading, place, align: captionAlignAt(place, heading.align), slot };
+}
+
+/** Where a further text goes first: the sides around the picture, then on it. */
+const FREE_PLACES: CaptionPlace[] = ["below", "right", "left", "above", "bottom", "top"];
+
 /**
- * The column a heading to the side takes: a narrow one, or, `wide`, all the room the picture
- * leaves beside it, so the picture moves over to the other edge.
+ * The room texts take around a picture: a line above and under it for the tallest text there, and a
+ * column to each side with a text. `wide`, the columns share all the room the picture leaves.
  */
-function asideColumn(
+function textEdges(
+  texts: PlacedText[],
+  heightOf: (heading: Heading) => number,
   room: { width: number; height: number },
   width: number,
   height: number,
   frame: Frame,
   mode: "fit" | "grow" | "cover",
   wide: boolean,
-): number {
+): { top: number; bottom: number; left: number; right: number } {
+  const line = (place: CaptionPlace) =>
+    Math.max(0, ...texts.filter((t) => t.place === place).map((t) => heightOf(t.heading)));
+  const top = line("above");
+  const bottom = line("below");
+  const sides = (["left", "right"] as const).filter((side) => texts.some((t) => t.place === side));
+  if (sides.length === 0) return { top, bottom, left: 0, right: 0 };
   const narrow = asideWidth(room.width);
-  if (!wide) return narrow;
-  const rest = { width: Math.max(0, room.width - narrow), height: room.height };
-  const picture = fit(rest, width, height, frame, mode);
-  return narrow + Math.max(0, rest.width - Math.min(picture.width, rest.width));
+  let column = narrow;
+  if (wide) {
+    const rest = { width: Math.max(0, room.width - narrow * sides.length), height: Math.max(0, room.height - top - bottom) };
+    const picture = fit(rest, width, height, frame, mode);
+    column += Math.max(0, rest.width - Math.min(picture.width, rest.width)) / sides.length;
+  }
+  return { top, bottom, left: sides.includes("left") ? column : 0, right: sides.includes("right") ? column : 0 };
 }
 
 /** On the picture rather than around it. */
@@ -2089,6 +2193,8 @@ interface HeadingToolsProps {
   onPlace: (place: CaptionPlace) => void;
   onAlign: (align: CaptionAlign) => void;
   onWide: (wide: boolean) => void;
+  /** Saves this text and starts another, on a side or corner not yet taken. */
+  onAdd?: () => void;
   onSave: () => void;
   onRemove: () => void;
   onCancel: () => void;
@@ -2110,6 +2216,7 @@ function HeadingTools({
   onPlace,
   onAlign,
   onWide,
+  onAdd,
   onSave,
   onRemove,
   onCancel,
@@ -2201,8 +2308,13 @@ function HeadingTools({
         ))}
       </NativeSelect>
       <DockDivider />
+      {onAdd && (
+        <DockButton onClick={onAdd} title="Skriv en text till, på en annan sida av bilden" label="Skriv en text till">
+          <Plus />
+        </DockButton>
+      )}
       {canRemove && (
-        <DockButton onClick={onRemove} title="Ta bort rubriken" label="Ta bort rubriken" danger>
+        <DockButton onClick={onRemove} title="Ta bort texten" label="Ta bort texten" danger>
           <Trash2 />
         </DockButton>
       )}
