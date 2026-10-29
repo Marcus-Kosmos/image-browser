@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { HeadingKind } from "./HeadingDialog";
 import { HeadingText } from "./HeadingText";
 import { ImageMenu } from "./ImageMenu";
+import { WaitingRing } from "./WaitingRing";
 
 interface ImageTileProps {
   image: ImageEntry;
@@ -24,6 +25,8 @@ interface ImageTileProps {
   marked?: boolean;
   /** Part of the current selection. */
   selected?: boolean;
+  /** When an enlarged copy of this picture began to be made, while it is on its way. */
+  waitingSince?: number;
   favorite: boolean;
   tags?: Tag[];
   frame: Frame;
@@ -60,6 +63,7 @@ export const ImageTile = memo(function ImageTile({
   order,
   marked = false,
   selected = false,
+  waitingSince,
   favorite,
   tags,
   frame,
@@ -179,6 +183,7 @@ export const ImageTile = memo(function ImageTile({
             aria-hidden
           />
         )}
+        {waitingSince !== undefined && <WaitingRing since={waitingSince} compact />}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
           <div className="truncate">{image.name}</div>
           {tags && tags.length > 0 && (

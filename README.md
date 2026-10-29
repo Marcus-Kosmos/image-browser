@@ -88,6 +88,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   bigger.pics" bredvid originalet, och fönstret stängs. Inga extra kopior hamnar i Hämtade filer. Tjänsten är gratis med reklam; bilden skickas till
   bigger.pics. Andra länkar från fönstret öppnas i webbläsaren. Högerklicka och välj Inspektera element för
   att se felmeddelanden från sidan
+- Medan förstoringen pågår ligger en cirkel som fylls över den gamla bilden, i helskärm och i rutnätet, så
+  att det syns att det är den gamla versionen tills den nya kommer
 - Visa i Finder: knappen med mappen och förstoringsglaset, i helskärm och i raden för markerade bilder,
   öppnar Finder med filerna markerade. Toasten efter en förstoring har samma knapp
 - Välj bland bilderna (knappen bredvid Öppna mapp, eller ⇧⌘O): Macens väljarfönster visar bilderna som
