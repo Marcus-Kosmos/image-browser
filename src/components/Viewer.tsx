@@ -459,7 +459,8 @@ export function Viewer({
   const aimedIndex = aimedAt && beside.some((p) => p.path === aimedAt) ? images.findIndex((img) => img.path === aimedAt) : -1;
   const actIndex = aimedIndex >= 0 ? aimedIndex : index;
   const actOn = images[actIndex] ?? image;
-  const layout = arranged ? pinLayout(arranged, beside, image, space, PIN_ROW_GAP, at) : null;
+  // Alone on its page it is shown like any single picture, so texts beside it get all the room there is.
+  const layout = arranged && beside.length > 0 ? pinLayout(arranged, beside, image, space, PIN_ROW_GAP, at) : null;
   const goToPage = (k: number) => {
     const first = pages[k]?.[0];
     const i = first === undefined ? -1 : images.findIndex((img) => img.path === pinned[first].path);
