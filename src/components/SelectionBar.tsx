@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderMinus, FolderPlus, FolderSearch, Heart, HeartOff, X } from "lucide-react";
+import { ChevronDown, FolderMinus, FolderPlus, ArrowDownToDot, Heart, HeartOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -149,7 +149,7 @@ export function SelectionBar({
         </Button>
       )}
       <Button variant="ghost" size="icon-sm" onClick={onReveal} title="Visa i Finder" aria-label="Visa i Finder">
-        <FolderSearch />
+        <ArrowDownToDot />
       </Button>
       <div className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button variant="ghost" size="icon-sm" onClick={onClear} title="Avmarkera (Esc)" aria-label="Avmarkera">
