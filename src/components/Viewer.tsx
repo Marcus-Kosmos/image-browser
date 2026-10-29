@@ -8,7 +8,7 @@ import {
   Info,
   LayoutDashboard,
   Loader2,
-  PanelLeft,
+  Sparkles,
   Pin,
   Trash2,
   WandSparkles,
@@ -62,6 +62,8 @@ interface ViewerProps {
   upscaling?: boolean;
   /** Marks pictures made or changed by AI. */
   showAiMark?: boolean;
+  /** Turns the AI marks on or off, everywhere. */
+  onShowAiMarkChange?: (show: boolean) => void;
   /** The picture being enlarged, shown as the old version until the copy arrives. */
   waiting?: Waiting | null;
   isFavorite: (image: ImageEntry) => boolean;
@@ -238,6 +240,7 @@ export function Viewer({
   onReveal,
   upscaling = false,
   showAiMark = false,
+  onShowAiMarkChange,
   waiting = null,
   isFavorite,
   tagsOf,
@@ -531,6 +534,7 @@ export function Viewer({
   } | null>(null);
   // Dragging the whole picture carries it to Favoriter or a series beside it; zoomed, a drag pans instead.
   const [carry, setCarry] = useState<{ x: number; y: number; over: string | null } | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
   useEffect(() => {
     if (!added) return;
@@ -557,7 +561,6 @@ export function Viewer({
     if (!zoomed) {
       if (!p.moved && Math.hypot(dx, dy) < 6) return;
       p.moved = true;
-      if (!look.collections) updateLook({ collections: true });
       const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-collection]");
       setCarry({ x: e.clientX, y: e.clientY, over: target?.dataset.collection ?? null });
       return;
@@ -734,11 +737,12 @@ export function Viewer({
       // The page's colors when chosen; otherwise black, with light text and a light frame line.
       style={
         look.background
-          ? { background: "var(--canvas)", color: "var(--foreground)" }
+          ? ({ background: "var(--canvas)", color: "var(--foreground)", "--viewer-bg": "var(--canvas)" } as React.CSSProperties)
           : ({
               background: "#000",
               color: "#fafafa",
               "--foreground": "#fafafa",
+              "--viewer-bg": "#000",
             } as React.CSSProperties)
       }
       role="dialog"
@@ -762,20 +766,12 @@ export function Viewer({
             : undefined
         }
       >
-        {/* Keeps the name centered across from the close button. */}
-        <span className="size-8 shrink-0" aria-hidden />
+        {/* Keeps the name centered across from the buttons on the right. */}
+        <span className="w-[120px] shrink-0" aria-hidden />
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">
             {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
-            {showAiMark && image.ai && (
-              <span
-                className="ml-1.5 inline-flex items-center gap-1 rounded-sm bg-current/15 px-1.5 py-px align-bottom"
-                title={aiMarkTitle(image.ai)}
-              >
-                <AiMark kind={image.ai} className="size-3" />
-              </span>
-            )}
             {tagsOf(image).map((t) => (
               <span key={t.key} className="ml-1.5 rounded-sm bg-current/15 px-1.5 py-px">
                 {t.name}
@@ -783,6 +779,10 @@ export function Viewer({
             ))}
           </div>
         </div>
+        <ViewerLookMenu settings={look} onChange={updateLook} />
+        <HeaderButton onClick={onShowShortcuts} title="Kortkommandon (?)" label="Kortkommandon">
+          <Info />
+        </HeaderButton>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -794,8 +794,18 @@ export function Viewer({
           <X />
         </Button>
       </div>
-      <div className={cn("flex min-h-0 flex-1", wide && look.collections && "pt-12")}>
-        {look.collections && (
+      <div className="relative flex min-h-0 flex-1">
+        {/* Folded in to icons beside the picture; opens over it while the mouse is on it or the picture is
+            carried there, and stays open beside it when pinned. Over a picture that fills the screen it
+            takes no room of its own. */}
+        <div
+          className={cn(
+            "z-30 shrink-0",
+            look.collections ? "relative w-56" : wide ? "absolute inset-y-0 left-0 w-12" : "relative w-12",
+          )}
+          onPointerEnter={() => setRailOpen(true)}
+          onPointerLeave={() => setRailOpen(false)}
+        >
           <CollectionsPanel
             series={series}
             favorite={favorite}
@@ -804,8 +814,20 @@ export function Viewer({
             onToggleSeries={(id) => onToggleSeries(id, index)}
             over={carry?.over ?? null}
             added={added}
+            compact={!look.collections && !railOpen && !carry}
+            pinned={look.collections}
+            onPinnedChange={(collections) => updateLook({ collections })}
+            className={cn("absolute bottom-0 left-0", wide ? "top-12" : "top-0", !look.collections && (railOpen || carry) && "shadow-xl")}
+            style={{
+              background:
+                look.collections && !wide
+                  ? undefined
+                  : look.background
+                    ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
+                    : "rgb(0 0 0 / 0.6)",
+            }}
           />
-        )}
+        </div>
         <div
           ref={setArea}
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
@@ -955,43 +977,10 @@ export function Viewer({
             faded={wide && !chrome}
             themed={look.background}
           >
-            <DockButton
-              onClick={() => onToggleFavorite(index)}
-              pressed={favorite}
-              title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
-              label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-            >
-              <Heart className={cn(favorite && "fill-current")} />
+            {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
+            <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
+              <Trash2 />
             </DockButton>
-            <DockButton
-              onClick={togglePin}
-              disabled={pinsFull}
-              pressed={isPinned}
-              title={
-                isPinned
-                  ? "Lossa bilden (P)"
-                  : pinsFull
-                    ? "Det får inte plats fler fästa bilder"
-                    : "Fäst bilden medan du bläddrar vidare (P)"
-              }
-              label={isPinned ? "Lossa bilden" : "Fäst bilden"}
-            >
-              <Pin className={cn(isPinned && "fill-current")} />
-            </DockButton>
-            <SeriesPicker
-              path={image.path}
-              series={series}
-              open={picking}
-              onOpenChange={setPicking}
-              onToggle={(id) => onToggleSeries(id, index)}
-              onCreate={(name) => onCreateSeries(name, index)}
-              defaultName={newSeriesName}
-            />
-            {onRemove && (
-              <DockButton onClick={() => onRemove(index)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
-                <FolderMinus />
-              </DockButton>
-            )}
             <DockDivider />
             {onUpscale && (
               <DockButton
@@ -1006,6 +995,20 @@ export function Viewer({
             {onReveal && (
               <DockButton onClick={() => onReveal(index)} title="Visa i Finder" label="Visa i Finder">
                 <FolderSearch />
+              </DockButton>
+            )}
+            <SeriesPicker
+              path={image.path}
+              series={series}
+              open={picking}
+              onOpenChange={setPicking}
+              onToggle={(id) => onToggleSeries(id, index)}
+              onCreate={(name) => onCreateSeries(name, index)}
+              defaultName={newSeriesName}
+            />
+            {onRemove && (
+              <DockButton onClick={() => onRemove(index)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
+                <FolderMinus />
               </DockButton>
             )}
             {pageCount > 1 && !zoomed && (
@@ -1034,7 +1037,6 @@ export function Viewer({
                 </nav>
               </>
             )}
-            <DockDivider />
             {pinned.length > 0 && (
               <SavePinnedMenu
                 count={pinned.length}
@@ -1044,22 +1046,44 @@ export function Viewer({
                 }
               />
             )}
-            <DockButton
-              onClick={() => updateLook({ collections: !look.collections })}
-              pressed={look.collections}
-              title={look.collections ? "Dölj samlingarna (C)" : "Visa Favoriter och serierna, att dra bilden till (C)"}
-              label="Samlingar"
-            >
-              <PanelLeft />
-            </DockButton>
-            <ViewerLookMenu settings={look} onChange={updateLook} />
-            <DockButton onClick={onShowShortcuts} title="Kortkommandon (?)" label="Kortkommandon">
-              <Info />
-            </DockButton>
-            {/* Set apart at the end, so it isn't clicked by mistake for something else. */}
             <DockDivider />
-            <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
-              <Trash2 />
+            {onShowAiMarkChange && (
+              <DockButton
+                onClick={() => onShowAiMarkChange(!showAiMark)}
+                pressed={showAiMark}
+                title={
+                  (showAiMark && image.ai ? aiMarkTitle(image.ai) + ". " : "") +
+                  (showAiMark ? "Dölj AI-märkningen" : "Visa AI-märkning: om bilden är gjord eller förstorad med AI")
+                }
+                label="Visa AI-märkning"
+                wide={showAiMark && !!image.ai}
+              >
+                {showAiMark && image.ai ? <AiMark kind={image.ai} /> : <Sparkles />}
+              </DockButton>
+            )}
+            <DockDivider />
+            <DockButton
+              onClick={togglePin}
+              disabled={pinsFull}
+              pressed={isPinned}
+              title={
+                isPinned
+                  ? "Lossa bilden (P)"
+                  : pinsFull
+                    ? "Det får inte plats fler fästa bilder"
+                    : "Fäst bilden medan du bläddrar vidare (P)"
+              }
+              label={isPinned ? "Lossa bilden" : "Fäst bilden"}
+            >
+              <Pin className={cn(isPinned && "fill-current")} />
+            </DockButton>
+            <DockButton
+              onClick={() => onToggleFavorite(index)}
+              pressed={favorite}
+              title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
+              label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+            >
+              <Heart className={cn(favorite && "fill-current")} />
             </DockButton>
           </Dock>
         </div>
@@ -1095,22 +1119,22 @@ function Dock({
   return (
     <div
       className={cn(
-        "group/dock absolute inset-x-0 bottom-0 z-30 flex justify-center pb-3",
+        "group/dock absolute inset-x-0 bottom-0 z-30 flex justify-center pb-8",
         // Hidden, the bar still needs a strip to notice the mouse in.
-        hides ? "h-20 items-end" : "pointer-events-none",
+        hides ? "h-32 items-end" : "pointer-events-none",
       )}
     >
       <div
         role="toolbar"
         aria-label="Åtgärder för bilden"
         className={cn(
-          "pointer-events-auto flex items-center gap-0.5 rounded-2xl border border-current/10 p-1 shadow-lg backdrop-blur-md transition-opacity duration-300 focus-within:opacity-100",
+          "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 focus-within:opacity-100",
           (hides || faded) && "opacity-0 hover:opacity-100",
           hides && "group-hover/dock:opacity-100",
           !themed && "text-white",
         )}
         style={{
-          background: themed ? "color-mix(in oklab, var(--canvas) 72%, transparent)" : "rgb(0 0 0 / 0.5)",
+          background: themed ? "color-mix(in oklab, var(--canvas) 45%, transparent)" : "rgb(0 0 0 / 0.3)",
         }}
       >
         {children}
@@ -1120,7 +1144,7 @@ function Dock({
 }
 
 function DockDivider() {
-  return <span className="mx-1 h-5 w-px bg-current/20" aria-hidden />;
+  return <span className="mx-1 h-7 w-px bg-current/20" aria-hidden />;
 }
 
 function DockButton({
@@ -1130,6 +1154,7 @@ function DockButton({
   pressed,
   disabled,
   danger,
+  wide,
   children,
 }: {
   onClick: () => void;
@@ -1138,6 +1163,42 @@ function DockButton({
   pressed?: boolean;
   disabled?: boolean;
   danger?: boolean;
+  /** Room for words beside the icon. */
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      title={title}
+      aria-label={label}
+      className={cn(
+        "h-11 rounded-2xl text-current/85 hover:bg-current/15 hover:text-current [&_svg:not([class*='size-'])]:size-5",
+        wide ? "gap-1.5 px-3 text-sm" : "w-11 px-0",
+        pressed && "bg-current/20 text-current",
+        danger && "hover:bg-destructive hover:text-white",
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/** A button in the bar at the top of the full screen view. */
+function HeaderButton({
+  onClick,
+  title,
+  label,
+  pressed,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  label: string;
+  pressed?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -1145,15 +1206,10 @@ function DockButton({
       variant="ghost"
       size="icon-sm"
       onClick={onClick}
-      disabled={disabled}
       aria-pressed={pressed}
       title={title}
       aria-label={label}
-      className={cn(
-        "text-current/80 hover:bg-current/15 hover:text-current",
-        pressed && "bg-current/15 text-current",
-        danger && "hover:bg-destructive hover:text-white",
-      )}
+      className={cn("text-current/80 hover:bg-current/15 hover:text-current", pressed && "bg-current/15 text-current")}
     >
       {children}
     </Button>

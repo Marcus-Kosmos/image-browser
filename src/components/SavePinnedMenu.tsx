@@ -62,10 +62,12 @@ export function SavePinnedMenu({ count, defaultName, onSave }: SavePinnedMenuPro
       <Button
         ref={trigger}
         variant="ghost"
-        size="icon-sm"
         aria-expanded={open}
         aria-haspopup="dialog"
-        className={cn("text-current/80 hover:bg-current/15 hover:text-current", open && "bg-current/15")}
+        className={cn(
+          "size-11 rounded-2xl text-current/85 hover:bg-current/15 hover:text-current [&_svg]:size-5",
+          open && "bg-current/20",
+        )}
         onClick={() => setOpen(!open)}
         title="Spara de fästa bilderna, i samma ordning, som en ny serie"
         aria-label="Spara som serie"
@@ -80,7 +82,7 @@ export function SavePinnedMenu({ count, defaultName, onSave }: SavePinnedMenuPro
             e.preventDefault();
             save();
           }}
-          className="absolute right-0 bottom-11 z-50 w-72 rounded-lg border border-white/15 bg-zinc-900/95 p-2 text-sm text-white shadow-xl backdrop-blur"
+          className="absolute right-0 bottom-14 z-50 w-72 rounded-lg border border-white/15 bg-zinc-900/95 p-2 text-sm text-white shadow-xl backdrop-blur"
         >
           <label className="block px-1 pb-1 text-xs font-medium text-white/60" htmlFor="pinned-series-name">
             Seriens namn ({count === 1 ? "1 bild" : `${count} bilder`})

@@ -44,10 +44,11 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   "Bilden är borta", och kan tas ur listan som vanligt. Bilder som ändrats sedan de lades dit får märket
   "Ändrad". Mappar i sidopanelen som inte finns kvar blir grå med en överkryssad mapp. Appen kollar
   igen när den kommer fram efter att du varit i ett annat program.
-- I helskärm samlas alla knappar för bilden i en halvgenomskinlig rad längst ner: hjärta, nål, serie,
-  förstora med AI, visa i Finder, samlingar, Visning, kortkommandon och papperskorgen. Under Visning kan
-  raden gömmas tills musen kommer till nederkanten. Överst syns bara namnet och stängknappen.
-- I helskärm väljer knappen Visning (reglagen i knappraden) hur nästa bild kommer in: tona fram,
+- I helskärm samlas knapparna för bilden i en stor, halvgenomskinlig rad nere vid bilden: papperskorgen
+  längst till vänster, sedan förstora med AI, visa i Finder och serie, AI-märkningen (av/på, och visar
+  "AI-förstorad" eller "AI-bild" när den är på) och längst till höger nålen och hjärtat. Under Visning kan
+  raden gömmas tills musen kommer till nederkanten. Visning och kortkommandon sitter uppe till höger.
+- I helskärm väljer knappen Visning (reglagen uppe till höger) hur nästa bild kommer in: tona fram,
   glid in från vänster eller höger, glid upp, kaskad, parallax eller växla automatiskt. Där kan du också
   visa mappens ram, skugga och bakgrundsfärg i helskärm. Valet gäller i alla mappar.
 - Zooma i helskärm: pekaren blir ett förstoringsglas. Klicka där du vill förstora, tre klick zoomar
@@ -68,7 +69,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Spara som serie sparar de fästa bilderna i samma ordning som en ny serie. Välj om visningen (pussel,
   hörn, övergång) och mappens bakgrundsfärg, ram och skugga ska följa med. En serie sparad med visningen
   får knappen Visa som pussel, som öppnar helskärm med bilderna lagda som när de sparades
-- Samlingar i helskärm (knappen bredvid Visning, eller C): Favoriter och serierna visas till vänster. Dra
+- Samlingar i helskärm: Favoriter och serierna sitter infällda som ikoner till vänster och fälls ut när
+  musen kommer dit, eller när du drar bilden dit. Nålen i menyn (eller C) fäster den öppen. Dra
   bilden dit för att lägga den i en samling, eller klicka för att lägga till eller ta bort den. Ett klick
   på bilden zoomar som förut; zoomad flyttar du runt i bilden när du drar
 - En bild i taget (under Visning, eller H): med marginaler, på hela skärmen så att hela bilden syns, eller

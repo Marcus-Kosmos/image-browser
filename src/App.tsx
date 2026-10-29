@@ -1036,6 +1036,7 @@ export default function App() {
           onReveal={(i) => images[i] && void reveal([images[i].path])}
           upscaling={upscaling}
           showAiMark={showAiMark}
+          onShowAiMarkChange={changeShowAiMark}
           waiting={waiting}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
