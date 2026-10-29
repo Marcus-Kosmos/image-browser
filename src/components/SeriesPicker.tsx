@@ -57,7 +57,7 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
   };
 
   return (
-    <div ref={root} className="absolute right-16 bottom-3">
+    <div ref={root} className="relative">
       <button
         ref={trigger}
         onClick={() => onOpenChange(!open)}
@@ -66,13 +66,13 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
         title="Lägg till i serie (S)"
         aria-label={count > 0 ? `Lägg till i serie, finns i ${count}` : "Lägg till i serie"}
         className={cn(
-          "relative flex size-11 items-center justify-center rounded-full bg-black/35 text-white transition-opacity hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-          count > 0 || open ? "opacity-100" : "opacity-70 hover:opacity-100",
+          "relative flex size-8 items-center justify-center rounded-md text-current/80 hover:bg-current/15 hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current [&_svg]:size-4",
+          open && "bg-current/15 text-current",
         )}
       >
-        <FolderPlus className="size-6 drop-shadow" />
+        <FolderPlus />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-4.5 items-center justify-center rounded-full bg-white text-[10px] font-semibold text-black">
+          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background">
             {count}
           </span>
         )}
@@ -81,7 +81,7 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
         <div
           role="menu"
           aria-label="Serier"
-          className="absolute right-0 bottom-14 z-10 w-64 rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
+          className="absolute bottom-11 left-1/2 z-10 w-64 -translate-x-1/2 rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
         >
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Lägg till i serie</div>
           <div className="flex max-h-[50vh] flex-col overflow-y-auto">
