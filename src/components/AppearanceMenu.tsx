@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Palette, Pipette } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ColorPicker";
 import {
   FRAME_LABELS,
   SHADOW_LABELS,
@@ -83,13 +84,23 @@ export function AppearanceMenu({
 
   // Themes taken from the pictures' own colors, worked out when asked for.
   const [themes, setThemes] = useState<ColorTheme[] | "working" | null>(null);
-  useEffect(() => setThemes(null), [pictures]);
+  // Each time it is asked again, other pictures are looked at and their hues paired anew.
+  const round = useRef(0);
+  useEffect(() => {
+    setThemes(null);
+    round.current = 0;
+  }, [pictures]);
   const findThemes = async () => {
+    const again = Array.isArray(themes);
     setThemes("working");
     const step = Math.max(1, pictures.length / THEME_SAMPLE);
-    const sample = Array.from({ length: Math.min(THEME_SAMPLE, pictures.length) }, (_, i) => pictures[Math.floor(i * step)]);
-    const found = themesFromColors(await sampleColors(sample).catch(() => []));
-    setThemes(found);
+    const offset = again ? Math.random() * step : 0;
+    const sample = Array.from(
+      { length: Math.min(THEME_SAMPLE, pictures.length) },
+      (_, i) => pictures[Math.min(pictures.length - 1, Math.floor(i * step + offset))],
+    );
+    if (again) round.current += 1;
+    setThemes(themesFromColors(await sampleColors(sample).catch(() => []), round.current));
   };
   // A plain background brings back text and buttons in its own colors.
   const pickBackground = (background: string | undefined) => onChange({ background, text: undefined, accent: undefined });
@@ -145,34 +156,28 @@ export function AppearanceMenu({
                 {settings.background === s.color && !fromPictures && <CheckMark dark={prefersDarkText(s.color)} />}
               </button>
             ))}
-            <label
-              title="Valfri färg"
-              className="relative flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-ring"
-              style={{
-                background: custom
-                  ? settings.background
-                  : "conic-gradient(#f87171, #facc15, #4ade80, #22d3ee, #818cf8, #e879f9, #f87171)",
-              }}
+            <ColorPicker
+              value={settings.background}
+              custom={!!custom}
+              onChange={pickBackground}
+              className="size-9 rounded-md"
             >
-              <span className="sr-only">Valfri färg</span>
-              <input
-                type="color"
-                value={settings.background ?? "#808080"}
-                onChange={(e) => pickBackground(e.target.value)}
-                className="absolute inset-0 cursor-pointer opacity-0"
-              />
               {custom && <CheckMark dark={prefersDarkText(settings.background!)} />}
-            </label>
+            </ColorPicker>
           </div>
 
           <button
             onClick={findThemes}
             disabled={pictures.length === 0 || themes === "working"}
-            title="Ta fram färger ur bilderna som visas: bakgrund, text och knappar i deras vanligaste färger"
+            title={
+              Array.isArray(themes)
+                ? "Sex nya förslag ur bildernas färger"
+                : "Ta fram färger ur bilderna som visas: bakgrund, text och knappar i deras vanligaste färger"
+            }
             className="mt-2 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-accent disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {themes === "working" ? <LoaderCircle className="size-4 animate-spin" /> : <Pipette className="size-4" />}
-            Färger från bilderna
+            {Array.isArray(themes) && themes.length > 0 ? "Andra färger från bilderna" : "Färger från bilderna"}
           </button>
           {Array.isArray(themes) &&
             (themes.length === 0 ? (
