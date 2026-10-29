@@ -8,7 +8,7 @@ import {
   Info,
   LayoutDashboard,
   Loader2,
-  Sparkles,
+  BadgeInfo,
   Pin,
   Trash2,
   WandSparkles,
@@ -1075,7 +1075,7 @@ export function Viewer({
                 }
                 label="Visa AI-märkning"
               >
-                <Sparkles />
+                <BadgeInfo />
               </DockButton>
             )}
             <DockDivider />
