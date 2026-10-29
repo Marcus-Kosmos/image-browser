@@ -2329,8 +2329,9 @@ function HeadingTools({
       </NativeSelect>
       <DockDivider />
       {onAdd && (
-        <DockButton onClick={onAdd} title="Skriv en text till, på en annan sida av bilden" label="Skriv en text till">
+        <DockButton onClick={onAdd} title="Skriv en text till, på en annan sida av bilden" label="Skriv en text till" wide>
           <Plus />
+          Ny text
         </DockButton>
       )}
       {canRemove && (
