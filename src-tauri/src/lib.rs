@@ -35,6 +35,20 @@ async fn thumbnail(app: tauri::AppHandle, path: String, size: u32) -> Result<Str
     .map_err(|e| e.to_string())?
 }
 
+/// A few pixels from each of the pictures, for a background in their colors.
+#[tauri::command]
+async fn sample_colors(app: tauri::AppHandle, paths: Vec<String>) -> Result<Vec<[u8; 3]>, String> {
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("thumbs");
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    tauri::async_runtime::spawn_blocking(move || thumbs::sample_colors(&paths, &cache_dir))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Splits paths dropped from Finder into folders and image files.
 #[tauri::command]
 async fn sort_dropped(paths: Vec<String>) -> Result<scan::Dropped, String> {
@@ -282,6 +296,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_folder,
             thumbnail,
+            sample_colors,
             sort_dropped,
             trash_file,
             list_fonts,

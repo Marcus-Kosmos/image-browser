@@ -433,3 +433,22 @@ export function useWindowFullscreen(on: boolean) {
     };
   }, [on]);
 }
+
+/** A few pixels from each picture, as red, green and blue, for a background in their colors. */
+export async function sampleColors(images: ImageEntry[]): Promise<Array<[number, number, number]>> {
+  if (!demo) return invoke("sample_colors", { paths: images.map((i) => i.path) });
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 24;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return [];
+  const colors: Array<[number, number, number]> = [];
+  for (const image of images) {
+    const picture = new Image();
+    picture.src = demoImage(image);
+    await picture.decode().catch(() => {});
+    context.drawImage(picture, 0, 0, 24, 24);
+    const data = context.getImageData(0, 0, 24, 24).data;
+    for (let i = 0; i < data.length; i += 4) colors.push([data[i], data[i + 1], data[i + 2]]);
+  }
+  return colors;
+}

@@ -4,6 +4,7 @@ import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { ImageFilter, Tag } from "@/lib/filter";
+import type { ImageEntry } from "@/lib/api";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
 
@@ -45,6 +46,8 @@ interface ToolbarProps {
   onAskBeforeTrashChange: (ask: boolean) => void;
   showAiMark: boolean;
   onShowAiMarkChange: (show: boolean) => void;
+  /** The pictures shown, which a color theme can be taken from. */
+  pictures: ImageEntry[];
   onShowShortcuts: () => void;
 }
 
@@ -79,6 +82,7 @@ export function Toolbar({
   onAskBeforeTrashChange,
   showAiMark,
   onShowAiMarkChange,
+  pictures,
   onShowShortcuts,
 }: ToolbarProps) {
   return (
@@ -238,6 +242,7 @@ export function Toolbar({
             onAskBeforeTrashChange={onAskBeforeTrashChange}
             showAiMark={showAiMark}
             onShowAiMarkChange={onShowAiMarkChange}
+            pictures={pictures}
           />
           <div className="mx-1 h-6 w-px bg-border" aria-hidden />
         </>
