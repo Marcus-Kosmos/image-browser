@@ -7,7 +7,7 @@ import {
   UnfoldHorizontal,
   ChevronRight,
   CircleMinus,
-  FolderSearch,
+  ArrowDownToDot,
   Heart,
   Info,
   LayoutDashboard,
@@ -1256,7 +1256,7 @@ export function Viewer({
             )}
             {onReveal && (
               <DockButton onClick={() => onReveal(actIndex)} title="Visa i Finder" label="Visa i Finder">
-                <FolderSearch />
+                <ArrowDownToDot />
               </DockButton>
             )}
             {onHeadingChange && (
