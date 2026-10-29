@@ -69,6 +69,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 import { WaitingRing, type Waiting } from "./WaitingRing";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
+import { LayoutGridCircles } from "./icons";
 import { cn, formatBytes } from "@/lib/utils";
 
 interface ViewerProps {
@@ -1965,10 +1966,6 @@ const ALIGN_TOOLS: { align: CaptionAlign; icon: React.ReactNode }[] = [
   { align: "right", icon: <AlignRight /> },
 ];
 
-const PLACE_ICON = Object.fromEntries(
-  PLACE_GROUPS.flatMap((g) => g.places).map(({ place, icon }) => [place, icon]),
-) as Partial<Record<CaptionPlace, React.ReactNode>>;
-
 interface HeadingToolsProps {
   heading: Heading;
   place: CaptionPlace;
@@ -2124,7 +2121,7 @@ function PlacePicker({
         title={`Var rubriken står: ${CAPTION_PLACE_LABELS[place]}`}
         label="Var rubriken står"
       >
-        {PLACE_ICON[place] ?? <PanelTop />}
+        <LayoutGridCircles />
       </DockButton>
       {open && (
         <div
