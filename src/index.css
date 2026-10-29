@@ -82,8 +82,11 @@ body {
   -webkit-user-select: none;
 }
 
-* {
-  border-color: var(--border);
+/* In the base layer, so that border color utilities win over it. */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 /* Reveal effects: tiles start hidden and transition in once they are scrolled into view. */

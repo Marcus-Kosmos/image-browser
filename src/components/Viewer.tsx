@@ -8,7 +8,6 @@ import {
   Info,
   LayoutDashboard,
   Loader2,
-  PanelLeft,
   Sparkles,
   Pin,
   Trash2,
@@ -535,6 +534,7 @@ export function Viewer({
   } | null>(null);
   // Dragging the whole picture carries it to Favoriter or a series beside it; zoomed, a drag pans instead.
   const [carry, setCarry] = useState<{ x: number; y: number; over: string | null } | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
   useEffect(() => {
     if (!added) return;
@@ -561,7 +561,6 @@ export function Viewer({
     if (!zoomed) {
       if (!p.moved && Math.hypot(dx, dy) < 6) return;
       p.moved = true;
-      if (!look.collections) updateLook({ collections: true });
       const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-collection]");
       setCarry({ x: e.clientX, y: e.clientY, over: target?.dataset.collection ?? null });
       return;
@@ -738,11 +737,12 @@ export function Viewer({
       // The page's colors when chosen; otherwise black, with light text and a light frame line.
       style={
         look.background
-          ? { background: "var(--canvas)", color: "var(--foreground)" }
+          ? ({ background: "var(--canvas)", color: "var(--foreground)", "--viewer-bg": "var(--canvas)" } as React.CSSProperties)
           : ({
               background: "#000",
               color: "#fafafa",
               "--foreground": "#fafafa",
+              "--viewer-bg": "#000",
             } as React.CSSProperties)
       }
       role="dialog"
@@ -767,7 +767,7 @@ export function Viewer({
         }
       >
         {/* Keeps the name centered across from the buttons on the right. */}
-        <span className="w-[164px] shrink-0" aria-hidden />
+        <span className="w-[120px] shrink-0" aria-hidden />
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">
@@ -779,14 +779,6 @@ export function Viewer({
             ))}
           </div>
         </div>
-        <HeaderButton
-          onClick={() => updateLook({ collections: !look.collections })}
-          pressed={look.collections}
-          title={look.collections ? "Dölj samlingarna (C)" : "Visa Favoriter och serierna, att dra bilden till (C)"}
-          label="Samlingar"
-        >
-          <PanelLeft />
-        </HeaderButton>
         <ViewerLookMenu settings={look} onChange={updateLook} />
         <HeaderButton onClick={onShowShortcuts} title="Kortkommandon (?)" label="Kortkommandon">
           <Info />
@@ -802,8 +794,18 @@ export function Viewer({
           <X />
         </Button>
       </div>
-      <div className={cn("flex min-h-0 flex-1", wide && look.collections && "pt-12")}>
-        {look.collections && (
+      <div className="relative flex min-h-0 flex-1">
+        {/* Folded in to icons beside the picture; opens over it while the mouse is on it or the picture is
+            carried there, and stays open beside it when pinned. Over a picture that fills the screen it
+            takes no room of its own. */}
+        <div
+          className={cn(
+            "z-30 shrink-0",
+            look.collections ? "relative w-56" : wide ? "absolute inset-y-0 left-0 w-12" : "relative w-12",
+          )}
+          onPointerEnter={() => setRailOpen(true)}
+          onPointerLeave={() => setRailOpen(false)}
+        >
           <CollectionsPanel
             series={series}
             favorite={favorite}
@@ -812,8 +814,20 @@ export function Viewer({
             onToggleSeries={(id) => onToggleSeries(id, index)}
             over={carry?.over ?? null}
             added={added}
+            compact={!look.collections && !railOpen && !carry}
+            pinned={look.collections}
+            onPinnedChange={(collections) => updateLook({ collections })}
+            className={cn("absolute bottom-0 left-0", wide ? "top-12" : "top-0", !look.collections && (railOpen || carry) && "shadow-xl")}
+            style={{
+              background:
+                look.collections && !wide
+                  ? undefined
+                  : look.background
+                    ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
+                    : "rgb(0 0 0 / 0.6)",
+            }}
           />
-        )}
+        </div>
         <div
           ref={setArea}
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}

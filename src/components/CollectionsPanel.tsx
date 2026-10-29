@@ -1,4 +1,4 @@
-import { Check, Heart, Images } from "lucide-react";
+import { Check, Heart, Images, Pin, PinOff } from "lucide-react";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,13 @@ interface CollectionsPanelProps {
   over: string | null;
   /** The collection the image was just dropped in, shown for a moment. */
   added: string | null;
+  /** Only the icons, until the mouse comes over it. */
+  compact: boolean;
+  /** Stays open beside the picture instead of folding in when the mouse leaves. */
+  pinned: boolean;
+  onPinnedChange: (pinned: boolean) => void;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 /** Favoriter and the series beside the picture in full screen, to click or drop the picture on. */
@@ -28,12 +35,49 @@ export function CollectionsPanel({
   onToggleSeries,
   over,
   added,
+  compact,
+  pinned,
+  onPinnedChange,
+  className,
+  style,
 }: CollectionsPanelProps) {
   return (
-    <nav aria-label="Samlingar" className="flex w-56 shrink-0 flex-col border-r border-current/15 text-sm">
-      <div className="px-4 pt-3 pb-1.5 text-xs font-medium text-current/60">Samlingar</div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
+    <nav
+      aria-label="Samlingar"
+      className={cn(
+        "flex flex-col overflow-hidden border-r border-current/15 text-sm transition-[width] duration-150 ease-out",
+        compact ? "w-12" : "w-56",
+        className,
+      )}
+      style={style}
+    >
+      <div className={cn("flex h-9 shrink-0 items-center pt-1.5", compact ? "justify-center" : "pr-2 pl-4")}>
+        {compact ? (
+          <span className="text-current/50" title="Samlingar">
+            <Images className="size-4" />
+          </span>
+        ) : (
+          <>
+            <span className="flex-1 text-xs font-medium text-current/60">Samlingar</span>
+            <button
+              type="button"
+              onClick={() => onPinnedChange(!pinned)}
+              aria-pressed={pinned}
+              title={pinned ? "Lossa sidomenyn, så att den fälls in (C)" : "Fäst sidomenyn, så att den stannar öppen (C)"}
+              aria-label={pinned ? "Lossa sidomenyn" : "Fäst sidomenyn"}
+              className={cn(
+                "flex size-7 items-center justify-center rounded-md text-current/70 hover:bg-current/15 hover:text-current focus-visible:bg-current/15 focus-visible:outline-none",
+                pinned && "bg-current/15 text-current",
+              )}
+            >
+              {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+            </button>
+          </>
+        )}
+      </div>
+      <div className={cn("min-h-0 flex-1 overflow-x-hidden overflow-y-auto", compact ? "px-1.5" : "px-2")}>
         <Row
+          compact={compact}
           target={FAVORITES_TARGET}
           icon={<Heart className={cn("size-4", favorite && "fill-current")} />}
           name="Favoriter"
@@ -42,12 +86,26 @@ export function CollectionsPanel({
           added={added === FAVORITES_TARGET}
           onClick={onToggleFavorite}
         />
-        {series.length > 0 && <div className="px-2 pt-3 pb-1.5 text-xs font-medium text-current/60">Serier</div>}
+        {series.length > 0 &&
+          (compact ? (
+            <div className="mx-auto my-2 h-px w-6 bg-current/20" aria-hidden />
+          ) : (
+            <div className="px-2 pt-3 pb-1.5 text-xs font-medium text-current/60">Serier</div>
+          ))}
         {series.map((s) => (
           <Row
             key={s.id}
+            compact={compact}
             target={s.id}
-            icon={<Images className="size-4" />}
+            icon={
+              compact ? (
+                <span className="flex size-6 items-center justify-center rounded-md bg-current/15 text-xs font-semibold">
+                  {s.name.trim().charAt(0).toUpperCase() || "?"}
+                </span>
+              ) : (
+                <Images className="size-4" />
+              )
+            }
             name={s.name}
             count={s.images.length}
             member={inSeries(s.id)}
@@ -57,14 +115,17 @@ export function CollectionsPanel({
           />
         ))}
       </div>
-      <p className="px-4 py-3 text-[11px] text-current/50">
-        Dra bilden hit för att lägga den i en samling, eller klicka för att lägga till eller ta bort den.
-      </p>
+      {!compact && (
+        <p className="w-56 px-4 py-3 text-[11px] text-current/50">
+          Dra bilden hit för att lägga den i en samling, eller klicka för att lägga till eller ta bort den.
+        </p>
+      )}
     </nav>
   );
 }
 
 function Row({
+  compact,
   target,
   icon,
   name,
@@ -74,6 +135,7 @@ function Row({
   added,
   onClick,
 }: {
+  compact: boolean;
   target: string;
   icon: React.ReactNode;
   name: string;
@@ -90,18 +152,30 @@ function Row({
       aria-pressed={member}
       onClick={onClick}
       title={member ? `Ta bort bilden ur ${name}` : `Lägg bilden i ${name}`}
+      aria-label={name}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-current/10 focus-visible:bg-current/10 focus-visible:outline-none",
+        "relative flex w-full items-center gap-2 rounded-md py-1.5 text-left transition-colors hover:bg-current/10 focus-visible:bg-current/10 focus-visible:outline-none",
+        compact ? "h-9 justify-center px-0" : "px-2",
         over && "bg-current/20 ring-2 ring-current/60",
         added && "bg-current/20",
       )}
     >
       <span className="shrink-0 text-current/80">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {compact ? (
+        member && (
+          <span className="absolute right-0.5 bottom-0.5 flex size-3.5 items-center justify-center rounded-full bg-current">
+            <Check className="size-2.5 text-[var(--viewer-bg)]" strokeWidth={3} aria-label="Bilden finns här" />
+          </span>
+        )
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 truncate">{name}</span>
       {member ? (
         <Check className="size-4 shrink-0" aria-label="Bilden finns här" />
       ) : (
         count !== undefined && <span className="shrink-0 text-xs text-current/50">{count}</span>
+      )}
+        </>
       )}
     </button>
   );
