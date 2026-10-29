@@ -323,9 +323,15 @@ pub fn run() {
         .setup(|app| {
             let config = app.config().app.windows.first().cloned().ok_or("Fönsterinställningar saknas")?;
             let handle = app.handle().clone();
-            tauri::WebviewWindowBuilder::from_config(app, &config)?
+            let window = tauri::WebviewWindowBuilder::from_config(app, &config)?
                 .on_new_window(move |url, features| popup::open(&handle, url, features))
                 .build()?;
+            // The window starts hidden and the page shows it once painted; should that never come,
+            // it is shown anyway after a moment.
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                let _ = window.show();
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
