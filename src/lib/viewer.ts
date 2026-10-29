@@ -117,8 +117,8 @@ export interface ViewerSettings {
   screen: ScreenFit;
   /** Favoriter and the series beside the picture, to drop it in. */
   collections: boolean;
-  /** The bar of buttons under the picture stays hidden until the mouse comes near the bottom. */
-  dockHides: boolean;
+  /** The bar of buttons under the picture stays shown, instead of hiding until the mouse comes near. */
+  dockPinned: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -133,7 +133,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   captionSize: "normal",
   screen: "margins",
   collections: false,
-  dockHides: false,
+  dockPinned: false,
 };
 
 const STORAGE = "image-browser:viewer";

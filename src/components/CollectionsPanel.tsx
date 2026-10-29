@@ -1,4 +1,4 @@
-import { Check, Heart, Images, Pin, PinOff } from "lucide-react";
+import { Check, Heart, Images, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
 
@@ -51,29 +51,21 @@ export function CollectionsPanel({
       )}
       style={style}
     >
-      <div className={cn("flex h-9 shrink-0 items-center pt-1.5", compact ? "justify-center" : "pr-2 pl-4")}>
-        {compact ? (
-          <span className="text-current/50" title="Samlingar">
-            <Images className="size-4" />
-          </span>
-        ) : (
-          <>
-            <span className="flex-1 text-xs font-medium text-current/60">Samlingar</span>
-            <button
-              type="button"
-              onClick={() => onPinnedChange(!pinned)}
-              aria-pressed={pinned}
-              title={pinned ? "Lossa sidomenyn, så att den fälls in (C)" : "Fäst sidomenyn, så att den stannar öppen (C)"}
-              aria-label={pinned ? "Lossa sidomenyn" : "Fäst sidomenyn"}
-              className={cn(
-                "flex size-7 items-center justify-center rounded-md text-current/70 hover:bg-current/15 hover:text-current focus-visible:bg-current/15 focus-visible:outline-none",
-                pinned && "bg-current/15 text-current",
-              )}
-            >
-              {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-            </button>
-          </>
-        )}
+      <div className={cn("flex h-10 shrink-0 items-center gap-1 pt-1.5", compact ? "justify-center" : "px-2")}>
+        <button
+          type="button"
+          onClick={() => onPinnedChange(!pinned)}
+          aria-pressed={pinned}
+          title={pinned ? "Fäll in sidomenyn (C)" : "Håll sidomenyn utfälld (C)"}
+          aria-label={pinned ? "Fäll in sidomenyn" : "Håll sidomenyn utfälld"}
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-md text-current/70 hover:bg-current/15 hover:text-current focus-visible:bg-current/15 focus-visible:outline-none",
+            pinned && "text-current",
+          )}
+        >
+          {pinned ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+        </button>
+        {!compact && <span className="truncate text-xs font-medium text-current/60">Samlingar</span>}
       </div>
       <div className={cn("min-h-0 flex-1 overflow-x-hidden overflow-y-auto", compact ? "px-1.5" : "px-2")}>
         <Row

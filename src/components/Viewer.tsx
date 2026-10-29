@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,7 +8,9 @@ import {
   Info,
   LayoutDashboard,
   Loader2,
-  Sparkles,
+  BadgeInfo,
+  PanelBottomClose,
+  PanelBottomOpen,
   Pin,
   RectangleEllipsis,
   Trash2,
@@ -545,6 +547,19 @@ export function Viewer({
   // Dragging the whole picture carries it to Favoriter or a series beside it; zoomed, a drag pans instead.
   const [carry, setCarry] = useState<{ x: number; y: number; over: string | null } | null>(null);
   const [railOpen, setRailOpen] = useState(false);
+  /** Set when the side menu is folded in under the pointer, so it stays folded until the pointer leaves. */
+  const railHeld = useRef(false);
+  const pinCollections = (collections: boolean) => {
+    updateLook({ collections });
+    if (!collections) {
+      setRailOpen(false);
+      railHeld.current = true;
+    }
+  };
+  const aiOf = useMemo(
+    () => new Map(images.flatMap((img) => (img.ai ? [[img.path, img.ai] as const] : []))),
+    [images],
+  );
   const [added, setAdded] = useState<string | null>(null);
   useEffect(() => {
     if (!added) return;
@@ -702,7 +717,7 @@ export function Viewer({
       else if (e.key === "0") setZoom(WHOLE);
       else if (e.key === "p") togglePin();
       else if (e.key === "h") updateLook({ screen: nextScreenFit(look.screen) });
-      else if (e.key === "c") updateLook({ collections: !look.collections });
+      else if (e.key === "c") pinCollections(!look.collections);
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
         onToggleSeries(series[digit - 1].id, actIndex);
       else if (e.key === "s") setPicking((p) => !p);
@@ -816,8 +831,11 @@ export function Viewer({
             "z-30 shrink-0",
             look.collections ? "relative w-56" : wide ? "absolute inset-y-0 left-0 w-12" : "relative w-12",
           )}
-          onPointerEnter={() => setRailOpen(true)}
-          onPointerLeave={() => setRailOpen(false)}
+          onPointerEnter={() => !railHeld.current && setRailOpen(true)}
+          onPointerLeave={() => {
+            railHeld.current = false;
+            setRailOpen(false);
+          }}
         >
           <CollectionsPanel
             series={series}
@@ -829,15 +847,15 @@ export function Viewer({
             added={added}
             compact={!look.collections && !railOpen && !carry}
             pinned={look.collections}
-            onPinnedChange={(collections) => updateLook({ collections })}
+            onPinnedChange={pinCollections}
             className={cn("absolute bottom-0 left-0", wide ? "top-12" : "top-0", !look.collections && (railOpen || carry) && "shadow-xl")}
             style={{
               background:
                 look.collections && !wide
                   ? undefined
                   : look.background
-                    ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
-                    : "rgb(0 0 0 / 0.6)",
+                    ? "color-mix(in oklab, var(--canvas) 94%, transparent)"
+                    : "rgb(0 0 0 / 0.88)",
             }}
           />
         </div>
@@ -955,6 +973,7 @@ export function Viewer({
                     zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
                     panning={panning}
                     waitingSince={waiting?.path === layer.path ? waiting.since : undefined}
+                    aiMark={showAiMark ? aiOf.get(layer.path) : undefined}
                   />
                 ))}
                 {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
@@ -994,11 +1013,7 @@ export function Viewer({
             style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
           />
           <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
-          <Dock
-            hides={look.dockHides}
-            faded={wide && !chrome}
-            themed={look.background}
-          >
+          <Dock pinned={look.dockPinned} themed={look.background}>
             {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
             <DockButton onClick={() => onTrash(actIndex)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
               <Trash2 />
@@ -1074,13 +1089,13 @@ export function Viewer({
                 onClick={() => onShowAiMarkChange(!showAiMark)}
                 pressed={showAiMark}
                 title={
-                  (showAiMark && actOn.ai ? aiMarkTitle(actOn.ai) + ". " : "") +
-                  (showAiMark ? "Dölj AI-märkningen" : "Visa AI-märkning: om bilden är gjord eller förstorad med AI")
+                  showAiMark
+                    ? "Dölj AI-märkningen"
+                    : "Visa AI-märkning: ett märke i hörnet på bilder som är gjorda eller förstorade med AI"
                 }
                 label="Visa AI-märkning"
-                wide={showAiMark && !!actOn.ai}
               >
-                {showAiMark && actOn.ai ? <AiMark kind={actOn.ai} /> : <Sparkles />}
+                <BadgeInfo />
               </DockButton>
             )}
             <DockDivider />
@@ -1107,6 +1122,15 @@ export function Viewer({
             >
               <Heart className={cn(favorite && "fill-current")} />
             </DockButton>
+            <DockDivider />
+            <DockButton
+              onClick={() => updateLook({ dockPinned: !look.dockPinned })}
+              pressed={look.dockPinned}
+              title={look.dockPinned ? "Göm knappraden tills musen kommer nära" : "Visa knappraden hela tiden"}
+              label={look.dockPinned ? "Göm knappraden" : "Visa knappraden hela tiden"}
+            >
+              {look.dockPinned ? <PanelBottomClose /> : <PanelBottomOpen />}
+            </DockButton>
           </Dock>
         </div>
       </div>
@@ -1124,35 +1148,33 @@ export function Viewer({
 
 /**
  * The floating bar at the bottom of the picture with everything that can be done with it.
- * Half see-through, in the page's colors when chosen. It can stay hidden until the mouse
- * comes near the bottom edge.
+ * Half see-through, in the page's colors when chosen. Unless pinned, it stays hidden until
+ * the mouse comes near the bottom edge, so the picture is left alone.
  */
 function Dock({
-  hides,
-  faded,
+  pinned,
   themed,
   children,
 }: {
-  hides: boolean;
-  faded: boolean;
+  pinned: boolean;
   themed: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "group/dock absolute inset-x-0 bottom-0 z-30 flex justify-center pb-8",
-        // Hidden, the bar still needs a strip to notice the mouse in.
-        hides ? "h-32 items-end" : "pointer-events-none",
+        // Hidden, the bar still needs room around it to notice the mouse in, kept to the bar's
+        // width so clicks on the rest of the picture still reach it.
+        "group/dock absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 justify-center px-24 pt-20 pb-8",
       )}
     >
       <div
         role="toolbar"
         aria-label="Åtgärder för bilden"
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 focus-within:opacity-100",
-          (hides || faded) && "opacity-0 hover:opacity-100",
-          hides && "group-hover/dock:opacity-100",
+          // Shown while a button in it is reached with the keyboard, not after a mouse click.
+          "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 has-focus-visible:opacity-100",
+          !pinned && "opacity-0 group-hover/dock:opacity-100",
           !themed && "text-white",
         )}
         style={{
@@ -1279,6 +1301,8 @@ interface LayerViewProps {
   panning: boolean;
   /** When an enlarged copy of this picture began to be made, while it is on its way. */
   waitingSince?: number;
+  /** Shown in the picture's top right corner: made or enlarged with AI. */
+  aiMark?: NonNullable<ImageEntry["ai"]>;
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
@@ -1294,6 +1318,7 @@ function LayerView({
   zoom,
   panning,
   waitingSince,
+  aiMark,
 }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
@@ -1360,6 +1385,15 @@ function LayerView({
           <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: radius.outer }}>
             <WaitingRing since={waitingSince} />
           </div>
+        )}
+        {aiMark && zoom.scale === 1 && (
+          <span
+            className="absolute top-2.5 right-2.5 flex h-7 items-center gap-1.5 rounded-md bg-black/55 px-2 text-xs font-medium text-white backdrop-blur-sm"
+            style={{ marginTop: framing.padding, marginRight: framing.padding }}
+            title={aiMarkTitle(aiMark)}
+          >
+            <AiMark kind={aiMark} className="size-3.5" />
+          </span>
         )}
       </div>
     </div>
