@@ -68,6 +68,7 @@ import type { ViewerSettings } from "@/lib/viewer";
 import { openBiggerPics, upscaleWithBiggerPics } from "@/lib/biggerpics";
 import { buildWebPage, pagePictures, saveWebHost } from "@/lib/webpage";
 import { folderName, parentFolder } from "@/lib/utils";
+import type { Waiting } from "@/components/WaitingRing";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
 const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
@@ -649,7 +650,8 @@ export default function App() {
     if (count !== null) changeLibrary((lib) => rememberFolders(lib, targets));
   };
   // AI enlargement: a new file beside the original, shown once it is read in.
-  const [upscaling, setUpscaling] = useState(false);
+  const [waiting, setWaiting] = useState<Waiting | null>(null);
+  const upscaling = waiting !== null;
   // The picture the wand was clicked for, while the dialog asks how to enlarge it.
   const [upscaleFor, setUpscaleFor] = useState<ImageEntry | null>(null);
   /** Asks bigger.pics, open in `popup`, to enlarge the picture; null when the window was closed without it. */
@@ -679,7 +681,7 @@ export default function App() {
     }
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
-    setUpscaling(true);
+    setWaiting({ path: image.path, since: Date.now() });
     showToast(
       choice.mode === "local"
         ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
@@ -713,7 +715,7 @@ export default function App() {
     } catch (e) {
       showToast(typeof e === "string" ? e : "AI-förstoringen misslyckades.", "error");
     } finally {
-      setUpscaling(false);
+      setWaiting(null);
     }
   };
   // Picked in a dialog that previews the pictures, they open like pictures dropped from Finder.
@@ -903,6 +905,7 @@ export default function App() {
               selected={selected}
               onSelectionChange={setSelected}
               highlight={highlight}
+              waiting={waiting}
             />
           ) : (
             <EmptyState
@@ -936,6 +939,7 @@ export default function App() {
           onUpscale={(i) => images[i] && setUpscaleFor(images[i])}
           onReveal={(i) => images[i] && void reveal([images[i].path])}
           upscaling={upscaling}
+          waiting={waiting}
           isFavorite={(img) => favoritePaths.has(img.path)}
           tagsOf={(img) => index.tags.get(img.path) ?? []}
           onToggleFavorite={onToggleFavorite}

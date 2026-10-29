@@ -41,6 +41,7 @@ import { CollectionsPanel, FAVORITES_TARGET } from "./CollectionsPanel";
 import { ViewerLookMenu } from "./ViewerLookMenu";
 import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { HeadingText } from "./HeadingText";
+import { WaitingRing, type Waiting } from "./WaitingRing";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -58,6 +59,8 @@ interface ViewerProps {
   onReveal?: (index: number) => void;
   /** Whether an enlargement is running. */
   upscaling?: boolean;
+  /** The picture being enlarged, shown as the old version until the copy arrives. */
+  waiting?: Waiting | null;
   isFavorite: (image: ImageEntry) => boolean;
   /** Favoriter and the series the image is in. */
   tagsOf: (image: ImageEntry) => Tag[];
@@ -231,6 +234,7 @@ export function Viewer({
   onUpscale,
   onReveal,
   upscaling = false,
+  waiting = null,
   isFavorite,
   tagsOf,
   onToggleFavorite,
@@ -1005,6 +1009,7 @@ export function Viewer({
                     exit={i < layers.length - 1 ? top : undefined}
                     zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
                     panning={panning}
+                    waitingSince={waiting?.path === layer.path ? waiting.since : undefined}
                   />
                 ))}
                 {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
@@ -1134,10 +1139,24 @@ interface LayerViewProps {
   zoom: Zoom;
   /** Follows the pointer without easing while the picture is dragged. */
   panning: boolean;
+  /** When an enlarged copy of this picture began to be made, while it is on its way. */
+  waitingSince?: number;
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
-function LayerView({ layer, box, frame, shadow, rounded, lift, animate, exit, zoom, panning }: LayerViewProps) {
+function LayerView({
+  layer,
+  box,
+  frame,
+  shadow,
+  rounded,
+  lift,
+  animate,
+  exit,
+  zoom,
+  panning,
+  waitingSince,
+}: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     // Paint the starting position first, then move to rest.
@@ -1198,6 +1217,11 @@ function LayerView({ layer, box, frame, shadow, rounded, lift, animate, exit, zo
             style={{ inset: framing.padding ?? 0, boxShadow: INSET_SHADOW, borderRadius: radius.inner }}
             aria-hidden
           />
+        )}
+        {waitingSince !== undefined && (
+          <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: radius.outer }}>
+            <WaitingRing since={waitingSince} />
+          </div>
         )}
       </div>
     </div>

@@ -16,6 +16,7 @@ import type { HeadingKind } from "./HeadingDialog";
 import { HeadingText } from "./HeadingText";
 import { cn } from "@/lib/utils";
 import { ImageTile } from "./ImageTile";
+import type { Waiting } from "./WaitingRing";
 
 interface GalleryProps {
   /** Changes when another folder or set of folders is opened. */
@@ -50,6 +51,8 @@ interface GalleryProps {
   onSelectionChange: (paths: Set<string>) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
+  /** The picture being enlarged, shown as the old version until the copy arrives. */
+  waiting?: Waiting | null;
 }
 
 const GAP = 6;
@@ -110,6 +113,7 @@ export function Gallery({
   selected,
   onSelectionChange,
   highlight,
+  waiting,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -479,6 +483,7 @@ export function Gallery({
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index], box.index)}
         order={placement.order[box.index]}
         marked={marked === box.index}
+        waitingSince={waiting?.path === image.path ? waiting.since : undefined}
         selected={selected.has(image.path)}
         favorite={favorites.has(image.path)}
         tags={tags.get(image.path)}
