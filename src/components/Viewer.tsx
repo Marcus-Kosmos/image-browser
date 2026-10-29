@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -905,7 +905,11 @@ export function Viewer({
         <div
           ref={setArea}
           className={cn("relative flex min-w-0 flex-1 items-center justify-center", !wide && "px-14 pb-6")}
-          style={{ paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined }}
+          style={{
+            paddingLeft: pinsWidth && !wide ? pinsWidth + 48 : undefined,
+            // While a heading is written the bar of tools stays below, so the picture keeps clear of it.
+            paddingBottom: draft ? DOCK_ROOM : undefined,
+          }}
         >
           {solo !== null && (
             <button
@@ -1074,11 +1078,7 @@ export function Viewer({
               <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
             </>
           )}
-          <Dock
-            pinned={look.dockPinned || !!draft}
-            themed={look.background}
-            atTop={!!draft && (look.captionPlace === "below" || look.captionPlace.startsWith("bottom"))}
-          >
+          <Dock pinned={look.dockPinned || !!draft} themed={look.background}>
             {draft ? (
               <HeadingTools
                 heading={draft}
@@ -1240,25 +1240,13 @@ export function Viewer({
  * Half see-through, in the page's colors when chosen. Unless pinned, it stays hidden until
  * the mouse comes near the bottom edge, so the picture is left alone.
  */
-function Dock({
-  pinned,
-  themed,
-  atTop = false,
-  children,
-}: {
-  pinned: boolean;
-  themed: boolean;
-  /** Under the header instead, out of the way of what is written at the bottom of the picture. */
-  atTop?: boolean;
-  children: React.ReactNode;
-}) {
+function Dock({ pinned, themed, children }: { pinned: boolean; themed: boolean; children: React.ReactNode }) {
   return (
     <div
       className={cn(
         // Hidden, the bar still needs room around it to notice the mouse in, kept to the bar's
         // width so clicks on the rest of the picture still reach it.
-        "group/dock absolute left-1/2 z-30 flex -translate-x-1/2 justify-center px-24",
-        atTop ? "top-12 pt-2 pb-20" : "bottom-0 pt-20 pb-8",
+        "group/dock absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 justify-center px-24 pt-20 pb-8",
       )}
     >
       <div
@@ -1712,6 +1700,9 @@ function captionPosition(place: CaptionPlace, inset: number): React.CSSPropertie
 }
 
 /** On the picture, light letters with a soft shadow, so they read on any part of it. */
+/** Room kept free below the picture for the bar of tools while a heading is written. */
+const DOCK_ROOM = 96;
+
 const ON_PICTURE_TEXT: React.CSSProperties = {
   textShadow: "0 1px 3px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 0 0 / 0.35)",
 };
@@ -1789,16 +1780,42 @@ interface HeadingInPlaceProps {
   onDone: () => void;
 }
 
-/** A heading typed right where it will show, inside a dashed outline of the room it takes. */
+/**
+ * A heading typed right where it will show, inside a dashed outline of the room it takes. On the
+ * picture the outline grows with the text up to the picture's margin, then the text wraps as it will show.
+ */
 function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone }: HeadingInPlaceProps) {
   const over = !besidePicture(place);
   const right = place.endsWith("right");
+  const fontSize = height * 0.62;
+  const fontWeight = heading.level === 3 ? 500 : 600;
+  const fontFamily = heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
+  const most = Math.max(0, width - inset * 2);
+  let room = most;
+  if (over) {
+    measure ??= document.createElement("canvas").getContext("2d");
+    if (measure) {
+      measure.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      // Padding, outline and a letter's room for the caret.
+      const text = measure.measureText(heading.text || "Skriv rubriken").width + 20 + fontSize * 0.6;
+      room = Math.min(most, Math.max(Math.min(240, most), Math.ceil(text)));
+    }
+  }
+  const field = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(height, el.scrollHeight)}px`;
+  });
   return (
-    <div className="absolute z-20" style={captionPosition(place, inset)}>
-      <input
+    <div className="absolute z-20" style={{ ...captionPosition(place, inset), maxWidth: undefined }}>
+      <textarea
+        ref={field}
         autoFocus
+        rows={1}
         value={heading.text}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value.replace(/\n/g, " "))}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -1807,15 +1824,18 @@ function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone
         }}
         placeholder="Skriv rubriken"
         aria-label="Rubrik"
-        className="block rounded-md border-[1.5px] border-dashed border-current/70 bg-transparent px-2 outline-none placeholder:text-current/45 focus-visible:border-current"
+        className="block resize-none overflow-hidden rounded-md border-[1.5px] border-dashed border-current/70 bg-transparent px-2 outline-none placeholder:text-current/45 focus-visible:border-current"
         style={{
-          width: over ? Math.min(width - inset * 2, 560) : "100%",
-          height,
-          fontSize: height * 0.62,
-          fontWeight: heading.level === 3 ? 500 : 600,
+          width: over ? room : "100%",
+          fontSize,
+          fontWeight,
           color: heading.color ?? (over ? "#fff" : "var(--foreground)"),
-          fontFamily: heading.font ? `"${heading.font}", system-ui, sans-serif` : undefined,
+          fontFamily: heading.font ? fontFamily : undefined,
           textAlign: right ? "right" : "left",
+          // One line beside the picture; on it, lines as tall as the heading's once it wraps.
+          lineHeight: over ? 1.1 : `${height - 3}px`,
+          paddingBlock: over ? (height - fontSize * 1.1) / 2 : 0,
+          overflowWrap: "break-word",
           ...(over && ON_PICTURE_TEXT),
         }}
       />
