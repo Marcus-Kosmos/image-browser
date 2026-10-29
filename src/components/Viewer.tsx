@@ -11,7 +11,14 @@ import {
   BadgeInfo,
   PanelBottomClose,
   PanelBottomOpen,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ArrowDown,
   ArrowDownLeft,
+  ArrowUp,
+  PanelLeft,
+  PanelRight,
   ArrowDownRight,
   ArrowUpLeft,
   ArrowUpRight,
@@ -39,7 +46,10 @@ import {
   nextScreenFit,
   resolveTransition,
   useViewerSettings,
+  CAPTION_ALIGN_LABELS,
   CAPTION_PLACE_LABELS,
+  captionAlignAt,
+  type CaptionAlign,
   type CaptionPlace,
   type CaptionSize,
   type Rect,
@@ -56,6 +66,7 @@ import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { HeadingText } from "./HeadingText";
 import { HEADING_COLORS, lastStyle, rememberStyle } from "./HeadingDialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 import { WaitingRing, type Waiting } from "./WaitingRing";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
@@ -451,10 +462,14 @@ export function Viewer({
   const lift = heading && besidePicture(look.captionPlace) ? captionHeight : 0;
   // A heading above moves the picture down, one under moves it up.
   const shift = look.captionPlace === "below" ? -lift : lift;
-  const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
+  // A heading to the left or right takes a column of its own, and moves the picture the other way.
+  const aside = heading && asidePicture(look.captionPlace) ? asideWidth(room.width) : 0;
+  const slide = look.captionPlace === "right" ? -aside : aside;
+  const align = captionAlignAt(look.captionPlace, look.captionAlign);
+  const pictureRoom = { width: Math.max(0, room.width - aside), height: Math.max(0, room.height - lift) };
   const box = fit(pictureRoom, image.width, image.height, pictureFrame, fitMode);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
-  const view = layout ? { width: box.width, height: box.height + lift } : room;
+  const view = layout ? { width: box.width + aside, height: box.height + lift } : room;
   // The part of the picture on screen, where the heart and heading go when it's cut at the edges.
   const shown = { width: Math.min(box.width, pictureRoom.width), height: Math.min(box.height, pictureRoom.height) };
   const top = layers[layers.length - 1];
@@ -631,7 +646,7 @@ export function Viewer({
     const px = e.clientX - rect.left - rect.width / 2;
     const py = e.clientY - rect.top - rect.height / 2;
     // A click beside the picture leaves, like the cross; on it, it zooms.
-    if (!zoomed && (Math.abs(px) > box.width / 2 || Math.abs(py - lift / 2) > box.height / 2)) return leave();
+    if (!zoomed && (Math.abs(px - slide / 2) > box.width / 2 || Math.abs(py - shift / 2) > box.height / 2)) return leave();
     if (e.altKey) stepZoom(-1, px, py);
     else if (atMax) zoomTo(1);
     else stepZoom(1, px, py);
@@ -976,6 +991,7 @@ export function Viewer({
                   rounded={look.rounded}
                   heading={captionOf(beside[i])}
                   place={look.captionPlace}
+                  align={look.captionAlign}
                   size={look.captionSize}
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
@@ -998,7 +1014,7 @@ export function Viewer({
                   // Marks the picture the bar of buttons acts on, among several.
                   ...(beside.length > 0 && aimedIndex < 0 && !zoomed && { outline: AIMED_OUTLINE, outlineOffset: 6 }),
                   ...(layout && {
-                    left: layout.current.x + (layout.current.width - box.width) / 2,
+                    left: layout.current.x + (layout.current.width - box.width - aside) / 2,
                     top: layout.current.y + (layout.current.height - box.height - lift) / 2,
                     ...view,
                     transition: SLOT_TRANSITION,
@@ -1029,6 +1045,7 @@ export function Viewer({
                     }
                     box={fit(pictureRoom, layer.width, layer.height, pictureFrame, fitMode)}
                     lift={shift}
+                    slide={slide}
                     frame={pictureFrame}
                     shadow={shadow}
                     rounded={look.rounded}
@@ -1048,7 +1065,7 @@ export function Viewer({
                   )}
                   style={{
                     ...shown,
-                    transform: shift ? `translateY(${shift / 2}px)` : undefined,
+                    transform: shift || slide ? `translate(${slide / 2}px, ${shift / 2}px)` : undefined,
                   }}
                 >
                   {!draft && beside.length > 0 && aimedIndex >= 0 && (
@@ -1058,7 +1075,9 @@ export function Viewer({
                     <HeadingInPlace
                       heading={draft}
                       place={look.captionPlace}
-                      height={heading ? fitLine(heading, captionHeight, shown.width) : captionHeight}
+                      align={align}
+                      aside={aside}
+                      height={heading && besidePicture(look.captionPlace) ? fitLine(heading, captionHeight, shown.width) : captionHeight}
                       inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
                       width={shown.width}
                       onChange={(text) => setDraft({ ...draft, text })}
@@ -1070,6 +1089,8 @@ export function Viewer({
                         key={image.path}
                         heading={heading}
                         place={look.captionPlace}
+                        align={align}
+                        aside={aside}
                         height={captionHeight}
                         inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
                         width={shown.width}
@@ -1100,8 +1121,11 @@ export function Viewer({
               <HeadingTools
                 heading={draft}
                 place={look.captionPlace}
+                align={look.captionAlign ?? "left"}
+                themed={look.background}
                 onChange={(change) => setDraft({ ...draft, ...change })}
                 onPlace={(captionPlace) => updateLook({ captionPlace })}
+                onAlign={(captionAlign) => updateLook({ captionAlign })}
                 onSave={() => saveDraft()}
                 onRemove={() => saveDraft(null)}
                 onCancel={() => setDraft(null)}
@@ -1390,6 +1414,8 @@ interface LayerViewProps {
   rounded: boolean;
   /** Room kept free above the picture for its heading. */
   lift: number;
+  /** Room kept free to the left of the picture for its heading (to the right when negative). */
+  slide: number;
   /** Plays the layer's effect when added on top. */
   animate: boolean;
   /** The layer that now covers this one, whose effect decides how this one goes. */
@@ -1411,6 +1437,7 @@ function LayerView({
   shadow,
   rounded,
   lift,
+  slide,
   animate,
   exit,
   zoom,
@@ -1448,7 +1475,7 @@ function LayerView({
     <div
       className="pointer-events-none absolute"
       style={{
-        left: `calc(50% - ${box.width / 2}px)`,
+        left: `calc(50% - ${(box.width - slide) / 2}px)`,
         top: `calc(50% - ${(box.height - lift) / 2}px)`,
         width: box.width,
         height: box.height,
@@ -1556,6 +1583,7 @@ interface PinnedPictureProps {
   rounded: boolean;
   heading?: Heading;
   place: CaptionPlace;
+  align: CaptionAlign | undefined;
   size: CaptionSize;
   dragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
@@ -1600,6 +1628,7 @@ function PinnedPicture({
   rounded,
   heading,
   place,
+  align,
   size,
   dragging,
   onDragStart,
@@ -1616,7 +1645,14 @@ function PinnedPicture({
     : 0;
   const lift = heading && besidePicture(place) ? captionHeight : 0;
   const shift = place === "below" ? -lift : lift;
-  const box = fit({ width: rect.width, height: Math.max(0, rect.height - lift) }, image.width, image.height, frame);
+  const aside = heading && asidePicture(place) ? asideWidth(rect.width) : 0;
+  const slide = place === "right" ? -aside : aside;
+  const box = fit(
+    { width: Math.max(0, rect.width - aside), height: Math.max(0, rect.height - lift) },
+    image.width,
+    image.height,
+    frame,
+  );
   const framing = frameStyle(frame, box.picture.width, box.picture.height);
   const radius = corners(rounded, framing, box.width, box.height);
   return (
@@ -1625,7 +1661,7 @@ function PinnedPicture({
       onPointerDown={onDragStart}
       className={cn("group absolute touch-none", dragging && "z-10 cursor-grabbing opacity-60")}
       style={{
-        left: rect.x + (rect.width - box.width) / 2,
+        left: rect.x + (rect.width - box.width + slide) / 2,
         top: rect.y + (rect.height - box.height + shift) / 2,
         width: box.width,
         height: box.height,
@@ -1664,6 +1700,8 @@ function PinnedPicture({
         <Caption
           heading={heading}
           place={place}
+          align={captionAlignAt(place, align)}
+          aside={aside}
           height={captionHeight}
           inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(captionHeight / 3)}
           width={box.width}
@@ -1688,6 +1726,9 @@ function PinnedPicture({
 interface CaptionProps {
   heading: Heading;
   place: CaptionPlace;
+  align: CaptionAlign;
+  /** Width of the column it takes to the picture's side, gap included. */
+  aside: number;
   height: number;
   /** Distance from the picture's edges when the heading sits on it. */
   inset: number;
@@ -1705,10 +1746,34 @@ function besidePicture(place: CaptionPlace) {
   return place === "above" || place === "below";
 }
 
-/** Where a heading goes around or on the picture, `inset` in from the edges when on it. */
-function captionPosition(place: CaptionPlace, inset: number): React.CSSProperties {
+/** To the left or right of the picture, in a column of its own. */
+function asidePicture(place: CaptionPlace) {
+  return place === "left" || place === "right";
+}
+
+/** Space between a heading to the side and its picture. */
+const ASIDE_GAP = 24;
+
+/** Width of the column a heading to the side takes, gap included, out of `room`. */
+function asideWidth(room: number) {
+  return Math.round(Math.min(360, Math.max(140, room * 0.24)));
+}
+
+/** On the picture rather than around it. */
+function onPicture(place: CaptionPlace) {
+  return !besidePicture(place) && !asidePicture(place);
+}
+
+/**
+ * Where a heading goes around or on the picture: `inset` in from the edges when on it, in a column
+ * `aside` wide (gap included) when to its side.
+ */
+function captionPosition(place: CaptionPlace, inset: number, aside: number): React.CSSProperties {
   if (place === "above") return { left: 0, right: 0, bottom: "100%" };
   if (place === "below") return { left: 0, right: 0, top: "100%" };
+  if (place === "left") return { top: 0, right: `calc(100% + ${ASIDE_GAP}px)`, width: aside - ASIDE_GAP };
+  if (place === "right") return { top: 0, left: `calc(100% + ${ASIDE_GAP}px)`, width: aside - ASIDE_GAP };
+  if (place === "top" || place === "bottom") return { [place]: inset, left: inset, right: inset };
   return {
     [place.startsWith("top") ? "top" : "bottom"]: inset,
     [place.endsWith("right") ? "right" : "left"]: inset,
@@ -1741,7 +1806,7 @@ function fitLine(heading: Heading, height: number, width: number): number {
 }
 
 /** An image's heading in full screen, above the picture or in one of its corners. */
-function Caption({ heading, place, height, inset, width, effect, animate, onEdit }: CaptionProps) {
+function Caption({ heading, place, align, aside, height, inset, width, effect, animate, onEdit }: CaptionProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     if (!animate) return;
@@ -1751,13 +1816,21 @@ function Caption({ heading, place, height, inset, width, effect, animate, onEdit
   const motion: React.CSSProperties = entered
     ? { opacity: 1, transform: "none", transition: transitionFor(resolveTransition(effect, 0)) }
     : { ...enterStyle(resolveTransition(effect, 0), 1), transition: "none" };
-  const over = !besidePicture(place);
-  const right = place.endsWith("right");
-  const line = over ? height : fitLine(heading, height, width);
+  const over = onPicture(place);
+  const side = asidePicture(place);
+  const line = besidePicture(place) ? fitLine(heading, height, width) : height;
+  // A long heading wraps instead of being cut: up to three lines on the picture, as many as it needs beside it.
+  const wrap: React.CSSProperties = {
+    height: "auto",
+    lineHeight: 1.1,
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    ...(over && { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }),
+  };
   return (
     <div
       className={cn("absolute", onEdit ? "pointer-events-auto" : "pointer-events-none")}
-      style={{ ...captionPosition(place, inset), ...motion }}
+      style={{ ...captionPosition(place, inset, aside), textAlign: align, ...motion }}
     >
       <HeadingText
         heading={heading}
@@ -1766,20 +1839,10 @@ function Caption({ heading, place, height, inset, width, effect, animate, onEdit
         onEdit={onEdit}
         style={
           over
-            ? {
-                color: heading.color ?? "#fff",
-                textAlign: right ? "right" : "left",
-                ...ON_PICTURE_TEXT,
-                // On the picture a long heading wraps onto up to three lines instead of being cut.
-                height: "auto",
-                lineHeight: 1.1,
-                whiteSpace: "normal",
-                overflowWrap: "break-word",
-                display: "-webkit-box",
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: "vertical",
-              }
-            : undefined
+            ? { color: heading.color ?? "#fff", ...ON_PICTURE_TEXT, ...wrap }
+            : side
+              ? wrap
+              : undefined
         }
       />
     </div>
@@ -1789,6 +1852,9 @@ function Caption({ heading, place, height, inset, width, effect, animate, onEdit
 interface HeadingInPlaceProps {
   heading: Heading;
   place: CaptionPlace;
+  align: CaptionAlign;
+  /** Width of the column it takes to the picture's side, gap included. */
+  aside: number;
   /** Line height the heading gets there. */
   height: number;
   inset: number;
@@ -1801,9 +1867,10 @@ interface HeadingInPlaceProps {
  * A heading typed right where it will show, inside a dashed outline of the room it takes. On the
  * picture the outline grows with the text up to the picture's margin, then the text wraps as it will show.
  */
-function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone }: HeadingInPlaceProps) {
-  const over = !besidePicture(place);
-  const right = place.endsWith("right");
+function HeadingInPlace({ heading, place, align, aside, height, inset, width, onChange, onDone }: HeadingInPlaceProps) {
+  const over = onPicture(place);
+  // On the picture and beside it, the text wraps onto lines as it will show.
+  const wraps = !besidePicture(place);
   const fontSize = height * 0.62;
   const fontWeight = heading.level === 3 ? 500 : 600;
   const fontFamily = heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
@@ -1826,7 +1893,7 @@ function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone
     el.style.height = `${Math.max(height, el.scrollHeight)}px`;
   });
   return (
-    <div className="absolute z-20" style={{ ...captionPosition(place, inset), maxWidth: undefined }}>
+    <div className="absolute z-20" style={{ ...captionPosition(place, inset, aside), maxWidth: undefined }}>
       <textarea
         ref={field}
         autoFocus
@@ -1841,17 +1908,20 @@ function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone
         }}
         placeholder="Skriv rubriken"
         aria-label="Rubrik"
-        className="block resize-none overflow-hidden rounded-md border-[1.5px] border-dashed border-current/70 bg-transparent px-2 outline-none placeholder:text-current/45 focus-visible:border-current"
+        className={cn(
+          "block resize-none overflow-hidden rounded-md border-[1.5px] border-dashed border-current/70 bg-transparent px-2 outline-none placeholder:text-current/45 focus-visible:border-current",
+          align === "center" ? "mx-auto" : align === "right" && "ml-auto",
+        )}
         style={{
           width: over ? room : "100%",
           fontSize,
           fontWeight,
           color: heading.color ?? (over ? "#fff" : "var(--foreground)"),
           fontFamily: heading.font ? fontFamily : undefined,
-          textAlign: right ? "right" : "left",
-          // One line beside the picture; on it, lines as tall as the heading's once it wraps.
-          lineHeight: over ? 1.1 : `${height - 3}px`,
-          paddingBlock: over ? (height - fontSize * 1.1) / 2 : 0,
+          textAlign: align,
+          // One line above or under the picture; on it or to its side, lines as tall as the heading's once it wraps.
+          lineHeight: wraps ? 1.1 : `${height - 3}px`,
+          paddingBlock: wraps ? (height - fontSize * 1.1) / 2 : 0,
           overflowWrap: "break-word",
           ...(over && ON_PICTURE_TEXT),
         }}
@@ -1860,20 +1930,53 @@ function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone
   );
 }
 
-const PLACE_TOOLS: { place: CaptionPlace; icon: React.ReactNode }[] = [
-  { place: "above", icon: <PanelTop /> },
-  { place: "below", icon: <PanelBottom /> },
-  { place: "top-left", icon: <ArrowUpLeft /> },
-  { place: "top-right", icon: <ArrowUpRight /> },
-  { place: "bottom-left", icon: <ArrowDownLeft /> },
-  { place: "bottom-right", icon: <ArrowDownRight /> },
+/** The places a heading can go, laid out as they sit around and on the picture. */
+const PLACE_GROUPS: { label: string; places: { place: CaptionPlace; icon: React.ReactNode }[] }[] = [
+  {
+    label: "Bredvid bilden",
+    places: [
+      { place: "above", icon: <PanelTop /> },
+      { place: "below", icon: <PanelBottom /> },
+      { place: "left", icon: <PanelLeft /> },
+      { place: "right", icon: <PanelRight /> },
+    ],
+  },
+  {
+    label: "På bilden, uppe",
+    places: [
+      { place: "top-left", icon: <ArrowUpLeft /> },
+      { place: "top", icon: <ArrowUp /> },
+      { place: "top-right", icon: <ArrowUpRight /> },
+    ],
+  },
+  {
+    label: "På bilden, nere",
+    places: [
+      { place: "bottom-left", icon: <ArrowDownLeft /> },
+      { place: "bottom", icon: <ArrowDown /> },
+      { place: "bottom-right", icon: <ArrowDownRight /> },
+    ],
+  },
 ];
+
+const ALIGN_TOOLS: { align: CaptionAlign; icon: React.ReactNode }[] = [
+  { align: "left", icon: <AlignLeft /> },
+  { align: "center", icon: <AlignCenter /> },
+  { align: "right", icon: <AlignRight /> },
+];
+
+const PLACE_ICON = Object.fromEntries(
+  PLACE_GROUPS.flatMap((g) => g.places).map(({ place, icon }) => [place, icon]),
+) as Partial<Record<CaptionPlace, React.ReactNode>>;
 
 interface HeadingToolsProps {
   heading: Heading;
   place: CaptionPlace;
+  align: CaptionAlign;
+  themed: boolean;
   onChange: (change: Partial<Heading>) => void;
   onPlace: (place: CaptionPlace) => void;
+  onAlign: (align: CaptionAlign) => void;
   onSave: () => void;
   onRemove: () => void;
   onCancel: () => void;
@@ -1885,26 +1988,26 @@ interface HeadingToolsProps {
  * In the bar under the picture while a heading is written: where it goes, its level, color and font.
  * The buttons keep the typing in the heading rather than taking it.
  */
-function HeadingTools({ heading, place, onChange, onPlace, onSave, onRemove, onCancel, canRemove }: HeadingToolsProps) {
+function HeadingTools({
+  heading,
+  place,
+  align,
+  themed,
+  onChange,
+  onPlace,
+  onAlign,
+  onSave,
+  onRemove,
+  onCancel,
+  canRemove,
+}: HeadingToolsProps) {
   const [fonts, setFonts] = useState<string[]>([]);
   useEffect(() => void listFonts().then(setFonts), []);
   const keep = (e: React.PointerEvent) => e.preventDefault();
   const custom = heading.color && !HEADING_COLORS.includes(heading.color);
   return (
     <div className="flex items-center gap-1" onPointerDown={(e) => e.target instanceof HTMLSelectElement || keep(e)}>
-      <div role="radiogroup" aria-label="Var rubriken står" className="flex items-center gap-0.5">
-        {PLACE_TOOLS.map(({ place: p, icon }) => (
-          <DockButton
-            key={p}
-            onClick={() => onPlace(p)}
-            pressed={place === p}
-            title={CAPTION_PLACE_LABELS[p]}
-            label={CAPTION_PLACE_LABELS[p]}
-          >
-            {icon}
-          </DockButton>
-        ))}
-      </div>
+      <PlacePicker place={place} align={align} themed={themed} onPlace={onPlace} onAlign={onAlign} />
       <DockDivider />
       <div role="radiogroup" aria-label="Nivå" className="flex items-center gap-0.5">
         {([1, 2, 3] as const).map((level) => (
@@ -1978,6 +2081,96 @@ function HeadingTools({ heading, place, onChange, onPlace, onSave, onRemove, onC
       <DockButton onClick={onSave} title="Spara rubriken (Enter)" label="Spara rubriken" pressed>
         <Check />
       </DockButton>
+    </div>
+  );
+}
+
+/**
+ * One button for where the heading goes, showing the place chosen. It opens, upward, the places
+ * around and on the picture and how the text lines up; the menu stays put while the pointer is on it.
+ */
+function PlacePicker({
+  place,
+  align,
+  themed,
+  onPlace,
+  onAlign,
+}: {
+  place: CaptionPlace;
+  /** In the page's colors, as the bar it opens from. */
+  themed: boolean;
+  align: CaptionAlign;
+  onPlace: (place: CaptionPlace) => void;
+  onAlign: (align: CaptionAlign) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    return () => window.removeEventListener("pointerdown", onDown);
+  }, [open]);
+  // Lining up only means something where the heading has the width to itself.
+  const alignable = besidePicture(place) || asidePicture(place);
+  return (
+    <div ref={root} className="relative">
+      <DockButton
+        onClick={() => setOpen(!open)}
+        pressed={open}
+        title={`Var rubriken står: ${CAPTION_PLACE_LABELS[place]}`}
+        label="Var rubriken står"
+      >
+        {PLACE_ICON[place] ?? <PanelTop />}
+      </DockButton>
+      {open && (
+        <div
+          role="menu"
+          aria-label="Var rubriken står"
+          className="absolute bottom-full left-0 mb-3 flex flex-col gap-2 rounded-2xl border border-current/10 p-2 shadow-lg backdrop-blur-md"
+          style={{ background: themed ? "color-mix(in oklab, var(--canvas) 88%, transparent)" : "rgb(24 24 24 / 0.9)" }}
+        >
+          {PLACE_GROUPS.map((group) => (
+            <div key={group.label} role="group" aria-label={group.label} className="flex flex-col gap-1">
+              <span className="px-1 text-xs whitespace-nowrap text-current/60">{group.label}</span>
+              <div className="flex gap-0.5">
+                {group.places.map(({ place: p, icon }) => (
+                  <DockButton
+                    key={p}
+                    onClick={() => onPlace(p)}
+                    pressed={place === p}
+                    title={CAPTION_PLACE_LABELS[p]}
+                    label={CAPTION_PLACE_LABELS[p]}
+                  >
+                    {icon}
+                  </DockButton>
+                ))}
+              </div>
+            </div>
+          ))}
+          {alignable && (
+            <div role="group" aria-label="Textens linje" className="flex flex-col gap-1 border-t border-current/15 pt-2">
+              <span className="px-1 text-xs whitespace-nowrap text-current/60">Textens linje</span>
+              <div className="flex gap-0.5">
+                {ALIGN_TOOLS.map(({ align: a, icon }) => (
+                  <DockButton
+                    key={a}
+                    onClick={() => onAlign(a)}
+                    pressed={align === a}
+                    title={CAPTION_ALIGN_LABELS[a]}
+                    label={CAPTION_ALIGN_LABELS[a]}
+                  >
+                    {icon}
+                  </DockButton>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

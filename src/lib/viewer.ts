@@ -47,17 +47,61 @@ export const PIN_SIZE_LABELS: Record<PinSize, string> = {
 };
 
 /** Where an image's heading goes in full screen. */
-export type CaptionPlace = "off" | "above" | "below" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type CaptionPlace =
+  | "off"
+  | "above"
+  | "below"
+  | "left"
+  | "right"
+  | "top-left"
+  | "top"
+  | "top-right"
+  | "bottom-left"
+  | "bottom"
+  | "bottom-right";
 
-export const CAPTION_PLACES: CaptionPlace[] = ["off", "above", "below", "top-left", "top-right", "bottom-left", "bottom-right"];
+export const CAPTION_PLACES: CaptionPlace[] = [
+  "off",
+  "above",
+  "below",
+  "left",
+  "right",
+  "top-left",
+  "top",
+  "top-right",
+  "bottom-left",
+  "bottom",
+  "bottom-right",
+];
+
+/** How a heading beside the picture lines up: with its left edge, in the middle or with its right edge. */
+export type CaptionAlign = "left" | "center" | "right";
+
+export const CAPTION_ALIGN_LABELS: Record<CaptionAlign, string> = {
+  left: "Vänsterställd",
+  center: "Centrerad",
+  right: "Högerställd",
+};
+
+/** How the heading's text lines up there: on the picture by its place, beside it as chosen. */
+export function captionAlignAt(place: CaptionPlace, align: CaptionAlign | undefined): CaptionAlign {
+  if (place === "top" || place === "bottom") return "center";
+  if (place === "top-left" || place === "bottom-left") return "left";
+  if (place === "top-right" || place === "bottom-right") return "right";
+  return align ?? "left";
+}
 
 export const CAPTION_PLACE_LABELS: Record<CaptionPlace, string> = {
   off: "Visa inte",
   above: "Ovanför bilden",
   below: "Under bilden",
+  left: "Till vänster om bilden",
+  right: "Till höger om bilden",
   "top-left": "På bilden, uppe till vänster",
+  top: "På bilden, uppe i mitten",
   "top-right": "På bilden, uppe till höger",
   "bottom-left": "På bilden, nere till vänster",
+  bottom: "På bilden, nere i mitten",
   "bottom-right": "På bilden, nere till höger",
 };
 
@@ -111,6 +155,8 @@ export interface ViewerSettings {
   rounded: boolean;
   /** Where headings written for the images are shown. */
   captionPlace: CaptionPlace;
+  /** How a heading above, under or beside the picture lines up. */
+  captionAlign: CaptionAlign;
   /** How a heading comes in with its image. */
   captionEffect: ViewerTransition;
   captionSize: CaptionSize;
@@ -130,6 +176,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   background: false,
   rounded: false,
   captionPlace: "above",
+  captionAlign: "left",
   captionEffect: "fade",
   captionSize: "normal",
   screen: "margins",

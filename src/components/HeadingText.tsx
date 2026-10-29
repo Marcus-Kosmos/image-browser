@@ -32,8 +32,9 @@ export function HeadingText({ heading, height, scale, onEdit, className, style }
         <button
           onClick={onEdit}
           title="Ändra rubriken"
-          className="max-w-full cursor-text truncate rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          style={{ font: "inherit", color: "inherit" }}
+          className="max-w-full cursor-text overflow-hidden rounded-sm text-ellipsis focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          // Wraps and lines up as the heading around it does.
+          style={{ font: "inherit", color: "inherit", whiteSpace: "inherit", textAlign: "inherit" }}
         >
           {heading.text}
         </button>
