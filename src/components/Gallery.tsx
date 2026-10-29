@@ -51,6 +51,8 @@ interface GalleryProps {
   onSelectionChange: (paths: Set<string>) => void;
   /** Image to bring into view and mark, e.g. the one just viewed full screen. A new object re-triggers it. */
   highlight?: { index: number } | null;
+  /** Marks pictures made or changed by AI. */
+  showAiMark?: boolean;
   /** The picture being enlarged, shown as the old version until the copy arrives. */
   waiting?: Waiting | null;
 }
@@ -114,6 +116,7 @@ export function Gallery({
   onSelectionChange,
   highlight,
   waiting,
+  showAiMark = false,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -483,6 +486,7 @@ export function Gallery({
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index], box.index)}
         order={placement.order[box.index]}
         marked={marked === box.index}
+        aiMark={showAiMark ? image.ai : undefined}
         waitingSince={waiting?.path === image.path ? waiting.since : undefined}
         selected={selected.has(image.path)}
         favorite={favorites.has(image.path)}

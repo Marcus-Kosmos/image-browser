@@ -88,6 +88,12 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   bigger.pics" bredvid originalet, och fönstret stängs. Inga extra kopior hamnar i Hämtade filer. Tjänsten är gratis med reklam; bilden skickas till
   bigger.pics. Andra länkar från fönstret öppnas i webbläsaren. Högerklicka och välj Inspektera element för
   att se felmeddelanden från sidan
+- Varje AI-förstorad kopia märks i sina metadata som gjord med AI (IPTC DigitalSourceType
+  "compositeWithTrainedAlgorithmicMedia", samma standard som Photoshop och många webbplatser läser), med
+  namnet på verktyget. Själva bilden ändras inte
+- **Visa AI-märkning** (i Utseende-menyn, gäller alla mappar) visar ett märke på bilder vars metadata säger
+  att de gjorts eller ändrats med AI: "AI-förstorad" (trollstav) för bilder förstorade i Imagime och "AI-bild"
+  (gnistor) för bilder som ett annat program märkt, till exempel Adobe Firefly. Omärkta AI-bilder går inte att känna igen
 - Medan förstoringen pågår ligger en cirkel som fylls över den gamla bilden, i helskärm och i rutnätet, så
   att det syns att det är den gamla versionen tills den nya kommer
 - Visa i Finder: knappen med mappen och förstoringsglaset, i helskärm och i raden för markerade bilder,

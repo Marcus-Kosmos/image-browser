@@ -17,6 +17,9 @@ interface AppearanceMenuProps {
   /** App-wide, unlike the rest of the menu. */
   askBeforeTrash: boolean;
   onAskBeforeTrashChange: (ask: boolean) => void;
+  /** App-wide too: a mark on pictures made or changed by AI. */
+  showAiMark: boolean;
+  onShowAiMarkChange: (show: boolean) => void;
 }
 
 const SWATCHES: Array<{ color: string; name: string }> = [
@@ -35,7 +38,14 @@ const FRAMES: Frame[] = ["none", "line", "mat", "black"];
 const SHADOWS: Shadow[] = ["none", "drop", "inset"];
 
 /** Background color, frames and shadows for the folder, favorites or series shown. */
-export function AppearanceMenu({ settings, onChange, askBeforeTrash, onAskBeforeTrashChange }: AppearanceMenuProps) {
+export function AppearanceMenu({
+  settings,
+  onChange,
+  askBeforeTrash,
+  onAskBeforeTrashChange,
+  showAiMark,
+  onShowAiMarkChange,
+}: AppearanceMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -153,29 +163,52 @@ export function AppearanceMenu({ settings, onChange, askBeforeTrash, onAskBefore
           </p>
 
           <div className="mt-3 border-t pt-3 mb-1.5 text-xs font-medium text-muted-foreground">Papperskorgen</div>
-          <button
-            role="checkbox"
-            aria-checked={askBeforeTrash}
-            onClick={() => onAskBeforeTrashChange(!askBeforeTrash)}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span
-              className={cn(
-                "flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border",
-                askBeforeTrash && "border-foreground bg-foreground text-background",
-              )}
-              aria-hidden
-            >
-              {askBeforeTrash && <Check className="size-3" strokeWidth={3} />}
-            </span>
+          <CheckRow checked={askBeforeTrash} onChange={onAskBeforeTrashChange}>
             Fråga innan en bild slängs
-          </button>
+          </CheckRow>
           <p className="mt-1 px-2 text-xs text-muted-foreground">
             {askBeforeTrash ? "Gäller alla mappar." : "Ett klick flyttar bilden till papperskorgen. Gäller alla mappar."}
+          </p>
+          <div className="mt-3 border-t pt-3 mb-1.5 text-xs font-medium text-muted-foreground">AI</div>
+          <CheckRow checked={showAiMark} onChange={onShowAiMarkChange}>
+            Visa AI-märkning
+          </CheckRow>
+          <p className="mt-1 px-2 text-xs text-muted-foreground">
+            Bilder som gjorts eller förstorats med AI får en märkning. Gäller alla mappar.
           </p>
         </div>
       )}
     </div>
+  );
+}
+
+function CheckRow({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span
+        className={cn(
+          "flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border",
+          checked && "border-foreground bg-foreground text-background",
+        )}
+        aria-hidden
+      >
+        {checked && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      {children}
+    </button>
   );
 }
 
