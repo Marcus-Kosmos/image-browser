@@ -408,29 +408,18 @@ function demoImage(image: ImageEntry): string {
 }
 
 /**
- * Puts the app's window in full screen while `on`, and back as it was after.
- * A window that was already in full screen is left there.
+ * Puts the app's window in full screen when `on`. It stays there after: leaving full screen is
+ * the window's own green button, not closing a picture.
  */
 export function useWindowFullscreen(on: boolean) {
   useEffect(() => {
     if (demo || !on) return;
-    let undo = false;
-    let gone = false;
-    const ready = import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
-      const win = getCurrentWindow();
-      if (gone || (await win.isFullscreen())) return win;
-      await win.setFullscreen(true);
-      undo = true;
-      return win;
-    });
-    return () => {
-      gone = true;
-      ready
-        .then((win) => {
-          if (undo) return win.setFullscreen(false);
-        })
-        .catch(() => {});
-    };
+    void import("@tauri-apps/api/window")
+      .then(async ({ getCurrentWindow }) => {
+        const win = getCurrentWindow();
+        if (!(await win.isFullscreen())) await win.setFullscreen(true);
+      })
+      .catch(() => {});
   }, [on]);
 }
 
