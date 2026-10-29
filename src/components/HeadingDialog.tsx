@@ -20,16 +20,24 @@ interface HeadingDialogProps {
   onClose: () => void;
 }
 
-const COLORS = ["#ffffff", "#18181b", "#8a8a88", "#b91c1c", "#c2410c", "#a16207", "#15803d", "#1d4ed8", "#7e22ce"];
+export const HEADING_COLORS = ["#ffffff", "#18181b", "#8a8a88", "#b91c1c", "#c2410c", "#a16207", "#15803d", "#1d4ed8", "#7e22ce"];
 const LEVELS: HeadingLevel[] = [1, 2, 3];
 const STYLE_KEY = "image-browser:last-heading-style";
 
 /** Color and font of the last saved heading, so a series of headings is quick to make alike. */
-function lastStyle(): Partial<Heading> {
+export function lastStyle(): Partial<Heading> {
   try {
     return JSON.parse(localStorage.getItem(STYLE_KEY) ?? "{}");
   } catch {
     return {};
+  }
+}
+
+export function rememberStyle(heading: Heading) {
+  try {
+    localStorage.setItem(STYLE_KEY, JSON.stringify({ color: heading.color, font: heading.font }));
+  } catch {
+    // Remembering the style is a convenience.
   }
 }
 
@@ -46,16 +54,12 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
   const save = () => {
     const text = draft.text.trim();
     if (!text) return onSave(undefined);
-    try {
-      localStorage.setItem(STYLE_KEY, JSON.stringify({ color: draft.color, font: draft.font }));
-    } catch {
-      // Remembering the style is a convenience.
-    }
+    rememberStyle(draft);
     onSave({ ...draft, text });
   };
 
   const update = (change: Partial<Heading>) => setDraft((d) => ({ ...d, ...change }));
-  const custom = draft.color && !COLORS.includes(draft.color);
+  const custom = draft.color && !HEADING_COLORS.includes(draft.color);
 
   return (
     <Dialog open={kind !== null} onClose={onClose} labelledBy="heading-title" className="max-w-lg">
@@ -119,7 +123,7 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
           >
             {!draft.color && <Mark dark={false} />}
           </button>
-          {COLORS.map((c) => (
+          {HEADING_COLORS.map((c) => (
             <button
               key={c}
               role="radio"
