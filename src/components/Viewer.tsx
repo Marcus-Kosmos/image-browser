@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   Loader2,
   BadgeInfo,
+  PanelBottomClose,
+  PanelBottomOpen,
   Pin,
   Trash2,
   WandSparkles,
@@ -989,7 +991,7 @@ export function Viewer({
             style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
           />
           <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
-          <Dock themed={look.background}>
+          <Dock pinned={look.dockPinned} themed={look.background}>
             {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
             <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
               <Trash2 />
@@ -1098,6 +1100,15 @@ export function Viewer({
             >
               <Heart className={cn(favorite && "fill-current")} />
             </DockButton>
+            <DockDivider />
+            <DockButton
+              onClick={() => updateLook({ dockPinned: !look.dockPinned })}
+              pressed={look.dockPinned}
+              title={look.dockPinned ? "Göm knappraden tills musen kommer nära" : "Visa knappraden hela tiden"}
+              label={look.dockPinned ? "Göm knappraden" : "Visa knappraden hela tiden"}
+            >
+              {look.dockPinned ? <PanelBottomClose /> : <PanelBottomOpen />}
+            </DockButton>
           </Dock>
         </div>
       </div>
@@ -1115,13 +1126,15 @@ export function Viewer({
 
 /**
  * The floating bar at the bottom of the picture with everything that can be done with it.
- * Half see-through, in the page's colors when chosen. It stays hidden until the mouse
- * comes near the bottom edge, so the picture is left alone.
+ * Half see-through, in the page's colors when chosen. Unless pinned, it stays hidden until
+ * the mouse comes near the bottom edge, so the picture is left alone.
  */
 function Dock({
+  pinned,
   themed,
   children,
 }: {
+  pinned: boolean;
   themed: boolean;
   children: React.ReactNode;
 }) {
@@ -1137,8 +1150,9 @@ function Dock({
         role="toolbar"
         aria-label="Åtgärder för bilden"
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 focus-within:opacity-100",
-          "opacity-0 group-hover/dock:opacity-100",
+          // Shown while a button in it is reached with the keyboard, not after a mouse click.
+          "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 has-focus-visible:opacity-100",
+          !pinned && "opacity-0 group-hover/dock:opacity-100",
           !themed && "text-white",
         )}
         style={{

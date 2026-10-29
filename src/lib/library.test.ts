@@ -126,7 +126,7 @@ describe("library", () => {
   });
 
   it("keeps the full screen look a series was saved with", () => {
-    const look = { transition: "fade" as const, keepZoom: false, pinSize: "puzzle" as const, frame: true, background: true, rounded: true, captionPlace: "above" as const, captionEffect: "fade" as const, captionSize: "normal" as const, screen: "margins" as const, collections: false };
+    const look = { transition: "fade" as const, keepZoom: false, pinSize: "puzzle" as const, frame: true, background: true, rounded: true, captionPlace: "above" as const, captionEffect: "fade" as const, captionSize: "normal" as const, screen: "margins" as const, collections: false, dockPinned: false };
     const lib = createSeries(EMPTY_LIBRARY, "p", "Pussel", [a, b], look);
     expect(lib.series[0].look).toEqual(look);
     expect(createSeries(EMPTY_LIBRARY, "q", "Utan", [a]).series[0]).not.toHaveProperty("look");
