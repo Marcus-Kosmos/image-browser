@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, FolderMinus, Heart, Trash2 } from "lucide-react";
+import { Check, FileWarning, FolderMinus, Heart, ImageOff, Trash2 } from "lucide-react";
 import { AiMark, aiMarkTitle } from "./AiMark";
 import type { ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -103,7 +103,7 @@ export const ImageTile = memo(function ImageTile({
   useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setUrl), [image]);
 
   // Wait for the thumbnail too, so the effect plays on the picture rather than an empty box.
-  const shown = inView && (loaded || reveal === "none");
+  const shown = inView && (loaded || reveal === "none" || !!image.gone);
   const header = box.header ?? 0;
   const framing = frameStyle(frame, box.width, box.height - header);
 
@@ -147,7 +147,8 @@ export const ImageTile = memo(function ImageTile({
         <button
           className="block size-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           data-tile
-          onClick={(e) => onOpen(box.index, e)}
+          // A picture that is gone can still be selected, to be taken out, but there is nothing to open.
+          onClick={(e) => (image.gone && !e.metaKey && !e.shiftKey ? undefined : onOpen(box.index, e))}
           onPointerDown={(e) => onDragStart(box.index, e)}
           onKeyDown={(e) => {
             if (reorderable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
@@ -168,7 +169,13 @@ export const ImageTile = memo(function ImageTile({
           aria-pressed={selected || undefined}
           title={`${image.name}\n1, 2, 3: liten, mellan, stor · F: favorit\n⌘- eller Skift-klick: markera · Skift + dra: markera flera med en ruta${reorderable ? "\nDra till en ny plats, eller Alt + pil vänster/höger" : ""}`}
         >
-          {url && (
+          {image.gone ? (
+            <span className="flex size-full flex-col items-center justify-center gap-1 bg-muted p-2 text-center text-xs text-muted-foreground">
+              <ImageOff className="size-6" aria-hidden />
+              <span className="font-medium">Bilden är borta</span>
+              <span>Flyttad eller borttagen utanför appen</span>
+            </span>
+          ) : url && (
             <img
               ref={picture}
               src={url}
@@ -188,6 +195,18 @@ export const ImageTile = memo(function ImageTile({
           />
         )}
         {waitingSince !== undefined && <WaitingRing since={waitingSince} compact />}
+        {image.changed && (
+          <span
+            className={cn(
+              "pointer-events-none absolute bottom-1.5 left-1.5 flex h-6 items-center gap-1 rounded-md bg-black/55 px-1.5 text-xs font-medium text-white transition-opacity group-hover:opacity-0",
+              (menuOpen || selected) && "opacity-0",
+            )}
+            title="Filen har ändrats utanför appen sedan den lades här"
+          >
+            <FileWarning className="size-3.5" aria-hidden />
+            Ändrad
+          </span>
+        )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pr-10 pb-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
           <div className="truncate">{image.name}</div>
           {tags && tags.length > 0 && (

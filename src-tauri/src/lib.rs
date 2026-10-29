@@ -146,6 +146,19 @@ fn expect_bigger_pics(original: Option<String>) {
     popup::set_target(original.map(PathBuf::from));
 }
 
+/// When each file or folder was last changed (seconds), or nothing for one that is gone,
+/// so pictures and folders moved or deleted outside the app can be shown as such.
+#[tauri::command]
+fn file_states(paths: Vec<String>) -> Vec<Option<u64>> {
+    paths
+        .iter()
+        .map(|p| {
+            let meta = std::fs::metadata(p).ok()?;
+            Some(meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs()))
+        })
+        .collect()
+}
+
 /// Fingerprints of the files' contents, to find copies of the same picture.
 #[tauri::command]
 async fn content_hashes(paths: Vec<String>) -> Result<Vec<Option<String>>, String> {
@@ -287,6 +300,7 @@ pub fn run() {
             close_bigger_pics,
             show_bigger_pics,
             reveal_in_finder,
+            file_states,
             content_hashes
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics

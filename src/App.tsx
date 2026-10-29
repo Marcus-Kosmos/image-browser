@@ -31,6 +31,7 @@ import {
   saveEnlarged,
   revealInFinder,
   showBiggerPics,
+  fileStates,
   expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
@@ -345,11 +346,49 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openFolders, refresh, parent, inFolders, viewerIndex, loadFolders]);
 
-  const allImages = useMemo(
-    () =>
-      locked ? [] : view.kind === "favorites" ? library.favorites : series ? series.images : (listing?.images ?? []),
-    [locked, view.kind, library.favorites, series, listing],
+  // Pictures and folders the library remembers can be moved, changed or deleted in Finder meanwhile.
+  // Looked up again whenever the library changes and when the app comes back to the front.
+  const [onDisk, setOnDisk] = useState<Map<string, number | null>>(new Map());
+  useEffect(() => {
+    const paths = [
+      ...new Set([
+        ...library.favorites.map((i) => i.path),
+        ...library.series.flatMap((s) => s.images.map((i) => i.path)),
+        ...(library.recent ?? []).flat(),
+        ...(library.places ?? []).flatMap((p) => p.folders),
+      ]),
+    ];
+    let current = true;
+    const look = () =>
+      fileStates(paths)
+        .then((states) => {
+          if (current && states) setOnDisk(new Map(paths.map((p, i) => [p, states[i]])));
+        })
+        .catch(() => {});
+    void look();
+    window.addEventListener("focus", look);
+    return () => {
+      current = false;
+      window.removeEventListener("focus", look);
+    };
+  }, [library]);
+  const goneFolders = useMemo(
+    () => new Set([...onDisk].filter(([, modified]) => modified === null).map(([path]) => path)),
+    [onDisk],
   );
+
+  const allImages = useMemo(() => {
+    if (locked) return [];
+    if (view.kind === "folders") return listing?.images ?? [];
+    const kept = view.kind === "favorites" ? library.favorites : (series?.images ?? []);
+    return kept.map((image) => {
+      const modified = onDisk.get(image.path);
+      if (modified === null) return { ...image, gone: true };
+      // The current time also fetches a fresh thumbnail.
+      if (modified !== undefined && image.modified && modified !== image.modified) return { ...image, modified, changed: true };
+      return image;
+    });
+  }, [locked, view.kind, library.favorites, series, listing, onDisk]);
   // Tags are Favoriter and the series an image is in; hidden ones count only while shown.
   const index = useMemo(() => libraryIndex(library, showHidden), [library, showHidden]);
   const [filter, setFilter] = useState<ImageFilter>(NO_FILTER);
@@ -875,6 +914,7 @@ export default function App() {
         {sidebarOpen && (
           <Sidebar
             folders={folders}
+            goneFolders={goneFolders}
             library={library}
             view={view}
             onSelect={openView}
