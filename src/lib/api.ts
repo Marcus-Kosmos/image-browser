@@ -12,6 +12,10 @@ export interface ImageEntry {
   modified: number;
   /** When it was put in the favorites or a series (ms), for those lists. */
   added?: number;
+  /** In Favoriter or a series, but moved or deleted outside the app since. Not saved. */
+  gone?: boolean;
+  /** In Favoriter or a series, and changed outside the app since it was put there. Not saved. */
+  changed?: boolean;
 }
 
 export interface FolderListing {
@@ -300,6 +304,15 @@ export async function saveEnlarged(image: ImageEntry, picture: Blob, format: "pn
   return invoke<string>("save_enlarged", new Uint8Array(await picture.arrayBuffer()), {
     headers: { "x-original": encodeURIComponent(image.path), "x-format": saveAs },
   });
+}
+
+/**
+ * When each file or folder was last changed (seconds), or null for one that is gone.
+ * The demo has nothing on disk to look at, so it says nothing.
+ */
+export async function fileStates(paths: string[]): Promise<(number | null)[] | null> {
+  if (demo || paths.length === 0) return null;
+  return invoke<(number | null)[]>("file_states", { paths });
 }
 
 /** Shows the files in Finder, selected in their folders. */

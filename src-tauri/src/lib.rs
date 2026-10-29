@@ -143,6 +143,19 @@ fn expect_bigger_pics(original: Option<String>) {
     popup::set_target(original.map(PathBuf::from));
 }
 
+/// When each file or folder was last changed (seconds), or nothing for one that is gone,
+/// so pictures and folders moved or deleted outside the app can be shown as such.
+#[tauri::command]
+fn file_states(paths: Vec<String>) -> Vec<Option<u64>> {
+    paths
+        .iter()
+        .map(|p| {
+            let meta = std::fs::metadata(p).ok()?;
+            Some(meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs()))
+        })
+        .collect()
+}
+
 /// Shows the pictures in Finder, selected in their folders.
 #[tauri::command]
 fn reveal_in_finder(paths: Vec<String>) -> Result<(), String> {
@@ -270,7 +283,8 @@ pub fn run() {
             save_enlarged,
             expect_bigger_pics,
             close_bigger_pics,
-            reveal_in_finder
+            reveal_in_finder,
+            file_states
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.
