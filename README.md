@@ -48,8 +48,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   igen när den kommer fram efter att du varit i ett annat program.
 - I helskärm samlas knapparna för bilden i en stor, halvgenomskinlig rad nere vid bilden: papperskorgen
   längst till vänster, sedan förstora med AI, visa i Finder och serie, AI-märkningen (en ikonknapp, av/på: när
-  den är på syns ett märke uppe till höger på bilder som är AI-förstorade eller AI-gjorda) och längst till höger nålen och hjärtat. Under Visning kan
-  raden gömmas tills musen kommer till nederkanten. Visning och kortkommandon sitter uppe till höger.
+  den är på syns ett märke uppe till höger på bilder som är AI-förstorade eller AI-gjorda) och längst till höger nålen och hjärtat. Raden är gömd tills
+  musen kommer till nederkanten. Visning och kortkommandon sitter uppe till höger.
 - I helskärm väljer knappen Visning (reglagen uppe till höger) hur nästa bild kommer in: tona fram,
   glid in från vänster eller höger, glid upp, kaskad, parallax eller växla automatiskt. Där kan du också
   visa mappens ram, skugga och bakgrundsfärg i helskärm. Valet gäller i alla mappar.

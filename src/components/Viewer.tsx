@@ -989,11 +989,7 @@ export function Viewer({
             style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
           />
           <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
-          <Dock
-            hides={look.dockHides}
-            faded={wide && !chrome}
-            themed={look.background}
-          >
+          <Dock themed={look.background}>
             {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
             <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
               <Trash2 />
@@ -1119,26 +1115,22 @@ export function Viewer({
 
 /**
  * The floating bar at the bottom of the picture with everything that can be done with it.
- * Half see-through, in the page's colors when chosen. It can stay hidden until the mouse
- * comes near the bottom edge.
+ * Half see-through, in the page's colors when chosen. It stays hidden until the mouse
+ * comes near the bottom edge, so the picture is left alone.
  */
 function Dock({
-  hides,
-  faded,
   themed,
   children,
 }: {
-  hides: boolean;
-  faded: boolean;
   themed: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "group/dock absolute inset-x-0 bottom-0 z-30 flex justify-center pb-8",
-        // Hidden, the bar still needs a strip to notice the mouse in.
-        hides ? "h-32 items-end" : "pointer-events-none",
+        // Hidden, the bar still needs room around it to notice the mouse in, kept to the bar's
+        // width so clicks on the rest of the picture still reach it.
+        "group/dock absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 justify-center px-24 pt-20 pb-8",
       )}
     >
       <div
@@ -1146,8 +1138,7 @@ function Dock({
         aria-label="Åtgärder för bilden"
         className={cn(
           "pointer-events-auto flex items-center gap-1 rounded-3xl border border-current/10 p-1.5 shadow-lg backdrop-blur-sm transition-opacity duration-300 focus-within:opacity-100",
-          (hides || faded) && "opacity-0 hover:opacity-100",
-          hides && "group-hover/dock:opacity-100",
+          "opacity-0 group-hover/dock:opacity-100",
           !themed && "text-white",
         )}
         style={{
