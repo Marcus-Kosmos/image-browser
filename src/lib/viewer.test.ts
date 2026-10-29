@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, pinLayout, pinPages, resolveTransition } from "./viewer";
+import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, textWeight } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -100,9 +100,28 @@ describe("pinLayout", () => {
 
 describe("captionLineHeight", () => {
   it("draws larger sizes larger, but never more than a third of the room", () => {
-    expect(captionLineHeight(1, "normal", 900)).toBe(52);
-    expect(captionLineHeight(1, "huge", 900)).toBe(208);
-    expect(captionLineHeight(1, "huge", 300)).toBe(100);
-    expect(captionLineHeight(3, "large", 900)).toBe(48);
+    expect(captionLineHeight({ level: 1 }, "normal", 900)).toBe(52);
+    expect(captionLineHeight({ level: 1 }, "huge", 900)).toBe(208);
+    expect(captionLineHeight({ level: 1 }, "huge", 300)).toBe(100);
+    expect(captionLineHeight({ level: 3 }, "large", 900)).toBe(48);
+  });
+
+  it("goes by the size from the slider when there is one", () => {
+    expect(captionLineHeight({ level: 1, size: 20 }, "normal", 900)).toBe(20);
+    expect(captionLineHeight({ level: 3, size: 100 }, "large", 900)).toBe(160);
+  });
+});
+
+describe("text sizes", () => {
+  it("sets body text lighter than headings", () => {
+    expect(textWeight({ level: 3, size: 20 })).toBe(400);
+    expect(textWeight({ level: 3 })).toBe(500);
+    expect(textWeight({ level: 1 })).toBe(600);
+  });
+
+  it("finds the level that matches a size", () => {
+    expect(levelForSize(20)).toBe(3);
+    expect(levelForSize(40)).toBe(2);
+    expect(levelForSize(80)).toBe(1);
   });
 });
