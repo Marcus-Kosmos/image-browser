@@ -486,7 +486,7 @@ export function Gallery({
         reveal={resolveReveal(imageSettings.reveal ?? settings.reveal, placement.row[box.index], box.index)}
         order={placement.order[box.index]}
         marked={marked === box.index}
-        aiMark={showAiMark && !!image.ai}
+        aiMark={showAiMark ? image.ai : undefined}
         waitingSince={waiting?.path === image.path ? waiting.since : undefined}
         selected={selected.has(image.path)}
         favorite={favorites.has(image.path)}

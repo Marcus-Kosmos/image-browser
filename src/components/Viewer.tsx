@@ -11,10 +11,10 @@ import {
   PanelLeft,
   Pin,
   Trash2,
-  Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
+import { AiMark, aiMarkTitle } from "./AiMark";
 import { Button } from "@/components/ui/button";
 import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
@@ -817,10 +817,9 @@ export function Viewer({
             {showAiMark && image.ai && (
               <span
                 className="ml-1.5 inline-flex items-center gap-1 rounded-sm bg-current/15 px-1.5 py-px align-bottom"
-                title="Gjord eller förstorad med AI"
+                title={aiMarkTitle(image.ai)}
               >
-                <Sparkles className="size-3" aria-hidden />
-                AI
+                <AiMark kind={image.ai} className="size-3" />
               </span>
             )}
             {tagsOf(image).map((t) => (

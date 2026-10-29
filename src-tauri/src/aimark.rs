@@ -9,6 +9,8 @@ use std::path::Path;
 const SOURCE_TYPE: &str = "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia";
 /// In every IPTC term for AI-made or AI-changed pictures, whoever wrote it, and in C2PA content credentials.
 const SIGN: &[u8] = b"rainedAlgorithmicMedia";
+/// Only in the marks Imagime writes itself (see `xmp`).
+const OWN: &[u8] = b"Imagime, AI-";
 const XMP_ID: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 /// Where the mark is looked for: the start of the file, and for WebP, whose metadata comes last, the end.
 const HEAD: u64 = 128 * 1024;
@@ -29,25 +31,40 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
     haystack.windows(needle.len()).any(|w| w == needle)
 }
 
-/// Whether the file says it was made or changed by AI.
-pub fn is_marked(path: &Path) -> bool {
-    let Ok(mut file) = std::fs::File::open(path) else { return false };
+/// Who made a picture with AI, according to its metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AiKind {
+    /// Enlarged with AI in Imagime.
+    Imagime,
+    /// Made or changed with AI elsewhere, and marked so by that program.
+    Other,
+}
+
+fn kind_in(bytes: &[u8]) -> Option<AiKind> {
+    if !contains(bytes, SIGN) {
+        return None;
+    }
+    Some(if contains(bytes, OWN) { AiKind::Imagime } else { AiKind::Other })
+}
+
+/// Whether the file says it was made or changed by AI, and by whom.
+pub fn ai_kind(path: &Path) -> Option<AiKind> {
+    let mut file = std::fs::File::open(path).ok()?;
     let len = file.metadata().map(|m| m.len()).unwrap_or(0);
     let mut head = Vec::new();
-    if file.by_ref().take(HEAD).read_to_end(&mut head).is_err() {
-        return false;
-    }
-    if contains(&head, SIGN) {
-        return true;
+    file.by_ref().take(HEAD).read_to_end(&mut head).ok()?;
+    if let Some(kind) = kind_in(&head) {
+        return Some(kind);
     }
     if len > HEAD && head.starts_with(b"RIFF") {
         let mut tail = Vec::new();
         let start = len.saturating_sub(TAIL).max(HEAD);
-        if file.seek(SeekFrom::Start(start)).is_ok() && file.take(TAIL).read_to_end(&mut tail).is_ok() {
-            return contains(&tail, SIGN);
-        }
+        file.seek(SeekFrom::Start(start)).ok()?;
+        file.take(TAIL).read_to_end(&mut tail).ok()?;
+        return kind_in(&tail);
     }
-    false
+    None
 }
 
 /// Writes the AI mark into the picture's metadata, naming the tool that enlarged it.
@@ -170,9 +187,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(name);
         image::RgbImage::from_pixel(40, 30, image::Rgb([200, 80, 20])).save_with_format(&path, format).unwrap();
-        assert!(!is_marked(&path));
+        assert_eq!(ai_kind(&path), None);
         mark(&path, "bigger.pics").unwrap();
-        assert!(is_marked(&path));
+        assert_eq!(ai_kind(&path), Some(AiKind::Imagime));
         // Still a picture of the same size, and marking again changes nothing.
         let picture = image::open(&path).unwrap();
         assert_eq!((picture.width(), picture.height()), (40, 30));
@@ -195,6 +212,14 @@ mod tests {
     #[test]
     fn marks_webp() {
         roundtrip("a.webp", image::ImageFormat::WebP);
+    }
+
+    #[test]
+    fn tells_other_programs_marks_apart() {
+        let other = b"<x:xmpmeta>Iptc4xmpExt:DigitalSourceType=\"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia\" xmp:CreatorTool=\"Adobe Firefly\"</x:xmpmeta>";
+        assert_eq!(kind_in(other), Some(AiKind::Other));
+        assert_eq!(kind_in(xmp("Stability AI").as_bytes()), Some(AiKind::Imagime));
+        assert_eq!(kind_in(b"just a picture"), None);
     }
 
     #[test]

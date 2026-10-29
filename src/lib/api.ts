@@ -10,8 +10,8 @@ export interface ImageEntry {
   height: number;
   size: number;
   modified: number;
-  /** Its metadata says it was made or changed by AI, as Imagime's enlargements do. */
-  ai?: boolean;
+  /** Its metadata says it was made or changed by AI: enlarged in Imagime, or marked so by another program. */
+  ai?: "imagime" | "other";
   /** When it was put in the favorites or a series (ms), for those lists. */
   added?: number;
 }
@@ -361,7 +361,8 @@ function demoListing(path: string): FolderListing {
       size: 2_000_000 + i * 37_000,
       modified: 1_760_000_000 + i * 3600,
       // A few stand in for pictures enlarged with AI.
-      ...(i % 9 === 4 && { ai: true }),
+      ...(i % 9 === 4 && { ai: "imagime" as const }),
+      ...(i % 9 === 7 && { ai: "other" as const }),
     };
   }).filter((img) => !demoTrashed.has(img.path));
   const subfolders = path === "/Demo/Bilder" ? ["/Demo/Bilder/Resa 2025", "/Demo/Bilder/Studio"] : [];
