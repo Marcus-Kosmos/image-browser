@@ -24,12 +24,45 @@ export interface ImageFilter {
   /** Images must carry every one of these tags. */
   tags: string[];
   since: DateRange;
+  /** Newest changed file first, rather than the folder's or series' own order. */
+  newestFirst: boolean;
+  /** Only pictures there is more than one copy of, the copies side by side. */
+  duplicates: boolean;
 }
 
-export const NO_FILTER: ImageFilter = { text: "", tags: [], since: "all" };
+export const NO_FILTER: ImageFilter = { text: "", tags: [], since: "all", newestFirst: false, duplicates: false };
 
 export function isFiltering(filter: ImageFilter) {
-  return filter.text.trim() !== "" || filter.tags.length > 0 || filter.since !== "all";
+  return (
+    filter.text.trim() !== "" ||
+    filter.tags.length > 0 ||
+    filter.since !== "all" ||
+    filter.newestFirst ||
+    filter.duplicates
+  );
+}
+
+/** Pictures that might be copies of each other, before their contents are compared: same size in bytes and pixels. */
+export function possibleDuplicates(images: ImageEntry[]) {
+  const bySize = new Map<string, ImageEntry[]>();
+  for (const img of images) {
+    const key = `${img.size}:${img.width}x${img.height}`;
+    bySize.set(key, [...(bySize.get(key) ?? []), img]);
+  }
+  return [...bySize.values()].filter((group) => group.length > 1).flat();
+}
+
+/**
+ * The pictures with the same contents as another one, grouped so copies sit side by side, in the order
+ * each group's first picture had. `hashes` holds a fingerprint of the contents by path.
+ */
+export function keepDuplicates(images: ImageEntry[], hashes: Map<string, string>) {
+  const groups = new Map<string, ImageEntry[]>();
+  for (const img of images) {
+    const hash = hashes.get(img.path);
+    if (hash) groups.set(hash, [...(groups.get(hash) ?? []), img]);
+  }
+  return [...groups.values()].filter((group) => group.length > 1).flat();
 }
 
 /** Tags and earliest added time of every image in the library, by path. */
@@ -81,7 +114,7 @@ export function filterImages(
   if (!isFiltering(filter)) return images;
   const text = filter.text.trim().toLocaleLowerCase("sv");
   const since = startOf(filter.since, now);
-  return images.filter((img) => {
+  const matching = images.filter((img) => {
     const tags = index.tags.get(img.path) ?? [];
     if (!filter.tags.every((key) => tags.some((t) => t.key === key))) return false;
     const date = index.added.get(img.path) ?? img.modified * 1000;
@@ -92,4 +125,5 @@ export function filterImages(
       tags.some((t) => t.name.toLocaleLowerCase("sv").includes(text))
     );
   });
+  return filter.newestFirst ? matching.sort((a, b) => b.modified - a.modified) : matching;
 }

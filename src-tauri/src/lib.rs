@@ -143,6 +143,12 @@ fn expect_bigger_pics(original: Option<String>) {
     popup::set_target(original.map(PathBuf::from));
 }
 
+/// Fingerprints of the files' contents, to find copies of the same picture.
+#[tauri::command]
+async fn content_hashes(paths: Vec<String>) -> Result<Vec<Option<String>>, String> {
+    tauri::async_runtime::spawn_blocking(move || scan::content_hashes(&paths)).await.map_err(|e| e.to_string())
+}
+
 /// Shows the pictures in Finder, selected in their folders.
 #[tauri::command]
 fn reveal_in_finder(paths: Vec<String>) -> Result<(), String> {
@@ -270,7 +276,8 @@ pub fn run() {
             save_enlarged,
             expect_bigger_pics,
             close_bigger_pics,
-            reveal_in_finder
+            reveal_in_finder,
+            content_hashes
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.
