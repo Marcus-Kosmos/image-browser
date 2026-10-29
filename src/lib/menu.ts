@@ -6,7 +6,8 @@ const FIELD = "input:not([type=checkbox]):not([type=radio]), select, textarea";
 /**
  * Closes an open menu when the pointer leaves it after a choice was made in it, so it does not
  * have to be clicked away. `root` holds the menu (and may hold its button, which is not a choice).
- * Before any choice, or while a field in it is being used, leaving keeps it open.
+ * Before any choice, or while a field in it is being used, leaving keeps it open. A picked color
+ * does not count as a choice, since its panel lies outside the menu.
  */
 export function useCloseOnLeaveAfterChoice(root: RefObject<HTMLElement | null>, open: boolean, close: () => void) {
   const onClose = useRef(close);
@@ -26,8 +27,10 @@ export function useCloseOnLeaveAfterChoice(root: RefObject<HTMLElement | null>, 
       if (!(t instanceof Element) || isField(t) || t.closest("[aria-expanded]")) return;
       if (t.closest("button, [role^=menuitem], label, a")) chose = true;
     };
-    const onChange = () => {
-      chose = true;
+    // A color is picked in a panel of its own, outside the menu, and each step of it is a change:
+    // leaving the menu to reach that panel must not close it.
+    const onChange = (e: Event) => {
+      if (!(e.target instanceof HTMLInputElement && e.target.type === "color")) chose = true;
     };
     const onLeave = () => {
       if (chose) timer = window.setTimeout(() => onClose.current(), 250);
