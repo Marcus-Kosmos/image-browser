@@ -33,6 +33,17 @@ pub fn close_all<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// Brings the bigger.pics windows to the front, to send the picture back.
+pub fn show_all<R: Runtime>(app: &AppHandle<R>) {
+    for (label, window) in app.webview_windows() {
+        if label.starts_with("bigger-pics-") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 /// The file type of a download, from its suggested name: JPEG, WebP or PNG.
 fn download_extension(suggested: &Path) -> &'static str {
     match suggested.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
@@ -99,6 +110,8 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         .title("bigger.pics")
         .inner_size(1180.0, 820.0)
         .window_features(features)
+        // It works behind the app's window: there is nothing to do in it until the picture is enlarged.
+        .focused(false)
         .on_download(on_download)
         // Links and ads inside bigger.pics open in the browser, not in more app windows.
         .on_new_window(|url, _| {
@@ -107,7 +120,19 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         })
         .build();
     match built {
-        Ok(window) => NewWindowResponse::Create { window },
+        Ok(window) => {
+            // macOS still brings a new window forward, so the app's window is raised again once it is up.
+            let app = app.clone();
+            std::thread::spawn(move || {
+                for delay in [150, 600] {
+                    std::thread::sleep(std::time::Duration::from_millis(delay));
+                    if let Some(main) = app.get_webview_window("main") {
+                        let _ = main.set_focus();
+                    }
+                }
+            });
+            NewWindowResponse::Create { window }
+        }
         Err(_) => NewWindowResponse::Deny,
     }
 }

@@ -301,6 +301,11 @@ export async function expectBiggerPicsDownload(
   };
 }
 
+/** Brings the bigger.pics window forward from behind the app. */
+export function showBiggerPics() {
+  if (!demo) void invoke("show_bigger_pics");
+}
+
 /** Saves a picture enlarged by bigger.pics beside its original; returns the new file's path. */
 export async function saveEnlarged(image: ImageEntry, picture: Blob, format: "png" | "jpeg"): Promise<string> {
   // The picture's own type wins over the one asked for.
