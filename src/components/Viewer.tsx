@@ -11,6 +11,7 @@ import {
   PanelLeft,
   Pin,
   Trash2,
+  Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -59,6 +60,8 @@ interface ViewerProps {
   onReveal?: (index: number) => void;
   /** Whether an enlargement is running. */
   upscaling?: boolean;
+  /** Marks pictures made or changed by AI. */
+  showAiMark?: boolean;
   /** The picture being enlarged, shown as the old version until the copy arrives. */
   waiting?: Waiting | null;
   isFavorite: (image: ImageEntry) => boolean;
@@ -234,6 +237,7 @@ export function Viewer({
   onUpscale,
   onReveal,
   upscaling = false,
+  showAiMark = false,
   waiting = null,
   isFavorite,
   tagsOf,
@@ -810,6 +814,15 @@ export function Viewer({
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">
             {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
+            {showAiMark && image.ai && (
+              <span
+                className="ml-1.5 inline-flex items-center gap-1 rounded-sm bg-current/15 px-1.5 py-px align-bottom"
+                title="Gjord eller förstorad med AI"
+              >
+                <Sparkles className="size-3" aria-hidden />
+                AI
+              </span>
+            )}
             {tagsOf(image).map((t) => (
               <span key={t.key} className="ml-1.5 rounded-sm bg-current/15 px-1.5 py-px">
                 {t.name}

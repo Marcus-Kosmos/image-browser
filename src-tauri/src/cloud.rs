@@ -161,6 +161,8 @@ pub fn enlarge(
     };
     let output = upscale::copy_path(input, label, if jpeg { "jpg" } else { "png" });
     std::fs::write(&output, image).map_err(|e| format!("Kunde inte spara den förstorade bilden: {e}"))?;
+    // An unmarked copy is still worth keeping.
+    let _ = crate::aimark::mark(&output, "Stability AI");
     Ok(output)
 }
 

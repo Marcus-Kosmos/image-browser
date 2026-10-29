@@ -40,6 +40,8 @@ interface ToolbarProps {
   onSettingsChange: (change: Partial<FolderSettings>) => void;
   askBeforeTrash: boolean;
   onAskBeforeTrashChange: (ask: boolean) => void;
+  showAiMark: boolean;
+  onShowAiMarkChange: (show: boolean) => void;
   onShowShortcuts: () => void;
 }
 
@@ -72,6 +74,8 @@ export function Toolbar({
   onSettingsChange,
   askBeforeTrash,
   onAskBeforeTrashChange,
+  showAiMark,
+  onShowAiMarkChange,
   onShowShortcuts,
 }: ToolbarProps) {
   return (
@@ -229,6 +233,8 @@ export function Toolbar({
             onChange={onSettingsChange}
             askBeforeTrash={askBeforeTrash}
             onAskBeforeTrashChange={onAskBeforeTrashChange}
+            showAiMark={showAiMark}
+            onShowAiMarkChange={onShowAiMarkChange}
           />
           <div className="mx-1 h-6 w-px bg-border" aria-hidden />
         </>

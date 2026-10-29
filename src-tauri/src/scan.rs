@@ -19,6 +19,9 @@ pub struct ImageEntry {
     pub height: u32,
     pub size: u64,
     pub modified: u64,
+    /// Its metadata says it was made or changed by AI.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub ai: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -130,6 +133,7 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
             height,
             size: meta.len(),
             modified,
+            ai: crate::aimark::is_marked(&path),
         });
     }
 

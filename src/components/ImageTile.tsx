@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, FolderMinus, Heart, Trash2 } from "lucide-react";
+import { Check, FolderMinus, Heart, Sparkles, Trash2 } from "lucide-react";
 import type { ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Tag } from "@/lib/filter";
@@ -25,6 +25,8 @@ interface ImageTileProps {
   marked?: boolean;
   /** Part of the current selection. */
   selected?: boolean;
+  /** Shows that the picture was made or changed by AI. */
+  aiMark?: boolean;
   /** When an enlarged copy of this picture began to be made, while it is on its way. */
   waitingSince?: number;
   favorite: boolean;
@@ -63,6 +65,7 @@ export const ImageTile = memo(function ImageTile({
   order,
   marked = false,
   selected = false,
+  aiMark = false,
   waitingSince,
   favorite,
   tags,
@@ -245,6 +248,18 @@ export const ImageTile = memo(function ImageTile({
         >
           <Heart className={cn("size-4 drop-shadow", favorite && "fill-current")} />
         </button>
+        {aiMark && (
+          <span
+            className={cn(
+              "pointer-events-none absolute top-1.5 left-1.5 flex h-6 items-center gap-1 rounded-md bg-black/55 px-1.5 text-xs font-medium text-white transition-opacity group-hover:opacity-0",
+              menuOpen && "opacity-0",
+            )}
+            title="Gjord eller förstorad med AI"
+          >
+            <Sparkles className="size-3.5" aria-hidden />
+            AI
+          </span>
+        )}
         {selected && (
           <span
             className="pointer-events-none absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow"

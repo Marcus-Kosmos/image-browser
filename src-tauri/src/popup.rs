@@ -60,6 +60,8 @@ fn on_download<R: Runtime>(webview: tauri::Webview<R>, event: DownloadEvent<'_>)
             let saved = DOWNLOADS.lock().unwrap().get_or_insert_with(HashMap::new).remove(url.as_str());
             match saved {
                 Some((path, _)) if success => {
+                    // An unmarked copy is still worth keeping.
+                    let _ = crate::aimark::mark(&path, "bigger.pics");
                     let _ = webview.emit_to("main", "bigger-pics-saved", path.to_string_lossy());
                     let _ = webview.window().close();
                 }
