@@ -114,3 +114,16 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
 }
+
+/// A few pixels from each picture, read from its grid thumbnail, for working out the colors a set of
+/// pictures has in common. Pictures that cannot be read are left out.
+pub fn sample_colors(paths: &[PathBuf], cache_dir: &Path) -> Vec<[u8; 3]> {
+    let mut colors = Vec::new();
+    for path in paths {
+        let Ok(thumb) = thumbnail(path, 800, cache_dir) else { continue };
+        let Ok(picture) = image::open(&thumb) else { continue };
+        let small = picture.thumbnail_exact(24, 24).to_rgb8();
+        colors.extend(small.pixels().map(|p| p.0));
+    }
+    colors
+}

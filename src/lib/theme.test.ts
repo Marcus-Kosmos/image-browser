@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrast, parseHex, prefersDarkText, themeFor } from "./theme";
+import { contrast, luminance, parseHex, prefersDarkText, themeFor, themesFromColors } from "./theme";
 
 describe("theme", () => {
   it("parses short and long hex colors", () => {
@@ -38,5 +38,41 @@ describe("theme", () => {
     expect(b).toBeGreaterThan(r);
     expect(b).toBeGreaterThan(20);
     expect(g).toBeGreaterThan(r);
+  });
+});
+
+describe("themesFromColors", () => {
+  const many = (rgb: [number, number, number], n: number) => Array.from({ length: n }, () => rgb);
+
+  it("makes themes from the three main hues, each used once, readable", () => {
+    const colors = [...many([200, 40, 40], 60), ...many([40, 60, 200], 30), ...many([40, 170, 60], 20)];
+    const themes = themesFromColors(colors);
+    expect(themes).toHaveLength(6);
+    for (const t of themes) {
+      const bg = parseHex(t.background)!;
+      expect(contrast(parseHex(t.text)!, bg)).toBeGreaterThanOrEqual(9);
+      expect(contrast(parseHex(t.accent)!, bg)).toBeGreaterThanOrEqual(3.5);
+      expect(luminance(bg)).toBeLessThan(0.05);
+    }
+    // The first theme's page is in the hue there is most of.
+    const [r, g, b] = parseHex(themes[0].background)!;
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
+  });
+
+  it("is light for mostly light pictures", () => {
+    const themes = themesFromColors(many([240, 220, 160], 50));
+    expect(themes.length).toBeGreaterThan(0);
+    expect(prefersDarkText(themes[0].background)).toBe(true);
+  });
+
+  it("is one gray theme for pictures without color, and none without pixels", () => {
+    const grays = Array.from({ length: 50 }, (_, i) => [i * 4, i * 4, i * 4] as [number, number, number]);
+    const themes = themesFromColors(grays);
+    expect(themes).toHaveLength(1);
+    const [r, g, b] = parseHex(themes[0].background)!;
+    expect(r).toBe(g);
+    expect(g).toBe(b);
+    expect(themesFromColors([])).toEqual([]);
   });
 });

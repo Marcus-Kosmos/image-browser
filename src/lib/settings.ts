@@ -50,6 +50,9 @@ export interface FolderSettings {
   showPageNumbers: boolean;
   /** Page background as #rrggbb; unset follows the system's light or dark look. */
   background?: string;
+  /** Text and button colors picked with the background from the pictures' own; unset derives them from it. */
+  text?: string;
+  accent?: string;
   frame: Frame;
   shadow: Shadow;
   /** Keyed by file name for a single folder (so settings survive moving it), by path for several folders. */

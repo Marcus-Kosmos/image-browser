@@ -167,7 +167,7 @@ export default function App() {
     update: updateSettings,
     updateImage,
   } = useFolderSettings(inFolders ? (listing ? viewKey : null) : viewKey);
-  useBackgroundTheme(settings.background);
+  useBackgroundTheme(settings.background, settings.text, settings.accent);
   // File names can repeat across folders: one folder keys settings by the path inside it
   // (just the name for its own files), several folders and the library by full path.
   const imageKey = useCallback(
@@ -934,6 +934,7 @@ export default function App() {
         onSettingsChange={updateSettings}
         askBeforeTrash={askBeforeTrash}
         onAskBeforeTrashChange={changeAskBeforeTrash}
+        pictures={images}
         showAiMark={showAiMark}
         onShowAiMarkChange={changeShowAiMark}
         onShowShortcuts={() => setShortcutsOpen(true)}

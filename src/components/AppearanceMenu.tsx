@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Palette } from "lucide-react";
+import { Check, LoaderCircle, Palette, Pipette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   FRAME_LABELS,
@@ -8,7 +8,8 @@ import {
   type FolderSettings,
   type Shadow,
 } from "@/lib/settings";
-import { prefersDarkText } from "@/lib/theme";
+import { prefersDarkText, themesFromColors, type ColorTheme } from "@/lib/theme";
+import { sampleColors, type ImageEntry } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
@@ -21,7 +22,12 @@ interface AppearanceMenuProps {
   /** App-wide too: a mark on pictures made or changed by AI. */
   showAiMark: boolean;
   onShowAiMarkChange: (show: boolean) => void;
+  /** The pictures shown, which a color theme can be taken from. */
+  pictures: ImageEntry[];
 }
+
+/** Pictures a theme is taken from at most, spread over the whole set. */
+const THEME_SAMPLE = 40;
 
 const SWATCHES: Array<{ color: string; name: string }> = [
   { color: "#ffffff", name: "Vit" },
@@ -46,6 +52,7 @@ export function AppearanceMenu({
   onAskBeforeTrashChange,
   showAiMark,
   onShowAiMarkChange,
+  pictures,
 }: AppearanceMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -74,7 +81,21 @@ export function AppearanceMenu({
     };
   }, [open]);
 
-  const custom = settings.background && !SWATCHES.some((s) => s.color === settings.background);
+  // Themes taken from the pictures' own colors, worked out when asked for.
+  const [themes, setThemes] = useState<ColorTheme[] | "working" | null>(null);
+  useEffect(() => setThemes(null), [pictures]);
+  const findThemes = async () => {
+    setThemes("working");
+    const step = Math.max(1, pictures.length / THEME_SAMPLE);
+    const sample = Array.from({ length: Math.min(THEME_SAMPLE, pictures.length) }, (_, i) => pictures[Math.floor(i * step)]);
+    const found = themesFromColors(await sampleColors(sample).catch(() => []));
+    setThemes(found);
+  };
+  // A plain background brings back text and buttons in its own colors.
+  const pickBackground = (background: string | undefined) => onChange({ background, text: undefined, accent: undefined });
+  const fromPictures = !!settings.text || !!settings.accent;
+
+  const custom = settings.background && !fromPictures && !SWATCHES.some((s) => s.color === settings.background);
 
   return (
     <div ref={root} className="relative">
@@ -102,7 +123,7 @@ export function AppearanceMenu({
             <button
               role="radio"
               aria-checked={!settings.background}
-              onClick={() => onChange({ background: undefined })}
+              onClick={() => pickBackground(undefined)}
               title="Standard (följer datorns ljusa eller mörka läge)"
               aria-label="Standard"
               className="relative size-9 overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -114,14 +135,14 @@ export function AppearanceMenu({
               <button
                 key={s.color}
                 role="radio"
-                aria-checked={settings.background === s.color}
-                onClick={() => onChange({ background: s.color })}
+                aria-checked={settings.background === s.color && !fromPictures}
+                onClick={() => pickBackground(s.color)}
                 title={s.name}
                 aria-label={s.name}
                 className="relative size-9 rounded-md border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 style={{ background: s.color }}
               >
-                {settings.background === s.color && <CheckMark dark={prefersDarkText(s.color)} />}
+                {settings.background === s.color && !fromPictures && <CheckMark dark={prefersDarkText(s.color)} />}
               </button>
             ))}
             <label
@@ -137,12 +158,53 @@ export function AppearanceMenu({
               <input
                 type="color"
                 value={settings.background ?? "#808080"}
-                onChange={(e) => onChange({ background: e.target.value })}
+                onChange={(e) => pickBackground(e.target.value)}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
               {custom && <CheckMark dark={prefersDarkText(settings.background!)} />}
             </label>
           </div>
+
+          <button
+            onClick={findThemes}
+            disabled={pictures.length === 0 || themes === "working"}
+            title="Ta fram färger ur bilderna som visas: bakgrund, text och knappar i deras vanligaste färger"
+            className="mt-2 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-accent disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            {themes === "working" ? <LoaderCircle className="size-4 animate-spin" /> : <Pipette className="size-4" />}
+            Färger från bilderna
+          </button>
+          {Array.isArray(themes) &&
+            (themes.length === 0 ? (
+              <p className="px-2 text-xs text-muted-foreground">Bilderna kunde inte läsas.</p>
+            ) : (
+              <div role="radiogroup" aria-label="Färger från bilderna" className="mt-1 grid grid-cols-6 gap-1.5">
+                {themes.map((t) => {
+                  const chosen =
+                    settings.background === t.background && settings.text === t.text && settings.accent === t.accent;
+                  return (
+                    <button
+                      key={t.background + t.text + t.accent}
+                      role="radio"
+                      aria-checked={chosen}
+                      onClick={() => onChange(t)}
+                      title="Bakgrund, text och knappar i bildernas färger"
+                      aria-label="Färgtema från bilderna"
+                      className={cn(
+                        "relative flex size-9 flex-col items-center justify-center gap-0.5 rounded-md border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                        chosen && "ring-2 ring-foreground",
+                      )}
+                      style={{ background: t.background }}
+                    >
+                      <span className="text-[11px] leading-none font-semibold" style={{ color: t.text }}>
+                        Aa
+                      </span>
+                      <span className="h-1 w-4 rounded-full" style={{ background: t.accent }} />
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
 
           <div className="mt-3 mb-1.5 text-xs font-medium text-muted-foreground">Ram</div>
           <Segmented
