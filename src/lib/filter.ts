@@ -65,6 +65,22 @@ export function keepDuplicates(images: ImageEntry[], hashes: Map<string, string>
   return [...groups.values()].filter((group) => group.length > 1).flat();
 }
 
+/**
+ * Every copy but one of each picture that is there more than once: the one kept is the first that
+ * `keep` likes (one in Favoriter or a series, say), else the first.
+ */
+export function extraCopies(images: ImageEntry[], hashes: Map<string, string>, keep: (img: ImageEntry) => boolean) {
+  const groups = new Map<string, ImageEntry[]>();
+  for (const img of images) {
+    const hash = hashes.get(img.path);
+    if (hash) groups.set(hash, [...(groups.get(hash) ?? []), img]);
+  }
+  return [...groups.values()].flatMap((group) => {
+    const kept = group.find(keep) ?? group[0];
+    return group.length > 1 ? group.filter((img) => img !== kept) : [];
+  });
+}
+
 /** Tags and earliest added time of every image in the library, by path. */
 export function libraryIndex(library: Library, includeHidden: boolean) {
   const tags = new Map<string, Tag[]>();

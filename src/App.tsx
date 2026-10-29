@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopyCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState, type EmptyKind } from "@/components/EmptyState";
 import { Gallery } from "@/components/Gallery";
 import { HeadingDialog, type HeadingKind } from "@/components/HeadingDialog";
@@ -39,6 +41,7 @@ import {
 } from "@/lib/api";
 import {
   NO_FILTER,
+  extraCopies,
   filterImages,
   isFiltering,
   keepDuplicates,
@@ -125,7 +128,8 @@ export default function App() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Set when the viewer closes, so the gallery can show where that image is.
   const [highlight, setHighlight] = useState<{ index: number } | null>(null);
-  const [trashIndex, setTrashIndex] = useState<number | null>(null);
+  // The pictures the question before trashing is about, while it is open.
+  const [trashAsk, setTrashAsk] = useState<ImageEntry[] | null>(null);
   const pendingTrash = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => Promise<void> }>());
   // Leaving before the time to undo is over still puts the pictures in the trash.
   useEffect(() => {
@@ -436,15 +440,19 @@ export default function App() {
       stale = true;
     };
   }, [filter.duplicates, allImages, hashCache, showToast]);
-  const images = useMemo(() => {
+  const { images, copies } = useMemo(() => {
     const shown = filterImages(allImages, filter, index);
-    if (!filter.duplicates) return shown;
+    if (!filter.duplicates) return { images: shown, copies: [] };
     const hashes = new Map<string, string>();
     for (const img of shown) {
       const hash = hashCache.get(hashKey(img));
       if (hash) hashes.set(img.path, hash);
     }
-    return keepDuplicates(shown, hashes);
+    // Of each picture the one in Favoriter or a series is kept, so nothing goes missing from them.
+    return {
+      images: keepDuplicates(shown, hashes),
+      copies: extraCopies(shown, hashes, (img) => index.tags.has(img.path)),
+    };
   }, [allImages, filter, index, hashCache]);
   const tagChoices = useMemo<Tag[]>(
     () => [
@@ -690,34 +698,52 @@ export default function App() {
 
   // The picture leaves the view at once but goes to the trash only when the time to undo is over,
   // so "Ångra" needs nothing from the Trash, which the app may not reach.
-  const trashImage = (image: ImageEntry) => {
-    if (pendingTrash.current.has(image.path)) return;
-    const back = () => setTrashing((t) => t.filter((p) => p !== image.path));
+  /** Moves pictures to the trash after a while, so one "Ångra" can still bring them all back. */
+  const trashImages = (list: ImageEntry[]) => {
+    const going = list.filter((img) => !pendingTrash.current.has(img.path));
+    if (going.length === 0) return;
+    const paths = new Set(going.map((img) => img.path));
+    const back = (some: Set<string>) => setTrashing((t) => t.filter((p) => !some.has(p)));
+    let done = false;
     const commit = async () => {
-      pendingTrash.current.delete(image.path);
-      try {
-        await trashFile(image.path);
-      } catch (err) {
-        back();
-        showToast(typeof err === "string" ? err : "Kunde inte flytta bilden till papperskorgen.", "error");
-        return;
+      if (done) return;
+      done = true;
+      paths.forEach((p) => pendingTrash.current.delete(p));
+      const gone = new Set<string>();
+      let failure: unknown = null;
+      for (const img of going) {
+        try {
+          await trashFile(img.path);
+          gone.add(img.path);
+        } catch (err) {
+          failure ??= err;
+        }
       }
-      changeLibrary((lib) => removeImage(lib, image.path));
-      setListing((prev) => prev && { ...prev, images: prev.images.filter((img) => img.path !== image.path) });
-      back();
+      if (gone.size > 0) {
+        changeLibrary((lib) => [...gone].reduce((l, p) => removeImage(l, p), lib));
+        setListing((prev) => prev && { ...prev, images: prev.images.filter((img) => !gone.has(img.path)) });
+      }
+      back(paths);
+      if (failure !== null) {
+        const fallback = going.length === 1 ? "Kunde inte flytta bilden till papperskorgen." : "Några bilder kunde inte flyttas till papperskorgen.";
+        showToast(typeof failure === "string" ? failure : fallback, "error");
+      }
     };
-    pendingTrash.current.set(image.path, { timer: setTimeout(() => void commit(), UNDO_TRASH_MS), commit });
-    setTrashing((t) => [...t, image.path]);
-    if (viewerIndex !== null && images.length === 1) setViewerIndex(null);
+    const pending = { timer: setTimeout(() => void commit(), UNDO_TRASH_MS), commit };
+    paths.forEach((p) => pendingTrash.current.set(p, pending));
+    setTrashing((t) => [...t, ...paths]);
+    setSelected((sel) => (going.some((img) => sel.has(img.path)) ? new Set([...sel].filter((p) => !paths.has(p))) : sel));
+    if (viewerIndex !== null && images.every((img) => paths.has(img.path))) setViewerIndex(null);
     // Otherwise the viewer stays on the same position, which now holds the next image.
-    showToast(`${image.name} flyttades till papperskorgen.`, "success", {
+    const what = going.length === 1 ? going[0].name : `${going.length} bilder`;
+    showToast(`${what} flyttades till papperskorgen.`, "success", {
       label: "Ångra",
       run: () => {
-        const pending = pendingTrash.current.get(image.path);
-        if (!pending) return;
+        if (done) return;
+        done = true;
         clearTimeout(pending.timer);
-        pendingTrash.current.delete(image.path);
-        back();
+        paths.forEach((p) => pendingTrash.current.delete(p));
+        back(paths);
       },
     });
   };
@@ -727,18 +753,18 @@ export default function App() {
     store(STORAGE_ASK_TRASH, String(ask));
   };
 
-  const requestTrash = (index: number) => {
-    const image = images[index];
-    if (!image) return;
-    if (askBeforeTrash) setTrashIndex(index);
-    else trashImage(image);
+  const askToTrash = (list: ImageEntry[]) => {
+    if (list.length === 0) return;
+    if (askBeforeTrash) setTrashAsk(list);
+    else trashImages(list);
   };
+  const requestTrash = (index: number) => images[index] && askToTrash([images[index]]);
 
   const confirmTrash = (dontAsk: boolean) => {
-    const image = trashIndex !== null ? images[trashIndex] : undefined;
-    setTrashIndex(null);
+    const list = trashAsk ?? [];
+    setTrashAsk(null);
     if (dontAsk) changeAskBeforeTrash(false);
-    if (image) trashImage(image);
+    trashImages(list);
   };
 
   // Files and folders dragged in from Finder. In a series the images are added to it;
@@ -1040,7 +1066,19 @@ export default function App() {
               allSelected={selectedImages.length === images.length}
               onClear={() => setSelected(new Set())}
               onReveal={() => void reveal(selectedImages.map((img) => img.path))}
+              onTrash={() => askToTrash(selectedImages)}
             />
+          )}
+          {selectedImages.length === 0 && copies.length > 0 && !locked && (
+            <Button
+              variant="outline"
+              onClick={() => setSelected(new Set(copies.map((img) => img.path)))}
+              title="Markerar alla kopior utom en av varje bild, så att du kan slänga dem på en gång"
+              className="absolute bottom-5 left-1/2 z-30 -translate-x-1/2 bg-popover shadow-lg"
+            >
+              <CopyCheck />
+              Markera kopiorna ({copies.length})
+            </Button>
           )}
           {listing && inFolders && (
             <SubfolderBar subfolders={listing.subfolders} onOpen={(p) => void loadFolders([p])} />
@@ -1138,7 +1176,7 @@ export default function App() {
             images[i] && updateImage(imageKey(images[i]), { texts: texts.length ? texts : undefined })
           }
           shadow={settings.shadow}
-          paused={trashIndex !== null || shortcutsOpen || upscaleFor !== null}
+          paused={trashAsk !== null || shortcutsOpen || upscaleFor !== null}
         />
       )}
       {(() => {
@@ -1159,8 +1197,8 @@ export default function App() {
         );
       })()}
       <TrashDialog
-        image={trashIndex !== null ? (images[trashIndex] ?? null) : null}
-        onCancel={() => setTrashIndex(null)}
+        images={trashAsk}
+        onCancel={() => setTrashAsk(null)}
         onConfirm={confirmTrash}
       />
       <UpscaleDialog
