@@ -167,6 +167,12 @@ fn close_bigger_pics(app: tauri::AppHandle) {
     popup::close_all(&app);
 }
 
+/// Brings the bigger.pics window forward from behind the app, to send the picture back.
+#[tauri::command]
+fn show_bigger_pics(app: tauri::AppHandle) {
+    popup::show_all(&app);
+}
+
 /// Enlarges a picture 4× with the AI model shipped in the app, saving it beside the original.
 /// Returns the new file's path.
 #[tauri::command]
@@ -276,6 +282,7 @@ pub fn run() {
             save_enlarged,
             expect_bigger_pics,
             close_bigger_pics,
+            show_bigger_pics,
             reveal_in_finder,
             content_hashes
         ])

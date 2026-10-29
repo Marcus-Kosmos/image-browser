@@ -30,6 +30,7 @@ import {
   imageDataUrl,
   saveEnlarged,
   revealInFinder,
+  showBiggerPics,
   expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
@@ -723,13 +724,17 @@ export default function App() {
     }
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
-    setWaiting({ path: image.path, since: Date.now() });
+    // bigger.pics works in a window behind the app's; it is brought forward to send the picture back.
+    const bigger = choice.mode === "bigger";
+    setWaiting({ path: image.path, since: Date.now(), onShow: bigger ? showBiggerPics : undefined });
     showToast(
       choice.mode === "local"
         ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
-        : choice.mode === "bigger"
-          ? `Förstora ${image.name} i bigger.pics-fönstret och klicka på Send this back eller Download.`
+        : bigger
+          ? `bigger.pics förstorar ${image.name} i ett fönster bakom Imagime. Ta fram det och klicka på Send this back när bilden är klar.`
           : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
+      undefined,
+      bigger ? { label: "Visa bigger.pics", run: showBiggerPics } : undefined,
     );
     try {
       const made =
