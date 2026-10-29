@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Imagime</title>
+    <!-- Painted before anything loads, so starting or reloading never flashes white: the system's
+         light or dark look, or the background the app last showed. -->
+    <style>
+      html { background: #fafafa; }
+      @media (prefers-color-scheme: dark) { html { background: #18181b; } }
+    </style>
+    <script>
+      try {
+        const paint = localStorage.getItem("imagime:paint");
+        if (paint) document.documentElement.style.background = paint;
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

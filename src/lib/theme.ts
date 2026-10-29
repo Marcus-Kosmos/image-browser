@@ -100,9 +100,19 @@ export function themeFor(background: string): Record<string, string> | null {
   };
 }
 
+/** Where the page background is kept for the next start; index.html reads it before anything loads. */
+const PAINT = "imagime:paint";
+
 /** Applies the colors for `background` to the whole document (menus are portalled to <body>). */
 export function useBackgroundTheme(background: string | undefined) {
   useEffect(() => {
+    // Remembered for the next start, which paints it before the app has loaded.
+    try {
+      if (background) localStorage.setItem(PAINT, background);
+      else localStorage.removeItem(PAINT);
+    } catch {
+      // Without storage the next start shows the system's light or dark look first.
+    }
     const vars = background ? themeFor(background) : null;
     if (!vars) return;
     const root = document.documentElement.style;
