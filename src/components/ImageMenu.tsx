@@ -11,6 +11,7 @@ import {
   type ImageSize,
   type Reveal,
 } from "@/lib/settings";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface ImageMenuProps {
   name: string;
@@ -57,6 +58,8 @@ export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, s
     const top = Math.max(8, Math.min(pos.top, window.innerHeight - height - 8));
     if (top !== pos.top) setPos({ ...pos, top });
   }, [pos]);
+
+  useCloseOnLeaveAfterChoice(panel, open, close);
 
   useEffect(() => {
     if (!open) return;

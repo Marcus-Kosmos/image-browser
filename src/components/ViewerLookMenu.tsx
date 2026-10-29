@@ -18,6 +18,7 @@ import {
   type ViewerTransition,
 } from "@/lib/viewer";
 import { cn } from "@/lib/utils";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface ViewerLookMenuProps {
   settings: ViewerSettings;
@@ -29,6 +30,8 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

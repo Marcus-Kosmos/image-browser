@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, FolderPlus, Plus } from "lucide-react";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface SeriesPickerProps {
   path: string;
@@ -24,6 +25,8 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
     onOpenChange(false);
     trigger.current?.focus();
   };
+
+  useCloseOnLeaveAfterChoice(root, open, close);
 
   useEffect(() => {
     if (!open) {

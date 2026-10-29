@@ -3,6 +3,7 @@ import { Check, ListFilter, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DATE_RANGE_LABELS, NO_FILTER, type DateRange, type ImageFilter, type Tag } from "@/lib/filter";
 import { cn } from "@/lib/utils";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface FilterBarProps {
   filter: ImageFilter;
@@ -34,6 +35,8 @@ export function FilterBar({ filter, onChange, tags }: FilterBarProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

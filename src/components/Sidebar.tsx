@@ -23,6 +23,7 @@ import { Dialog } from "@/components/ui/dialog";
 import type { Library, LibraryItem, LibraryView, Place, Privacy, Series } from "@/lib/library";
 import { cn, folderName } from "@/lib/utils";
 import { SeriesMenuList } from "./SeriesMenuList";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface SidebarProps {
   folders: string[];
@@ -405,6 +406,8 @@ function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = 
   }, [open]);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;
