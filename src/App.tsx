@@ -1091,6 +1091,7 @@ export default function App() {
           defaultPinnedName={uniqueSeriesName(library, "Fästa bilder")}
           savedLook={viewerLook ?? undefined}
           headingOf={(img) => settings.images[imageKey(img)]?.heading}
+          onHeadingChange={(i, heading) => images[i] && updateImage(imageKey(images[i]), { heading })}
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen || upscaleFor !== null}
         />

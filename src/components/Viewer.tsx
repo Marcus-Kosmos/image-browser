@@ -11,6 +11,14 @@ import {
   BadgeInfo,
   PanelBottomClose,
   PanelBottomOpen,
+  ArrowDownLeft,
+  ArrowDownRight,
+  ArrowUpLeft,
+  ArrowUpRight,
+  Check,
+  PanelBottom,
+  PanelTop,
+  PencilLine,
   Pin,
   Trash2,
   WandSparkles,
@@ -18,7 +26,7 @@ import {
 } from "lucide-react";
 import { AiMark, aiMarkTitle } from "./AiMark";
 import { Button } from "@/components/ui/button";
-import { originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
+import { listFonts, originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
 import {
@@ -30,6 +38,7 @@ import {
   nextScreenFit,
   resolveTransition,
   useViewerSettings,
+  CAPTION_PLACE_LABELS,
   type CaptionPlace,
   type CaptionSize,
   type Rect,
@@ -44,6 +53,8 @@ import { CollectionsPanel, FAVORITES_TARGET } from "./CollectionsPanel";
 import { ViewerLookMenu } from "./ViewerLookMenu";
 import { SavePinnedMenu, type SavePinnedChoice } from "./SavePinnedMenu";
 import { HeadingText } from "./HeadingText";
+import { HEADING_COLORS, lastStyle, rememberStyle } from "./HeadingDialog";
+import { NativeSelect } from "@/components/ui/native-select";
 import { WaitingRing, type Waiting } from "./WaitingRing";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
 import { cn, formatBytes } from "@/lib/utils";
@@ -91,6 +102,8 @@ interface ViewerProps {
   savedLook?: ViewerSettings;
   /** The heading written for an image, if any. */
   headingOf: (image: ImageEntry) => Heading | undefined;
+  /** Writes or removes an image's heading, typed in place over the picture. */
+  onHeadingChange?: (index: number, heading: Heading | undefined) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
 }
@@ -260,6 +273,7 @@ export function Viewer({
   defaultPinnedName,
   savedLook,
   headingOf,
+  onHeadingChange,
   paused,
 }: ViewerProps) {
   const { settings: usual, update: updateUsual } = useViewerSettings();
@@ -383,6 +397,9 @@ export function Viewer({
   // A pinned picture clicked in the arrangement is shown on its own, large; the arrangement comes back as it
   // was, with the picture that was shown before, on Escape or "Visa serien".
   const [solo, setSolo] = useState<number | null>(null);
+  // The current picture's heading while it is written in place, with the tools for it in the bar below.
+  const [draft, setDraft] = useState<Heading | null>(null);
+  useEffect(() => setDraft(null), [image.path]);
   const arranged = pinSize !== "small" && solo === null ? pinSize : null;
   // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
   // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
@@ -418,9 +435,12 @@ export function Viewer({
   // The largest box with the picture's shape that fits, never larger than the picture itself.
   // A heading above the picture takes a line from its room.
   const captionOf = (img: ImageEntry) => (look.captionPlace === "off" ? undefined : headingOf(img));
-  const heading = captionOf(image);
+  // A heading being written takes its room as it is typed; an empty one keeps the room of a short one.
+  const heading = draft ? { ...draft, text: draft.text || "Rubrik" } : captionOf(image);
   const captionHeight = heading ? captionLineHeight(heading.level, look.captionSize, room.height) : 0;
-  const lift = heading && look.captionPlace === "above" ? captionHeight : 0;
+  const lift = heading && besidePicture(look.captionPlace) ? captionHeight : 0;
+  // A heading above moves the picture down, one under moves it up.
+  const shift = look.captionPlace === "below" ? -lift : lift;
   const pictureRoom = { width: room.width, height: Math.max(0, room.height - lift) };
   const box = fit(pictureRoom, image.width, image.height, pictureFrame, fitMode);
   // Beside pinned pictures the stage hugs the picture, so zooming stays in its place.
@@ -564,7 +584,7 @@ export function Viewer({
     setAdded(target);
   };
   const onStageDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu]")) return;
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu], input, select, label")) return;
     press.current = { x: e.clientX, y: e.clientY, from: zoom, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -687,12 +707,34 @@ export function Viewer({
   const unpin = (p: ImageEntry) => onPinnedChange(pinned.filter((q) => q.path !== p.path));
 
   const favorite = isFavorite(image);
+
+  // Writing a heading in place: it starts from the one there is, or from the style of the last one written.
+  const startWriting = () => {
+    setZoom(WHOLE);
+    setSolo(null);
+    if (look.captionPlace === "off") updateLook({ captionPlace: "above" });
+    setDraft(headingOf(image) ?? { text: "", level: 3, ...lastStyle() });
+  };
+  const saveDraft = (next: Heading | null = draft) => {
+    const text = next?.text.trim();
+    if (next && text) rememberStyle(next);
+    onHeadingChange?.(index, next && text ? { ...next, text } : undefined);
+    setDraft(null);
+  };
   const hasPrev = index > 0;
   const hasNext = index < images.length - 1;
 
   useEffect(() => {
     if (paused) return;
     const onKey = (e: KeyboardEvent) => {
+      // While a heading is written, keys are for the text; Escape leaves it as it was.
+      if (draft) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setDraft(null);
+        }
+        return;
+      }
       // Typing a series name must not trash or step.
       if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
       const digit = Number(e.key);
@@ -721,6 +763,7 @@ export function Viewer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
+    draft,
     paused,
     index,
     hasPrev,
@@ -945,7 +988,7 @@ export function Viewer({
                       original?.path === layer.path && i === layers.length - 1 ? { ...layer, src: original.src } : layer
                     }
                     box={fit(pictureRoom, layer.width, layer.height, pictureFrame, fitMode)}
-                    lift={lift}
+                    lift={shift}
                     frame={pictureFrame}
                     shadow={shadow}
                     rounded={look.rounded}
@@ -965,33 +1008,68 @@ export function Viewer({
                   )}
                   style={{
                     ...shown,
-                    transform: lift ? `translateY(${lift / 2}px)` : undefined,
+                    transform: shift ? `translateY(${shift / 2}px)` : undefined,
                   }}
                 >
-                  {heading && (
-                    <Caption
-                      key={image.path}
-                      heading={heading}
+                  {draft ? (
+                    <HeadingInPlace
+                      heading={draft}
                       place={look.captionPlace}
-                      height={captionHeight}
+                      height={heading ? fitLine(heading, captionHeight, shown.width) : captionHeight}
                       inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
                       width={shown.width}
-                      effect={look.captionEffect}
-                      animate
+                      onChange={(text) => setDraft({ ...draft, text })}
+                      onDone={() => saveDraft()}
                     />
+                  ) : (
+                    heading && (
+                      <Caption
+                        key={image.path}
+                        heading={heading}
+                        place={look.captionPlace}
+                        height={captionHeight}
+                        inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
+                        width={shown.width}
+                        effect={look.captionEffect}
+                        animate
+                        onEdit={onHeadingChange ? startWriting : undefined}
+                      />
+                    )
                   )}
                 </div>
               </div>
             </div>
           </div>
-          <NavButton
-            side="left"
-            disabled={!hasPrev}
-            onClick={() => onIndexChange(index - 1)}
-            style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
-          />
-          <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
-          <Dock pinned={look.dockPinned} themed={look.background}>
+          {/* Stepping on while writing would leave the heading half done. */}
+          {!draft && (
+            <>
+              <NavButton
+                side="left"
+                disabled={!hasPrev}
+                onClick={() => onIndexChange(index - 1)}
+                style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
+              />
+              <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
+            </>
+          )}
+          <Dock
+            pinned={look.dockPinned || !!draft}
+            themed={look.background}
+            atTop={!!draft && (look.captionPlace === "below" || look.captionPlace.startsWith("bottom"))}
+          >
+            {draft ? (
+              <HeadingTools
+                heading={draft}
+                place={look.captionPlace}
+                onChange={(change) => setDraft({ ...draft, ...change })}
+                onPlace={(captionPlace) => updateLook({ captionPlace })}
+                onSave={() => saveDraft()}
+                onRemove={() => saveDraft(null)}
+                onCancel={() => setDraft(null)}
+                canRemove={!!headingOf(image)}
+              />
+            ) : (
+            <>
             {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
             <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
               <Trash2 />
@@ -1010,6 +1088,15 @@ export function Viewer({
             {onReveal && (
               <DockButton onClick={() => onReveal(index)} title="Visa i Finder" label="Visa i Finder">
                 <FolderSearch />
+              </DockButton>
+            )}
+            {onHeadingChange && (
+              <DockButton
+                onClick={startWriting}
+                title="Skriv en rubrik direkt vid bilden"
+                label={headingOf(image) ? "Ändra rubriken" : "Skriv en rubrik"}
+              >
+                <PencilLine />
               </DockButton>
             )}
             <SeriesPicker
@@ -1109,6 +1196,8 @@ export function Viewer({
             >
               {look.dockPinned ? <PanelBottomClose /> : <PanelBottomOpen />}
             </DockButton>
+            </>
+            )}
           </Dock>
         </div>
       </div>
@@ -1132,10 +1221,13 @@ export function Viewer({
 function Dock({
   pinned,
   themed,
+  atTop = false,
   children,
 }: {
   pinned: boolean;
   themed: boolean;
+  /** Under the header instead, out of the way of what is written at the bottom of the picture. */
+  atTop?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -1143,7 +1235,8 @@ function Dock({
       className={cn(
         // Hidden, the bar still needs room around it to notice the mouse in, kept to the bar's
         // width so clicks on the rest of the picture still reach it.
-        "group/dock absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 justify-center px-24 pt-20 pb-8",
+        "group/dock absolute left-1/2 z-30 flex -translate-x-1/2 justify-center px-24",
+        atTop ? "top-12 pt-2 pb-20" : "bottom-0 pt-20 pb-8",
       )}
     >
       <div
@@ -1464,7 +1557,8 @@ function PinnedPicture({
   const captionHeight = heading
     ? Math.max(18, Math.round(captionLineHeight(heading.level, size, rect.height) * Math.min(1, rect.height / 600)))
     : 0;
-  const lift = heading && place === "above" ? captionHeight : 0;
+  const lift = heading && besidePicture(place) ? captionHeight : 0;
+  const shift = place === "below" ? -lift : lift;
   const box = fit({ width: rect.width, height: Math.max(0, rect.height - lift) }, image.width, image.height, frame);
   const framing = frameStyle(frame, box.picture.width, box.picture.height);
   const radius = corners(rounded, framing, box.width, box.height);
@@ -1475,7 +1569,7 @@ function PinnedPicture({
       className={cn("group absolute touch-none", dragging && "z-10 cursor-grabbing opacity-60")}
       style={{
         left: rect.x + (rect.width - box.width) / 2,
-        top: rect.y + (rect.height - box.height + lift) / 2,
+        top: rect.y + (rect.height - box.height + shift) / 2,
         width: box.width,
         height: box.height,
         transition: SLOT_TRANSITION,
@@ -1543,7 +1637,30 @@ interface CaptionProps {
   effect: ViewerTransition;
   /** Comes in with the effect a moment after its picture. */
   animate: boolean;
+  /** A click on it writes it again in place. */
+  onEdit?: () => void;
 }
+
+/** Above or under the picture, taking a line of its own, rather than on it. */
+function besidePicture(place: CaptionPlace) {
+  return place === "above" || place === "below";
+}
+
+/** Where a heading goes around or on the picture, `inset` in from the edges when on it. */
+function captionPosition(place: CaptionPlace, inset: number): React.CSSProperties {
+  if (place === "above") return { left: 0, right: 0, bottom: "100%" };
+  if (place === "below") return { left: 0, right: 0, top: "100%" };
+  return {
+    [place.startsWith("top") ? "top" : "bottom"]: inset,
+    [place.endsWith("right") ? "right" : "left"]: inset,
+    maxWidth: `calc(100% - ${inset * 2}px)`,
+  };
+}
+
+/** On the picture, light letters with a soft shadow, so they read on any part of it. */
+const ON_PICTURE_TEXT: React.CSSProperties = {
+  textShadow: "0 1px 3px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 0 0 / 0.35)",
+};
 
 let measure: CanvasRenderingContext2D | null = null;
 
@@ -1562,7 +1679,7 @@ function fitLine(heading: Heading, height: number, width: number): number {
 }
 
 /** An image's heading in full screen, above the picture or in one of its corners. */
-function Caption({ heading, place, height, inset, width, effect, animate }: CaptionProps) {
+function Caption({ heading, place, height, inset, width, effect, animate, onEdit }: CaptionProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     if (!animate) return;
@@ -1572,28 +1689,25 @@ function Caption({ heading, place, height, inset, width, effect, animate }: Capt
   const motion: React.CSSProperties = entered
     ? { opacity: 1, transform: "none", transition: transitionFor(resolveTransition(effect, 0)) }
     : { ...enterStyle(resolveTransition(effect, 0), 1), transition: "none" };
-  const over = place !== "above";
+  const over = !besidePicture(place);
   const right = place.endsWith("right");
   const line = over ? height : fitLine(heading, height, width);
-  const position: React.CSSProperties = over
-    ? {
-        [place.startsWith("top") ? "top" : "bottom"]: inset,
-        [right ? "right" : "left"]: inset,
-        maxWidth: `calc(100% - ${inset * 2}px)`,
-      }
-    : { left: 0, right: 0, bottom: "100%" };
   return (
-    <div className="pointer-events-none absolute" style={{ ...position, ...motion }}>
+    <div
+      className={cn("absolute", onEdit ? "pointer-events-auto" : "pointer-events-none")}
+      style={{ ...captionPosition(place, inset), ...motion }}
+    >
       <HeadingText
         heading={heading}
         height={line}
         scale={0.62}
+        onEdit={onEdit}
         style={
           over
             ? {
                 color: heading.color ?? "#fff",
                 textAlign: right ? "right" : "left",
-                textShadow: "0 1px 3px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 0 0 / 0.35)",
+                ...ON_PICTURE_TEXT,
                 // On the picture a long heading wraps onto up to three lines instead of being cut.
                 height: "auto",
                 lineHeight: 1.1,
@@ -1607,5 +1721,199 @@ function Caption({ heading, place, height, inset, width, effect, animate }: Capt
         }
       />
     </div>
+  );
+}
+
+interface HeadingInPlaceProps {
+  heading: Heading;
+  place: CaptionPlace;
+  /** Line height the heading gets there. */
+  height: number;
+  inset: number;
+  width: number;
+  onChange: (text: string) => void;
+  onDone: () => void;
+}
+
+/** A heading typed right where it will show, inside a dashed outline of the room it takes. */
+function HeadingInPlace({ heading, place, height, inset, width, onChange, onDone }: HeadingInPlaceProps) {
+  const over = !besidePicture(place);
+  const right = place.endsWith("right");
+  return (
+    <div className="absolute z-20" style={captionPosition(place, inset)}>
+      <input
+        autoFocus
+        value={heading.text}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onDone();
+          }
+        }}
+        placeholder="Skriv rubriken"
+        aria-label="Rubrik"
+        className="block rounded-md border-[1.5px] border-dashed border-current/70 bg-transparent px-2 outline-none placeholder:text-current/45 focus-visible:border-current"
+        style={{
+          width: over ? Math.min(width - inset * 2, 560) : "100%",
+          height,
+          fontSize: height * 0.62,
+          fontWeight: heading.level === 3 ? 500 : 600,
+          color: heading.color ?? (over ? "#fff" : "var(--foreground)"),
+          fontFamily: heading.font ? `"${heading.font}", system-ui, sans-serif` : undefined,
+          textAlign: right ? "right" : "left",
+          ...(over && ON_PICTURE_TEXT),
+        }}
+      />
+    </div>
+  );
+}
+
+const PLACE_TOOLS: { place: CaptionPlace; icon: React.ReactNode }[] = [
+  { place: "above", icon: <PanelTop /> },
+  { place: "below", icon: <PanelBottom /> },
+  { place: "top-left", icon: <ArrowUpLeft /> },
+  { place: "top-right", icon: <ArrowUpRight /> },
+  { place: "bottom-left", icon: <ArrowDownLeft /> },
+  { place: "bottom-right", icon: <ArrowDownRight /> },
+];
+
+interface HeadingToolsProps {
+  heading: Heading;
+  place: CaptionPlace;
+  onChange: (change: Partial<Heading>) => void;
+  onPlace: (place: CaptionPlace) => void;
+  onSave: () => void;
+  onRemove: () => void;
+  onCancel: () => void;
+  /** There is a saved heading to take away. */
+  canRemove: boolean;
+}
+
+/**
+ * In the bar under the picture while a heading is written: where it goes, its level, color and font.
+ * The buttons keep the typing in the heading rather than taking it.
+ */
+function HeadingTools({ heading, place, onChange, onPlace, onSave, onRemove, onCancel, canRemove }: HeadingToolsProps) {
+  const [fonts, setFonts] = useState<string[]>([]);
+  useEffect(() => void listFonts().then(setFonts), []);
+  const keep = (e: React.PointerEvent) => e.preventDefault();
+  const custom = heading.color && !HEADING_COLORS.includes(heading.color);
+  return (
+    <div className="flex items-center gap-1" onPointerDown={(e) => e.target instanceof HTMLSelectElement || keep(e)}>
+      <div role="radiogroup" aria-label="Var rubriken står" className="flex items-center gap-0.5">
+        {PLACE_TOOLS.map(({ place: p, icon }) => (
+          <DockButton
+            key={p}
+            onClick={() => onPlace(p)}
+            pressed={place === p}
+            title={CAPTION_PLACE_LABELS[p]}
+            label={CAPTION_PLACE_LABELS[p]}
+          >
+            {icon}
+          </DockButton>
+        ))}
+      </div>
+      <DockDivider />
+      <div role="radiogroup" aria-label="Nivå" className="flex items-center gap-0.5">
+        {([1, 2, 3] as const).map((level) => (
+          <DockButton
+            key={level}
+            onClick={() => onChange({ level })}
+            pressed={heading.level === level}
+            title={`Rubriknivå ${level}`}
+            label={`H${level}`}
+          >
+            <span className="text-sm font-semibold">H{level}</span>
+          </DockButton>
+        ))}
+      </div>
+      <DockDivider />
+      <div role="radiogroup" aria-label="Färg" className="flex items-center gap-1 px-1">
+        <Swatch
+          selected={!heading.color}
+          onClick={() => onChange({ color: undefined })}
+          label="Standardfärg"
+          style={{ background: "linear-gradient(135deg, #f4f4f5 50%, #18181b 50%)" }}
+        />
+        {HEADING_COLORS.slice(0, 6).map((c) => (
+          <Swatch key={c} selected={heading.color === c} onClick={() => onChange({ color: c })} label={c} style={{ background: c }} />
+        ))}
+        <label
+          title="Valfri färg"
+          className={cn(
+            "relative size-6 cursor-pointer overflow-hidden rounded-full border border-current/30",
+            custom && "ring-2 ring-current ring-offset-1 ring-offset-transparent",
+          )}
+          style={{
+            background: custom ? heading.color : "conic-gradient(#f87171, #facc15, #4ade80, #22d3ee, #818cf8, #e879f9, #f87171)",
+          }}
+        >
+          <span className="sr-only">Valfri färg</span>
+          <input
+            type="color"
+            value={heading.color ?? "#808080"}
+            onChange={(e) => onChange({ color: e.target.value })}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
+      </div>
+      <DockDivider />
+      <NativeSelect
+        aria-label="Typsnitt"
+        title="Typsnitt"
+        wrapperClassName="w-40"
+        value={heading.font ?? ""}
+        onChange={(e) => onChange({ font: e.target.value || undefined })}
+        className="h-9 w-full rounded-xl border border-current/20 bg-transparent px-2 text-sm text-current outline-none"
+      >
+        <option value="">Systemets typsnitt</option>
+        {heading.font && !fonts.includes(heading.font) && <option value={heading.font}>{heading.font}</option>}
+        {fonts.map((f) => (
+          <option key={f} value={f} style={{ fontFamily: `"${f}"` }}>
+            {f}
+          </option>
+        ))}
+      </NativeSelect>
+      <DockDivider />
+      {canRemove && (
+        <DockButton onClick={onRemove} title="Ta bort rubriken" label="Ta bort rubriken" danger>
+          <Trash2 />
+        </DockButton>
+      )}
+      <DockButton onClick={onCancel} title="Avbryt (Esc)" label="Avbryt">
+        <X />
+      </DockButton>
+      <DockButton onClick={onSave} title="Spara rubriken (Enter)" label="Spara rubriken" pressed>
+        <Check />
+      </DockButton>
+    </div>
+  );
+}
+
+function Swatch({
+  selected,
+  onClick,
+  label,
+  style,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  style: React.CSSProperties;
+}) {
+  return (
+    <button
+      role="radio"
+      aria-checked={selected}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "size-6 rounded-full border border-current/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current",
+        selected && "ring-2 ring-current ring-offset-1 ring-offset-transparent",
+      )}
+      style={style}
+    />
   );
 }

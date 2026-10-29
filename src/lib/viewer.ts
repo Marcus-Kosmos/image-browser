@@ -47,13 +47,14 @@ export const PIN_SIZE_LABELS: Record<PinSize, string> = {
 };
 
 /** Where an image's heading goes in full screen. */
-export type CaptionPlace = "off" | "above" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type CaptionPlace = "off" | "above" | "below" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
-export const CAPTION_PLACES: CaptionPlace[] = ["off", "above", "top-left", "top-right", "bottom-left", "bottom-right"];
+export const CAPTION_PLACES: CaptionPlace[] = ["off", "above", "below", "top-left", "top-right", "bottom-left", "bottom-right"];
 
 export const CAPTION_PLACE_LABELS: Record<CaptionPlace, string> = {
   off: "Visa inte",
   above: "Ovanför bilden",
+  below: "Under bilden",
   "top-left": "På bilden, uppe till vänster",
   "top-right": "På bilden, uppe till höger",
   "bottom-left": "På bilden, nere till vänster",
