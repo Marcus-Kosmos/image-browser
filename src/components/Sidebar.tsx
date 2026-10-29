@@ -9,6 +9,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  FolderX,
   GalleryHorizontalEnd,
   Heart,
   Lock,
@@ -25,6 +26,8 @@ import { SeriesMenuList } from "./SeriesMenuList";
 
 interface SidebarProps {
   folders: string[];
+  /** Remembered folders that have been moved or deleted outside the app. */
+  goneFolders: Set<string>;
   library: Library;
   view: LibraryView;
   onSelect: (view: LibraryView) => void;
@@ -57,6 +60,7 @@ interface SidebarProps {
 
 export function Sidebar({
   folders,
+  goneFolders,
   library,
   view,
   onSelect,
@@ -127,14 +131,16 @@ export function Sidebar({
       )}
       {recent.map((r) => {
         const open = sameFolders(r, folders);
+        const gone = r.filter((f) => goneFolders.has(f));
         return (
           <Item
             key={r.join("\n")}
             active={view.kind === "folders" && open}
             onClick={() => (open ? onSelect({ kind: "folders" }) : onOpenRecent(r))}
-            icon={<Folder />}
+            icon={gone.length ? <FolderX /> : <Folder />}
             label={folderLabel(r)}
-            title={r.join("\n")}
+            title={goneTitle(r.join("\n"), gone)}
+            gone={gone.length > 0}
             actions={<RowMenu label={folderLabel(r)} onDelete={() => onForgetRecent(r)} deleteLabel="Glöm mappen" />}
           />
         );
@@ -166,9 +172,10 @@ export function Sidebar({
             key={p.id}
             active={view.kind === "folders" && currentPlace?.id === p.id}
             onClick={() => onOpenPlace(p)}
-            icon={<Bookmark />}
+            icon={p.folders.some((f) => goneFolders.has(f)) ? <FolderX /> : <Bookmark />}
             label={p.name}
-            title={`${p.name}\n${p.folders.join("\n")}`}
+            title={goneTitle(`${p.name}\n${p.folders.join("\n")}`, p.folders.filter((f) => goneFolders.has(f)))}
+            gone={p.folders.some((f) => goneFolders.has(f))}
             actions={
               <RowMenu
                 label={p.name}
@@ -326,9 +333,17 @@ interface ItemProps {
   /** Lets images be dragged here from the gallery. */
   dropTarget?: string;
   actions?: React.ReactNode;
+  /** Its folder is no longer where it was, so it is greyed out. */
+  gone?: boolean;
 }
 
-function Item({ active, onClick, icon, label, title, count, privacy, dropTarget, actions }: ItemProps) {
+/** The row's tooltip, saying which of its folders are no longer where they were. */
+function goneTitle(title: string, gone: string[]) {
+  if (gone.length === 0) return title;
+  return `${title}\n\n${gone.length === 1 ? "Mappen" : "De här mapparna"} finns inte längre, flyttad eller borttagen utanför appen:\n${gone.join("\n")}`;
+}
+
+function Item({ active, onClick, icon, label, title, count, privacy, dropTarget, actions, gone }: ItemProps) {
   return (
     <div
       data-drop-target={dropTarget}
@@ -344,7 +359,9 @@ function Item({ active, onClick, icon, label, title, count, privacy, dropTarget,
         className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
       >
         {icon}
-        <span className={cn("truncate", active && "font-medium")}>{label}</span>
+        <span className={cn("truncate", active && "font-medium", gone && "text-muted-foreground")}>
+          {label}
+        </span>
         {privacy?.hidden && <EyeOff className="!size-3" aria-label="Dold" />}
         {privacy?.locked && <Lock className="!size-3" aria-label="Låst" />}
         {count !== undefined && (

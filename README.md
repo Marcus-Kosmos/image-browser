@@ -40,6 +40,10 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - (i)-knappen längst till höger i verktygsraden, eller ?, visar alla kortkommandon
 - I helskärm lägger mappknappen bredvid hjärtat (eller S) bilden i en serie, eller i en ny serie.
   Siffertangenterna 1–9 lägger till i serie nummer 1–9 direkt
+- Bilder i Favoriter och serierna som flyttats eller tagits bort i Finder visas som en grå ruta,
+  "Bilden är borta", och kan tas ur listan som vanligt. Bilder som ändrats sedan de lades dit får märket
+  "Ändrad". Mappar i sidopanelen som inte finns kvar blir grå med en överkryssad mapp. Appen kollar
+  igen när den kommer fram efter att du varit i ett annat program.
 - I helskärm samlas knapparna för bilden i en stor, halvgenomskinlig rad nere vid bilden: papperskorgen
   längst till vänster, sedan förstora med AI, visa i Finder och serie, AI-märkningen (av/på, och visar
   "AI-förstorad" eller "AI-bild" när den är på) och längst till höger nålen och hjärtat. Under Visning kan
