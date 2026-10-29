@@ -70,7 +70,7 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
         <div
           role="dialog"
           aria-label="Visning i helskärm"
-          className="absolute right-0 bottom-11 z-50 max-h-[calc(100vh-8rem)] w-64 overflow-y-auto rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
+          className="absolute top-10 right-0 z-50 max-h-[calc(100vh-4rem)] w-64 overflow-y-auto rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
         >
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Övergång mellan bilder</div>
           <div role="radiogroup" aria-label="Övergång" className="flex flex-col">

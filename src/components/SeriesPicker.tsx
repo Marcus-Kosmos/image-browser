@@ -66,8 +66,8 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
         title="Lägg till i serie (S)"
         aria-label={count > 0 ? `Lägg till i serie, finns i ${count}` : "Lägg till i serie"}
         className={cn(
-          "relative flex size-8 items-center justify-center rounded-md text-current/80 hover:bg-current/15 hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current [&_svg]:size-4",
-          open && "bg-current/15 text-current",
+          "relative flex size-11 items-center justify-center rounded-2xl text-current/85 hover:bg-current/15 hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current [&_svg]:size-5",
+          open && "bg-current/20 text-current",
         )}
       >
         <FolderPlus />
@@ -81,7 +81,7 @@ export function SeriesPicker({ path, series, open, onOpenChange, onToggle, onCre
         <div
           role="menu"
           aria-label="Serier"
-          className="absolute bottom-11 left-1/2 z-10 w-64 -translate-x-1/2 rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
+          className="absolute bottom-14 left-1/2 z-10 w-64 -translate-x-1/2 rounded-lg border border-white/15 bg-zinc-900/95 p-1.5 text-sm text-white shadow-xl backdrop-blur"
         >
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Lägg till i serie</div>
           <div className="flex max-h-[50vh] flex-col overflow-y-auto">
