@@ -20,6 +20,7 @@ import {
   PanelTop,
   PencilLine,
   Pin,
+  RectangleEllipsis,
   Trash2,
   WandSparkles,
   X,
@@ -400,6 +401,10 @@ export function Viewer({
   // The current picture's heading while it is written in place, with the tools for it in the bar below.
   const [draft, setDraft] = useState<Heading | null>(null);
   useEffect(() => setDraft(null), [image.path]);
+  // Among several pictures shown together, the bar of buttons can be pointed at a pinned one instead of
+  // the current one. Stepping on points it back.
+  const [aimedAt, setAimedAt] = useState<string | null>(null);
+  useEffect(() => setAimedAt(null), [image.path]);
   const arranged = pinSize !== "small" && solo === null ? pinSize : null;
   // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
   // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
@@ -419,6 +424,11 @@ export function Viewer({
     page = fits ? pages.length - 1 : pages.length;
   }
   const pageCount = arranged ? Math.max(pages.length, page + 1) : 0;
+  // What the bar of buttons, the collections and the keys act on: the pinned picture pointed at while it
+  // is shown, else the current one.
+  const aimedIndex = aimedAt && beside.some((p) => p.path === aimedAt) ? images.findIndex((img) => img.path === aimedAt) : -1;
+  const actIndex = aimedIndex >= 0 ? aimedIndex : index;
+  const actOn = images[actIndex] ?? image;
   const layout = arranged ? pinLayout(arranged, beside, image, space, PIN_ROW_GAP, at) : null;
   const goToPage = (k: number) => {
     const first = pages[k]?.[0];
@@ -576,11 +586,13 @@ export function Viewer({
     const t = window.setTimeout(() => setAdded(null), 1200);
     return () => window.clearTimeout(t);
   }, [added]);
-  const inSeries = (id: string) => !!series.find((s) => s.id === id)?.images.some((img) => img.path === image.path);
+  const inSeries = (id: string, path = actOn.path) =>
+    !!series.find((s) => s.id === id)?.images.some((img) => img.path === path);
+  // A drop carries the current picture, whatever the bar is pointed at.
   const dropIn = (target: string) => {
     if (target === FAVORITES_TARGET) {
-      if (!favorite) onToggleFavorite(index);
-    } else if (!inSeries(target)) onToggleSeries(target, index);
+      if (!isFavorite(image)) onToggleFavorite(index);
+    } else if (!inSeries(target, image.path)) onToggleSeries(target, index);
     setAdded(target);
   };
   const onStageDown = (e: React.PointerEvent) => {
@@ -638,14 +650,14 @@ export function Viewer({
   const pinRows = Math.max(1, Math.floor((space.height + PIN_GAP) / (PIN_H + PIN_GAP)));
   const pinColumns = Math.min(PIN_COLUMNS, Math.ceil(pinned.length / pinRows));
   const pinsWidth = pinSize === "small" && pinColumns ? 16 + pinColumns * (PIN_W + PIN_GAP) : 0;
-  const isPinned = pinned.some((p) => p.path === image.path);
+  const isPinned = pinned.some((p) => p.path === actOn.path);
   // Larger ones stop when the next picture, assumed shaped like this one, would get too small.
   // Larger ones never run out: a full page is followed by another.
   const pinsFull = !isPinned && pinSize === "small" && pinned.length >= pinRows * PIN_COLUMNS;
   const togglePin = useCallback(() => {
-    if (pinned.some((p) => p.path === image.path)) onPinnedChange(pinned.filter((p) => p.path !== image.path));
-    else if (!pinsFull) onPinnedChange([...pinned, image]);
-  }, [pinned, image, pinsFull, onPinnedChange]);
+    if (pinned.some((p) => p.path === actOn.path)) onPinnedChange(pinned.filter((p) => p.path !== actOn.path));
+    else if (!pinsFull) onPinnedChange([...pinned, actOn]);
+  }, [pinned, actOn, pinsFull, onPinnedChange]);
   const openPinned = (p: ImageEntry) => {
     // The click that ends a drag doesn't open the image.
     if (dragged.current) {
@@ -673,7 +685,7 @@ export function Viewer({
   const latestPinned = useRef(pinned);
   latestPinned.current = pinned;
   const startPinDrag = (path: string, e: React.PointerEvent) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("[data-unpin]")) return;
+    if (e.button !== 0 || (e.target as HTMLElement).closest("[data-unpin], [data-aim]")) return;
     const start = { x: e.clientX, y: e.clientY };
     let moved = false;
     let lastOver: string | null = null;
@@ -706,7 +718,7 @@ export function Viewer({
   };
   const unpin = (p: ImageEntry) => onPinnedChange(pinned.filter((q) => q.path !== p.path));
 
-  const favorite = isFavorite(image);
+  const favorite = isFavorite(actOn);
 
   // Writing a heading in place: it starts from the one there is, or from the style of the last one written.
   const startWriting = () => {
@@ -749,14 +761,14 @@ export function Viewer({
       else if (e.key === "h") updateLook({ screen: nextScreenFit(look.screen) });
       else if (e.key === "c") pinCollections(!look.collections);
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
-        onToggleSeries(series[digit - 1].id, index);
+        onToggleSeries(series[digit - 1].id, actIndex);
       else if (e.key === "s") setPicking((p) => !p);
       else if (e.key === "PageUp" && page > 0) goToPage(page - 1);
       else if (e.key === "PageDown" && page < pages.length - 1) goToPage(page + 1);
       else if (e.key === "ArrowLeft" && hasPrev) onIndexChange(index - 1);
       else if (e.key === "ArrowRight" && hasNext) onIndexChange(index + 1);
-      else if (e.key === "Delete" || e.key === "Backspace") onTrash(index);
-      else if (e.key === "f") onToggleFavorite(index);
+      else if (e.key === "Delete" || e.key === "Backspace") onTrash(actIndex);
+      else if (e.key === "f") onToggleFavorite(actIndex);
       else return;
       e.preventDefault();
     };
@@ -766,6 +778,7 @@ export function Viewer({
     draft,
     paused,
     index,
+    actIndex,
     hasPrev,
     hasNext,
     onClose,
@@ -871,8 +884,8 @@ export function Viewer({
             series={series}
             favorite={favorite}
             inSeries={inSeries}
-            onToggleFavorite={() => onToggleFavorite(index)}
-            onToggleSeries={(id) => onToggleSeries(id, index)}
+            onToggleFavorite={() => onToggleFavorite(actIndex)}
+            onToggleSeries={(id) => onToggleSeries(id, actIndex)}
             over={carry?.over ?? null}
             added={added}
             compact={!look.collections && !railOpen && !carry}
@@ -947,16 +960,22 @@ export function Viewer({
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
                   onOpen={() => openPinned(beside[i])}
                   onUnpin={() => unpin(beside[i])}
+                  aimed={aimedIndex >= 0 && beside[i].path === aimedAt}
+                  onAim={
+                    images.some((img) => img.path === beside[i].path) ? () => setAimedAt(beside[i].path) : undefined
+                  }
                 />
               ))}
               <div
                 ref={setStage}
                 className={cn(
-                  "flex touch-none items-center justify-center overflow-hidden",
+                  "group/stage flex touch-none items-center justify-center overflow-hidden",
                   layout || zoomed ? "absolute" : "relative size-full",
                   zoomed && "z-10",
                 )}
                 style={{
+                  // Marks the picture the bar of buttons acts on, among several.
+                  ...(beside.length > 0 && aimedIndex < 0 && !zoomed && { outline: AIMED_OUTLINE, outlineOffset: 6 }),
                   ...(layout && {
                     left: layout.current.x + (layout.current.width - box.width) / 2,
                     top: layout.current.y + (layout.current.height - box.height - lift) / 2,
@@ -1011,6 +1030,9 @@ export function Viewer({
                     transform: shift ? `translateY(${shift / 2}px)` : undefined,
                   }}
                 >
+                  {!draft && beside.length > 0 && aimedIndex >= 0 && (
+                    <AimButton name={image.name} onAim={() => setAimedAt(null)} className="group-hover/stage:opacity-100" />
+                  )}
                   {draft ? (
                     <HeadingInPlace
                       heading={draft}
@@ -1071,13 +1093,13 @@ export function Viewer({
             ) : (
             <>
             {/* Set apart at the start, so it isn't clicked by mistake for something else. */}
-            <DockButton onClick={() => onTrash(index)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
+            <DockButton onClick={() => onTrash(actIndex)} title="Flytta till papperskorgen (⌫)" label="Flytta till papperskorgen" danger>
               <Trash2 />
             </DockButton>
             <DockDivider />
             {onUpscale && (
               <DockButton
-                onClick={() => onUpscale(index)}
+                onClick={() => onUpscale(actIndex)}
                 disabled={upscaling}
                 title={upscaling ? "Förstorar med AI…" : "Förstora med AI: sparar en större kopia bredvid originalet"}
                 label="Förstora med AI"
@@ -1086,7 +1108,7 @@ export function Viewer({
               </DockButton>
             )}
             {onReveal && (
-              <DockButton onClick={() => onReveal(index)} title="Visa i Finder" label="Visa i Finder">
+              <DockButton onClick={() => onReveal(actIndex)} title="Visa i Finder" label="Visa i Finder">
                 <FolderSearch />
               </DockButton>
             )}
@@ -1100,16 +1122,16 @@ export function Viewer({
               </DockButton>
             )}
             <SeriesPicker
-              path={image.path}
+              path={actOn.path}
               series={series}
               open={picking}
               onOpenChange={setPicking}
-              onToggle={(id) => onToggleSeries(id, index)}
-              onCreate={(name) => onCreateSeries(name, index)}
+              onToggle={(id) => onToggleSeries(id, actIndex)}
+              onCreate={(name) => onCreateSeries(name, actIndex)}
               defaultName={newSeriesName}
             />
             {onRemove && (
-              <DockButton onClick={() => onRemove(index)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
+              <DockButton onClick={() => onRemove(actIndex)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
                 <FolderMinus />
               </DockButton>
             )}
@@ -1180,7 +1202,7 @@ export function Viewer({
               <Pin className={cn(isPinned && "fill-current")} />
             </DockButton>
             <DockButton
-              onClick={() => onToggleFavorite(index)}
+              onClick={() => onToggleFavorite(actIndex)}
               pressed={favorite}
               title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
               label={favorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
@@ -1534,6 +1556,34 @@ interface PinnedPictureProps {
   onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
   onUnpin: () => void;
+  /** The bar of buttons acts on it. */
+  aimed: boolean;
+  /** Points the bar of buttons at it; left out when it can't be, being outside what is browsed. */
+  onAim?: () => void;
+}
+
+const AIMED_OUTLINE = "2px solid color-mix(in oklab, currentColor 70%, transparent)";
+
+/** Shown on hover over a picture among several: points the bar of buttons at it. */
+function AimButton({ name, onAim, className }: { name: string; onAim: () => void; className?: string }) {
+  return (
+    <button
+      data-aim
+      onClick={(e) => {
+        e.stopPropagation();
+        e.currentTarget.blur();
+        onAim();
+      }}
+      title="Använd knappraden för den här bilden"
+      aria-label={`Använd knappraden för ${name}`}
+      className={cn(
+        "absolute top-2 left-2 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+        className,
+      )}
+    >
+      <RectangleEllipsis className="size-4" />
+    </button>
+  );
 }
 
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
@@ -1550,6 +1600,8 @@ function PinnedPicture({
   onDragStart,
   onOpen,
   onUnpin,
+  aimed,
+  onAim,
 }: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
@@ -1573,6 +1625,7 @@ function PinnedPicture({
         width: box.width,
         height: box.height,
         transition: SLOT_TRANSITION,
+        ...(aimed && { outline: AIMED_OUTLINE, outlineOffset: 6 }),
       }}
     >
       <button
@@ -1613,6 +1666,7 @@ function PinnedPicture({
           animate={false}
         />
       )}
+      {onAim && !aimed && <AimButton name={image.name} onAim={onAim} className="group-hover:opacity-100" />}
       <button
         data-unpin
         onClick={onUnpin}
