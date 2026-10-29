@@ -4,15 +4,17 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use tauri::webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse};
+use tauri::webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse, PageLoadEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder};
 
 use crate::upscale;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
+/// Set once the user asks to see bigger.pics, so the app's window stops being raised over it.
+static SHOWN: AtomicBool = AtomicBool::new(false);
 
 /// The picture being enlarged in bigger.pics right now; a download from there is saved beside it.
 static TARGET: Mutex<Option<PathBuf>> = Mutex::new(None);
@@ -35,6 +37,7 @@ pub fn close_all<R: Runtime>(app: &AppHandle<R>) {
 
 /// Brings the bigger.pics windows to the front, to send the picture back.
 pub fn show_all<R: Runtime>(app: &AppHandle<R>) {
+    SHOWN.store(true, Ordering::Relaxed);
     for (label, window) in app.webview_windows() {
         if label.starts_with("bigger-pics-") {
             let _ = window.unminimize();
@@ -105,6 +108,7 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         return NewWindowResponse::Deny;
     }
     let label = format!("bigger-pics-{}", COUNT.fetch_add(1, Ordering::Relaxed));
+    SHOWN.store(false, Ordering::Relaxed);
     // WebKit loads the address itself into the window handed back, keeping the link to the opener.
     let built = WebviewWindowBuilder::new(app, label, WebviewUrl::External("about:blank".parse().unwrap()))
         .title("bigger.pics")
@@ -113,6 +117,12 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         // It works behind the app's window: there is nothing to do in it until the picture is enlarged.
         .focused(false)
         .on_download(on_download)
+        // The page can bring its window forward when it has loaded, which may be well after it opened.
+        .on_page_load(|window, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+                raise_main(window.app_handle(), window.label(), true);
+            }
+        })
         // Links and ads inside bigger.pics open in the browser, not in more app windows.
         .on_new_window(|url, _| {
             open_in_browser(&url);
@@ -121,19 +131,33 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         .build();
     match built {
         Ok(window) => {
-            // macOS still brings a new window forward, so the app's window is raised again once it is up.
+            // macOS still brings a new window forward, so the app's window is raised again once it is up,
+            // and again later while bigger.pics is still in front (its page may take a while to load).
             let app = app.clone();
+            let popup = window.label().to_string();
             std::thread::spawn(move || {
-                for delay in [150, 600] {
+                for (delay, only_from_popup) in [(150, false), (600, false), (1500, true), (3000, true), (6000, true)] {
                     std::thread::sleep(std::time::Duration::from_millis(delay));
-                    if let Some(main) = app.get_webview_window("main") {
-                        let _ = main.set_focus();
-                    }
+                    raise_main(&app, &popup, only_from_popup);
                 }
             });
             NewWindowResponse::Create { window }
         }
         Err(_) => NewWindowResponse::Deny,
+    }
+}
+
+/// Raises the app's window over bigger.pics again, unless the user asked to see bigger.pics. With
+/// `only_from_popup`, only while bigger.pics is the window in front, so another program is never pushed back.
+fn raise_main<R: Runtime>(app: &AppHandle<R>, popup: &str, only_from_popup: bool) {
+    if SHOWN.load(Ordering::Relaxed) {
+        return;
+    }
+    if only_from_popup && !app.get_webview_window(popup).and_then(|w| w.is_focused().ok()).unwrap_or(false) {
+        return;
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.set_focus();
     }
 }
 

@@ -708,6 +708,17 @@ export default function App() {
   const dropInto = series && !locked ? series : null;
   /** Paths compare equal however their letters (å, ä, ö) were composed. */
   const samePath = (path: string) => path.normalize("NFC");
+  /** Reads the pictures at `paths` from their folders, as entries for the library. */
+  const readImages = async (paths: string[]) => {
+    const parents = [...new Set(paths.map(parentFolder).filter((p): p is string => p !== null))];
+    const listings = await Promise.allSettled(parents.map((p) => scanFolder(p, false)));
+    const wanted = new Set(paths.map(samePath));
+    const entries = listings
+      .flatMap((r) => (r.status === "fulfilled" ? r.value.images : []))
+      .filter((img) => wanted.has(samePath(img.path)));
+    if (entries.length === 0) showToast("Kunde inte läsa bilderna.", "error");
+    return entries;
+  };
   const handleDrop = async (paths: string[]) => {
     const { folders: droppedFolders, images: droppedImages } = await sortDropped(paths);
     if (droppedFolders.length === 0 && droppedImages.length === 0) {
@@ -715,16 +726,8 @@ export default function App() {
       return;
     }
     if (dropInto && droppedImages.length > 0) {
-      const parents = [...new Set(droppedImages.map(parentFolder).filter((p): p is string => p !== null))];
-      const listings = await Promise.allSettled(parents.map((p) => scanFolder(p, false)));
-      const wanted = new Set(droppedImages.map(samePath));
-      const entries = listings
-        .flatMap((r) => (r.status === "fulfilled" ? r.value.images : []))
-        .filter((img) => wanted.has(samePath(img.path)));
-      if (entries.length === 0) {
-        showToast("Kunde inte läsa bilderna.", "error");
-        return;
-      }
+      const entries = await readImages(droppedImages);
+      if (entries.length === 0) return;
       addTo(`series:${dropInto.id}`, entries);
       // Show the first one where it now is in the series.
       setShowOnLoad(entries[0].path);
@@ -768,7 +771,21 @@ export default function App() {
       stopDownloads();
     }
   };
+  // What is shown when a slow job finishes, rather than when it started.
+  const current = useRef({ viewKey, listing, includeSubfolders, loadFolders, addToSeries: async (_id: string, _path: string) => {} });
+  current.current = {
+    viewKey,
+    listing,
+    includeSubfolders,
+    loadFolders,
+    addToSeries: async (id, path) => {
+      const entries = await readImages([path]);
+      if (entries.length > 0) addTo(`series:${id}`, entries);
+    },
+  };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
+    const startedIn = viewKey;
+    const startedInSeries = series && !locked ? series.id : null;
     // bigger.pics works in a window behind the app's and sends the picture back by itself.
     const bigger = choice.mode === "bigger";
     setWaiting({ path: image.path, since: Date.now() });
@@ -793,13 +810,17 @@ export default function App() {
         return;
       }
       const name = made.split("/").pop() ?? made;
-      if (series && !locked) {
+      // The enlargement can take minutes, and meanwhile another folder or series may be shown:
+      // only what is shown now is updated, and only when it is still where the picture was enlarged.
+      const now = current.current;
+      const stayed = now.viewKey === startedIn;
+      if (startedInSeries) {
         // In a series, the copy goes into it, beside the original.
-        await handleDrop([made]);
-      } else if (listing) {
-        await loadFolders(listing.folders, includeSubfolders, true);
+        await now.addToSeries(startedInSeries, made);
+      } else if (stayed && now.listing) {
+        await now.loadFolders(now.listing.folders, now.includeSubfolders, true);
       }
-      setShowOnLoad(made);
+      if (stayed) setShowOnLoad(made);
       showToast(`Sparad som ${name}, bredvid originalet.`, "success", {
         label: "Visa i Finder",
         run: () => void reveal([made]),
