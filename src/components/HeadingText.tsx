@@ -1,5 +1,6 @@
 import type { Heading } from "@/lib/settings";
 import { cn } from "@/lib/utils";
+import { textWeight } from "@/lib/viewer";
 
 interface HeadingTextProps {
   heading: Heading;
@@ -12,7 +13,7 @@ interface HeadingTextProps {
   style?: React.CSSProperties;
 }
 
-/** A heading in its chosen level, color and font, clickable to edit it. */
+/** A heading in its chosen size, color and font, clickable to edit it. */
 export function HeadingText({ heading, height, scale, onEdit, className, style }: HeadingTextProps) {
   const Tag = (`h${heading.level}` as "h1" | "h2" | "h3");
   return (
@@ -22,7 +23,7 @@ export function HeadingText({ heading, height, scale, onEdit, className, style }
         height,
         lineHeight: `${height}px`,
         fontSize: height * scale,
-        fontWeight: heading.level === 3 ? 500 : 600,
+        fontWeight: textWeight(heading),
         color: heading.color ?? "var(--foreground)",
         fontFamily: heading.font ? `"${heading.font}", system-ui, sans-serif` : undefined,
         ...style,

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  ALargeSmall,
   ChevronLeft,
+  Columns2,
+  UnfoldHorizontal,
   ChevronRight,
   CircleMinus,
   FolderSearch,
@@ -49,6 +52,11 @@ import {
   CAPTION_ALIGN_LABELS,
   CAPTION_PLACE_LABELS,
   captionAlignAt,
+  levelForSize,
+  textSize,
+  textWeight,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
   type CaptionAlign,
   type CaptionPlace,
   type CaptionSize,
@@ -459,12 +467,15 @@ export function Viewer({
   const captionOf = (img: ImageEntry) => (look.captionPlace === "off" ? undefined : headingOf(img));
   // A heading being written takes its room as it is typed; an empty one keeps the room of a short one.
   const heading = draft ? { ...draft, text: draft.text || "Rubrik" } : captionOf(image);
-  const captionHeight = heading ? captionLineHeight(heading.level, look.captionSize, room.height) : 0;
+  const captionHeight = heading ? captionLineHeight(heading, look.captionSize, room.height) : 0;
   const lift = heading && besidePicture(look.captionPlace) ? captionHeight : 0;
   // A heading above moves the picture down, one under moves it up.
   const shift = look.captionPlace === "below" ? -lift : lift;
   // A heading to the left or right takes a column of its own, and moves the picture the other way.
-  const aside = heading && asidePicture(look.captionPlace) ? asideWidth(room.width) : 0;
+  const aside =
+    heading && asidePicture(look.captionPlace)
+      ? asideColumn(room, image.width, image.height, pictureFrame, fitMode, look.captionWide)
+      : 0;
   const slide = look.captionPlace === "right" ? -aside : aside;
   const align = captionAlignAt(look.captionPlace, look.captionAlign);
   const pictureRoom = { width: Math.max(0, room.width - aside), height: Math.max(0, room.height - lift) };
@@ -751,7 +762,8 @@ export function Viewer({
     setZoom(WHOLE);
     setSolo(null);
     if (look.captionPlace === "off") updateLook({ captionPlace: "above" });
-    setDraft(headingOf(image) ?? { text: "", level: 3, ...lastStyle() });
+    const style = lastStyle();
+    setDraft(headingOf(image) ?? { text: "", ...style, level: style.size ? levelForSize(style.size) : 3 });
   };
   const saveDraft = (next: Heading | null = draft) => {
     const text = next?.text.trim();
@@ -994,6 +1006,7 @@ export function Viewer({
                   place={look.captionPlace}
                   align={look.captionAlign}
                   size={look.captionSize}
+                  wide={look.captionWide}
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
                   onOpen={() => openPinned(beside[i])}
@@ -1078,7 +1091,16 @@ export function Viewer({
                       place={look.captionPlace}
                       align={align}
                       aside={aside}
-                      height={heading && besidePicture(look.captionPlace) ? fitLine(heading, captionHeight, shown.width) : captionHeight}
+                      height={
+                        heading
+                          ? captionLine(heading, look.captionPlace, captionHeight, {
+                              width: shown.width,
+                              height: shown.height,
+                              aside,
+                              inset: framePad(pictureFrame, box.picture.width, box.picture.height) + 16,
+                            })
+                          : captionHeight
+                      }
                       inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
                       width={shown.width}
                       onChange={(text) => setDraft({ ...draft, text })}
@@ -1095,6 +1117,7 @@ export function Viewer({
                         height={captionHeight}
                         inset={framePad(pictureFrame, box.picture.width, box.picture.height) + 16}
                         width={shown.width}
+                        pictureHeight={shown.height}
                         effect={look.captionEffect}
                         animate
                         onEdit={onHeadingChange ? startWriting : undefined}
@@ -1123,10 +1146,12 @@ export function Viewer({
                 heading={draft}
                 place={look.captionPlace}
                 align={look.captionAlign ?? "left"}
+                wide={look.captionWide}
                 themed={look.background}
                 onChange={(change) => setDraft({ ...draft, ...change })}
                 onPlace={(captionPlace) => updateLook({ captionPlace })}
                 onAlign={(captionAlign) => updateLook({ captionAlign })}
+                onWide={(captionWide) => updateLook({ captionWide })}
                 onSave={() => saveDraft()}
                 onRemove={() => saveDraft(null)}
                 onCancel={() => setDraft(null)}
@@ -1586,6 +1611,8 @@ interface PinnedPictureProps {
   place: CaptionPlace;
   align: CaptionAlign | undefined;
   size: CaptionSize;
+  /** A heading to the side takes all the room beside the picture. */
+  wide: boolean;
   dragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
@@ -1631,6 +1658,7 @@ function PinnedPicture({
   place,
   align,
   size,
+  wide,
   dragging,
   onDragStart,
   onOpen,
@@ -1642,11 +1670,11 @@ function PinnedPicture({
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
   // Headings shrink with smaller pictures, but stay readable.
   const captionHeight = heading
-    ? Math.max(18, Math.round(captionLineHeight(heading.level, size, rect.height) * Math.min(1, rect.height / 600)))
+    ? Math.max(14, Math.round(captionLineHeight(heading, size, rect.height) * Math.min(1, rect.height / 600)))
     : 0;
   const lift = heading && besidePicture(place) ? captionHeight : 0;
   const shift = place === "below" ? -lift : lift;
-  const aside = heading && asidePicture(place) ? asideWidth(rect.width) : 0;
+  const aside = heading && asidePicture(place) ? asideColumn(rect, image.width, image.height, frame, "fit", wide) : 0;
   const slide = place === "right" ? -aside : aside;
   const box = fit(
     { width: Math.max(0, rect.width - aside), height: Math.max(0, rect.height - lift) },
@@ -1706,6 +1734,7 @@ function PinnedPicture({
           height={captionHeight}
           inset={framePad(frame, box.picture.width, box.picture.height) + Math.round(captionHeight / 3)}
           width={box.width}
+          pictureHeight={box.height}
           effect="none"
           animate={false}
         />
@@ -1735,6 +1764,8 @@ interface CaptionProps {
   inset: number;
   /** Width of the picture; a heading above it shrinks to fit rather than being cut. */
   width: number;
+  /** Height of the picture; a heading to its side or on it shrinks to fit in it. */
+  pictureHeight: number;
   effect: ViewerTransition;
   /** Comes in with the effect a moment after its picture. */
   animate: boolean;
@@ -1758,6 +1789,25 @@ const ASIDE_GAP = 24;
 /** Width of the column a heading to the side takes, gap included, out of `room`. */
 function asideWidth(room: number) {
   return Math.round(Math.min(360, Math.max(140, room * 0.24)));
+}
+
+/**
+ * The column a heading to the side takes: a narrow one, or, `wide`, all the room the picture
+ * leaves beside it, so the picture moves over to the other edge.
+ */
+function asideColumn(
+  room: { width: number; height: number },
+  width: number,
+  height: number,
+  frame: Frame,
+  mode: "fit" | "grow" | "cover",
+  wide: boolean,
+): number {
+  const narrow = asideWidth(room.width);
+  if (!wide) return narrow;
+  const rest = { width: Math.max(0, room.width - narrow), height: room.height };
+  const picture = fit(rest, width, height, frame, mode);
+  return narrow + Math.max(0, rest.width - Math.min(picture.width, rest.width));
 }
 
 /** On the picture rather than around it. */
@@ -1796,18 +1846,77 @@ let measure: CanvasRenderingContext2D | null = null;
 function fitLine(heading: Heading, height: number, width: number): number {
   measure ??= document.createElement("canvas").getContext("2d");
   if (!measure) return height;
-  const weight = heading.level === 3 ? 500 : 600;
-  const family = heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
-  measure.font = `${weight} 100px ${family}`;
+  measure.font = `${textWeight(heading)} 100px ${fontFamilyOf(heading)}`;
   // Text width grows with its size, so one measurement at 100px gives the size that fits.
   const per100 = measure.measureText(heading.text).width;
   if (per100 <= 0) return height;
   const fits = Math.floor(((width * 0.98) / per100) * (100 / 0.62));
-  return Math.max(18, Math.min(height, fits));
+  return Math.max(14, Math.min(height, fits));
+}
+
+function fontFamilyOf(heading: Heading) {
+  return heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
+}
+
+/** Lines of 1.1 times the letter size, as wrapped headings are set. */
+const WRAP_LEADING = 1.1;
+/** Smallest line height a heading shrinks to, to fit where it is. */
+const LEAST_LINE = 14;
+
+/**
+ * The largest line height, up to `height`, at which the heading wrapped to `width` keeps every word
+ * whole and takes at most `maxHeight` and `maxLines`: so it never breaks inside a word, and never runs
+ * past the room it has.
+ */
+function fitBlock(heading: Heading, height: number, width: number, maxHeight: number, maxLines = Infinity): number {
+  measure ??= document.createElement("canvas").getContext("2d");
+  if (!measure || width <= 0) return height;
+  measure.font = `${textWeight(heading)} 100px ${fontFamilyOf(heading)}`;
+  const words = heading.text.split(/\s+/).filter(Boolean).map((w) => measure!.measureText(w).width);
+  if (words.length === 0) return height;
+  const space = measure.measureText(" ").width;
+  const linesAt = (line: number) => {
+    const scale = (line * 0.62) / 100;
+    let lines = 1;
+    let used = 0;
+    for (const w of words) {
+      const word = w * scale;
+      if (word > width) return Infinity;
+      if (used === 0) used = word;
+      else if (used + space * scale + word <= width) used += space * scale + word;
+      else {
+        lines += 1;
+        used = word;
+      }
+    }
+    return lines;
+  };
+  for (let line = height; line > LEAST_LINE; line = Math.floor(line * 0.94)) {
+    const lines = linesAt(line);
+    if (lines <= maxLines && lines * line * 0.62 * WRAP_LEADING <= maxHeight) return line;
+  }
+  return LEAST_LINE;
+}
+
+/**
+ * The line height a heading gets where it is: one line above or under the picture, shrunk to its
+ * width; beside it, wrapped in its column and no taller than the picture; on it, at most three lines
+ * inside the margins.
+ */
+function captionLine(
+  heading: Heading,
+  place: CaptionPlace,
+  height: number,
+  room: { width: number; height: number; aside: number; inset: number },
+): number {
+  if (besidePicture(place)) return fitLine(heading, height, room.width);
+  // Less the padding of the field it is written in, so it wraps there as it will show.
+  if (asidePicture(place)) return fitBlock(heading, height, room.aside - ASIDE_GAP - 20, room.height);
+  return fitBlock(heading, height, room.width - room.inset * 2 - 4, room.height - room.inset * 2, 3);
 }
 
 /** An image's heading in full screen, above the picture or in one of its corners. */
-function Caption({ heading, place, align, aside, height, inset, width, effect, animate, onEdit }: CaptionProps) {
+function Caption({ heading, place, align, aside, height, inset, width, pictureHeight, effect, animate, onEdit }: CaptionProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
     if (!animate) return;
@@ -1819,11 +1928,11 @@ function Caption({ heading, place, align, aside, height, inset, width, effect, a
     : { ...enterStyle(resolveTransition(effect, 0), 1), transition: "none" };
   const over = onPicture(place);
   const side = asidePicture(place);
-  const line = besidePicture(place) ? fitLine(heading, height, width) : height;
+  const line = captionLine(heading, place, height, { width, height: pictureHeight, aside, inset });
   // A long heading wraps instead of being cut: up to three lines on the picture, as many as it needs beside it.
   const wrap: React.CSSProperties = {
     height: "auto",
-    lineHeight: 1.1,
+    lineHeight: WRAP_LEADING,
     whiteSpace: "normal",
     overflowWrap: "break-word",
     ...(over && { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }),
@@ -1873,8 +1982,8 @@ function HeadingInPlace({ heading, place, align, aside, height, inset, width, on
   // On the picture and beside it, the text wraps onto lines as it will show.
   const wraps = !besidePicture(place);
   const fontSize = height * 0.62;
-  const fontWeight = heading.level === 3 ? 500 : 600;
-  const fontFamily = heading.font ? `"${heading.font}", system-ui, sans-serif` : "system-ui, sans-serif";
+  const fontWeight = textWeight(heading);
+  const fontFamily = fontFamilyOf(heading);
   const most = Math.max(0, width - inset * 2);
   let room = most;
   if (over) {
@@ -1897,6 +2006,7 @@ function HeadingInPlace({ heading, place, align, aside, height, inset, width, on
     <div className="absolute z-20" style={{ ...captionPosition(place, inset, aside), maxWidth: undefined }}>
       <textarea
         ref={field}
+        data-heading-field
         autoFocus
         rows={1}
         value={heading.text}
@@ -1970,10 +2080,12 @@ interface HeadingToolsProps {
   heading: Heading;
   place: CaptionPlace;
   align: CaptionAlign;
+  wide: boolean;
   themed: boolean;
   onChange: (change: Partial<Heading>) => void;
   onPlace: (place: CaptionPlace) => void;
   onAlign: (align: CaptionAlign) => void;
+  onWide: (wide: boolean) => void;
   onSave: () => void;
   onRemove: () => void;
   onCancel: () => void;
@@ -1989,10 +2101,12 @@ function HeadingTools({
   heading,
   place,
   align,
+  wide,
   themed,
   onChange,
   onPlace,
   onAlign,
+  onWide,
   onSave,
   onRemove,
   onCancel,
@@ -2003,22 +2117,39 @@ function HeadingTools({
   const keep = (e: React.PointerEvent) => e.preventDefault();
   const custom = heading.color && !HEADING_COLORS.includes(heading.color);
   return (
-    <div className="flex items-center gap-1" onPointerDown={(e) => e.target instanceof HTMLSelectElement || keep(e)}>
-      <PlacePicker place={place} align={align} themed={themed} onPlace={onPlace} onAlign={onAlign} />
+    <div
+      className="flex items-center gap-1"
+      // Lists and the slider need the pointer; everything else leaves the typing in the text.
+      onPointerDown={(e) => e.target instanceof HTMLSelectElement || isSlider(e.target) || keep(e)}
+    >
+      <PlacePicker
+        place={place}
+        align={align}
+        wide={wide}
+        themed={themed}
+        onPlace={onPlace}
+        onAlign={onAlign}
+        onWide={onWide}
+      />
       <DockDivider />
-      <div role="radiogroup" aria-label="Nivå" className="flex items-center gap-0.5">
-        {([1, 2, 3] as const).map((level) => (
-          <DockButton
-            key={level}
-            onClick={() => onChange({ level })}
-            pressed={heading.level === level}
-            title={`Rubriknivå ${level}`}
-            label={`H${level}`}
-          >
-            <span className="text-sm font-semibold">H{level}</span>
-          </DockButton>
-        ))}
-      </div>
+      <label className="flex items-center gap-2 px-2" title="Textens storlek: liten för brödtext, stor för rubriker">
+        <ALargeSmall className="size-5 shrink-0 opacity-80" aria-hidden />
+        <input
+          type="range"
+          aria-label="Textens storlek"
+          min={TEXT_SIZE_MIN}
+          max={TEXT_SIZE_MAX}
+          step={1}
+          value={textSize(heading)}
+          onChange={(e) => {
+            const size = Number(e.target.value);
+            onChange({ size, level: levelForSize(size) });
+          }}
+          // Back to the text when the slider is let go, to go on typing.
+          onPointerUp={() => document.querySelector<HTMLTextAreaElement>("[data-heading-field]")?.focus()}
+          className="w-28 cursor-pointer accent-current"
+        />
+      </label>
       <DockDivider />
       <div role="radiogroup" aria-label="Färg" className="flex items-center gap-1 px-1">
         <Swatch
@@ -2089,16 +2220,20 @@ function HeadingTools({
 function PlacePicker({
   place,
   align,
+  wide,
   themed,
   onPlace,
   onAlign,
+  onWide,
 }: {
   place: CaptionPlace;
   /** In the page's colors, as the bar it opens from. */
   themed: boolean;
   align: CaptionAlign;
+  wide: boolean;
   onPlace: (place: CaptionPlace) => void;
   onAlign: (align: CaptionAlign) => void;
+  onWide: (wide: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -2166,10 +2301,32 @@ function PlacePicker({
               </div>
             </div>
           )}
+          {asidePicture(place) && (
+            <div role="group" aria-label="Textens bredd" className="flex flex-col gap-1 border-t border-current/15 pt-2">
+              <span className="px-1 text-xs whitespace-nowrap text-current/60">Textens bredd</span>
+              <div className="flex gap-0.5">
+                <DockButton onClick={() => onWide(false)} pressed={!wide} title="Smal spalt" label="Smal spalt">
+                  <Columns2 />
+                </DockButton>
+                <DockButton
+                  onClick={() => onWide(true)}
+                  pressed={wide}
+                  title="Hela ytan bredvid bilden"
+                  label="Hela ytan bredvid bilden"
+                >
+                  <UnfoldHorizontal />
+                </DockButton>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function isSlider(target: EventTarget) {
+  return target instanceof HTMLInputElement && target.type === "range";
 }
 
 function Swatch({

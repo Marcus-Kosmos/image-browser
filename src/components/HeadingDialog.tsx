@@ -24,7 +24,7 @@ export const HEADING_COLORS = ["#ffffff", "#18181b", "#8a8a88", "#b91c1c", "#c24
 const LEVELS: HeadingLevel[] = [1, 2, 3];
 const STYLE_KEY = "image-browser:last-heading-style";
 
-/** Color and font of the last saved heading, so a series of headings is quick to make alike. */
+/** Color, font and size of the last saved heading, so a series of headings is quick to make alike. */
 export function lastStyle(): Partial<Heading> {
   try {
     return JSON.parse(localStorage.getItem(STYLE_KEY) ?? "{}");
@@ -35,7 +35,7 @@ export function lastStyle(): Partial<Heading> {
 
 export function rememberStyle(heading: Heading) {
   try {
-    localStorage.setItem(STYLE_KEY, JSON.stringify({ color: heading.color, font: heading.font }));
+    localStorage.setItem(STYLE_KEY, JSON.stringify({ color: heading.color, font: heading.font, size: heading.size }));
   } catch {
     // Remembering the style is a convenience.
   }
@@ -47,7 +47,7 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
 
   useEffect(() => {
     if (!kind) return;
-    setDraft(heading ?? { text: "", level: kind === "page" ? 1 : 3, ...lastStyle() });
+    setDraft(heading ?? { text: "", level: kind === "page" ? 1 : 3, ...lastStyle(), size: undefined });
     void listFonts().then(setFonts);
   }, [kind, heading]);
 
@@ -99,7 +99,7 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
               key={level}
               role="radio"
               aria-checked={draft.level === level}
-              onClick={() => update({ level })}
+              onClick={() => update({ level, size: undefined })}
               className={cn(
                 "rounded-sm px-3 py-1 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 draft.level === level ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",

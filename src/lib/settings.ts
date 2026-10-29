@@ -23,6 +23,11 @@ export type HeadingLevel = 1 | 2 | 3;
 export interface Heading {
   text: string;
   level: HeadingLevel;
+  /**
+   * Line height in full screen at the normal caption size, set with the slider there: small for body
+   * text, large for a heading. Unset follows the level.
+   */
+  size?: number;
   /** #rrggbb; unset uses the text color that suits the background. */
   color?: string;
   /** Installed font family; unset uses the system font. */

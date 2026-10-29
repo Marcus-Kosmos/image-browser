@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import type { Heading, HeadingLevel } from "./settings";
 
 /** How the next image comes in when stepping in full screen. */
 export type ViewerTransition =
@@ -121,9 +122,29 @@ export const CAPTION_SIZE_LABELS: Record<CaptionSize, string> = {
 /** How much larger than normal each size draws the headings. */
 export const CAPTION_SCALE: Record<CaptionSize, number> = { normal: 1, large: 1.6, "x-large": 2.5, huge: 4 };
 
+/** The range of the text size slider, from body text to a large heading. */
+export const TEXT_SIZE_MIN = 24;
+export const TEXT_SIZE_MAX = 120;
+
+/** A heading's line height in full screen at the normal caption size. */
+export function textSize(heading: Pick<Heading, "level" | "size">): number {
+  return heading.size ?? CAPTION_HEIGHT[heading.level];
+}
+
+/** Bolder the larger the text, so body text reads as body text. */
+export function textWeight(heading: Pick<Heading, "level" | "size">): number {
+  const size = textSize(heading);
+  return size >= 36 ? 600 : size >= 26 ? 500 : 400;
+}
+
+/** The level that matches a size, for the gallery and web pages, which go by level. */
+export function levelForSize(size: number): HeadingLevel {
+  return size >= 46 ? 1 : size >= 35 ? 2 : 3;
+}
+
 /** A heading's line height in full screen, kept to at most a third of the room it sits in. */
-export function captionLineHeight(level: 1 | 2 | 3, size: CaptionSize, roomHeight: number): number {
-  return Math.round(Math.min(CAPTION_HEIGHT[level] * CAPTION_SCALE[size], roomHeight / 3));
+export function captionLineHeight(heading: Pick<Heading, "level" | "size">, size: CaptionSize, roomHeight: number): number {
+  return Math.round(Math.min(textSize(heading) * CAPTION_SCALE[size], roomHeight / 3));
 }
 
 /** How large one image at a time is shown in full screen. */
@@ -157,6 +178,8 @@ export interface ViewerSettings {
   captionPlace: CaptionPlace;
   /** How a heading above, under or beside the picture lines up. */
   captionAlign: CaptionAlign;
+  /** A heading to the left or right takes all the room beside the picture, not just a narrow column. */
+  captionWide: boolean;
   /** How a heading comes in with its image. */
   captionEffect: ViewerTransition;
   captionSize: CaptionSize;
@@ -177,6 +200,7 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   rounded: false,
   captionPlace: "above",
   captionAlign: "left",
+  captionWide: false,
   captionEffect: "fade",
   captionSize: "normal",
   screen: "margins",
