@@ -630,6 +630,8 @@ export function Viewer({
     const rect = stage.getBoundingClientRect();
     const px = e.clientX - rect.left - rect.width / 2;
     const py = e.clientY - rect.top - rect.height / 2;
+    // A click beside the picture leaves, like the cross; on it, it zooms.
+    if (!zoomed && (Math.abs(px) > box.width / 2 || Math.abs(py - lift / 2) > box.height / 2)) return leave();
     if (e.altKey) stepZoom(-1, px, py);
     else if (atMax) zoomTo(1);
     else stepZoom(1, px, py);
@@ -674,6 +676,14 @@ export function Viewer({
     if (solo < images.length) onIndexChange(solo);
     setSolo(null);
   }, [solo, images.length, onIndexChange]);
+  // Leaving by a click beside the picture, as with Escape: from a picture shown on its own back to the
+  // arrangement, otherwise out of the viewer.
+  // Not while a heading is written, which would be lost.
+  const leave = () => {
+    if (draft) return;
+    if (solo !== null) backToSeries();
+    else onClose();
+  };
   // Nothing left to arrange, nothing to go back to.
   useEffect(() => {
     if (pinned.length === 0 || pinSize === "small") setSolo(null);
@@ -910,6 +920,12 @@ export function Viewer({
             // While a heading is written the bar of tools stays below, so the picture keeps clear of it.
             paddingBottom: draft ? DOCK_ROOM : undefined,
           }}
+          // A click on the empty space around the picture leaves, like the cross. Beside pinned pictures the
+          // stage hugs the picture, so a click beside them all lands on one of these.
+          onClick={(e) => {
+            const el = e.target as HTMLElement;
+            if (el === e.currentTarget || el === content || el.dataset.pinsBox !== undefined) leave();
+          }}
         >
           {solo !== null && (
             <button
@@ -948,6 +964,7 @@ export function Viewer({
               className={layout ? "relative shrink-0" : "contents"}
               style={layout ? { width: layout.width, height: layout.height } : undefined}
               aria-label={layout ? "Fästa bilder och bilden som visas" : undefined}
+              data-pins-box
             >
               {layout?.pins.map((rect, i) => (
                 <PinnedPicture

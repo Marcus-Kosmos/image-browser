@@ -75,6 +75,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   byts under tiden mot verktyg för rubriken: var den står (ovanför, under eller i ett av bildens hörn), nivå
   H1–H3, färg och typsnitt. Enter eller bocken sparar, Esc eller krysset avbryter. Ett klick på en rubrik som
   redan finns öppnar den på samma sätt. Platsen gäller alla bilders rubriker, som under Visning.
+- Ett klick på den tomma ytan bredvid bilden i helskärm stänger den, precis som krysset (eller Esc). Visas en
+  fäst bild ensam går klicket först tillbaka till alla fästa bilder.
 - Med flera fästa bilder framme visar en ram vilken bild knappraden gäller, först den du bläddrat till. Håll
   musen över en annan bild och klicka på symbolen uppe till vänster, så gäller knappraden (och F, P, ⌫ och
   sifferknapparna) den bilden i stället. Bläddrar du vidare gäller den åter den nya bilden.
