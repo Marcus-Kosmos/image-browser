@@ -47,9 +47,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   "Ändrad". Mappar i sidopanelen som inte finns kvar blir grå med en överkryssad mapp. Appen kollar
   igen när den kommer fram efter att du varit i ett annat program.
 - I helskärm samlas knapparna för bilden i en stor, halvgenomskinlig rad nere vid bilden: papperskorgen
-  längst till vänster, sedan förstora med AI, visa i Finder och serie, AI-märkningen (av/på, och visar
-  "AI-förstorad" eller "AI-bild" när den är på) och längst till höger nålen och hjärtat. Under Visning kan
-  raden gömmas tills musen kommer till nederkanten. Visning och kortkommandon sitter uppe till höger.
+  längst till vänster, sedan förstora med AI, visa i Finder och serie, AI-märkningen (en ikonknapp, av/på: när
+  den är på syns ett märke uppe till höger på bilder som är AI-förstorade eller AI-gjorda) och längst till höger nålen och hjärtat. Raden är gömd tills
+  musen kommer nära den; knappen längst till höger i raden fäster den så att den syns hela tiden. Visning och kortkommandon sitter uppe till höger.
 - I helskärm väljer knappen Visning (reglagen uppe till höger) hur nästa bild kommer in: tona fram,
   glid in från vänster eller höger, glid upp, kaskad, parallax eller växla automatiskt. Där kan du också
   visa mappens ram, skugga och bakgrundsfärg i helskärm. Valet gäller i alla mappar.
@@ -72,7 +72,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
   hörn, övergång) och mappens bakgrundsfärg, ram och skugga ska följa med. En serie sparad med visningen
   får knappen Visa som pussel, som öppnar helskärm med bilderna lagda som när de sparades
 - Samlingar i helskärm: Favoriter och serierna sitter infällda som ikoner till vänster och fälls ut när
-  musen kommer dit, eller när du drar bilden dit. Nålen i menyn (eller C) fäster den öppen. Dra
+  musen kommer dit, eller när du drar bilden dit. Knappen överst i menyn (eller C) fäster den
+  utfälld, och ett klick till fäller in den direkt. Dra
   bilden dit för att lägga den i en samling, eller klicka för att lägga till eller ta bort den. Ett klick
   på bilden zoomar som förut; zoomad flyttar du runt i bilden när du drar
 - En bild i taget (under Visning, eller H): med marginaler, på hela skärmen så att hela bilden syns, eller
@@ -102,7 +103,7 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Varje AI-förstorad kopia märks i sina metadata som gjord med AI (IPTC DigitalSourceType
   "compositeWithTrainedAlgorithmicMedia", samma standard som Photoshop och många webbplatser läser), med
   namnet på verktyget. Själva bilden ändras inte
-- **Visa AI-märkning** (i Utseende-menyn, gäller alla mappar) visar ett märke på bilder vars metadata säger
+- **Visa AI-märkning** (i Utseende-menyn, gäller alla mappar) visar ett märke uppe till höger på bilder vars metadata säger
   att de gjorts eller ändrats med AI: "AI-förstorad" (trollstav) för bilder förstorade i Imagime och "AI-bild"
   (gnistor) för bilder som ett annat program märkt, till exempel Adobe Firefly. Omärkta AI-bilder går inte att känna igen
 - Medan förstoringen pågår ligger en cirkel som fylls över den gamla bilden, i helskärm och i rutnätet, så

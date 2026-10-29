@@ -189,8 +189,8 @@ export function Sidebar({
         ),
       )}
 
-      <div className="mt-4 flex items-center justify-between pr-2">
-        <SectionTitle className="mb-0">Bibliotek</SectionTitle>
+      {/* The toggle sits in the column of the row icons below, the title in line with their names. */}
+      <div className="mt-4 flex items-center gap-0.5 pl-2.5">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -202,6 +202,7 @@ export function Sidebar({
         >
           {showHidden ? <Eye /> : <EyeOff />}
         </Button>
+        <SectionTitle className="mb-0 px-0">Bibliotek</SectionTitle>
       </div>
       {(showHidden || !library.favoritesPrivacy?.hidden) && (
         <Item

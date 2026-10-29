@@ -271,7 +271,7 @@ export const ImageTile = memo(function ImageTile({
         {aiMark && (
           <span
             className={cn(
-              "pointer-events-none absolute top-1.5 left-1.5 flex h-6 items-center gap-1 rounded-md bg-black/55 px-1.5 text-xs font-medium text-white transition-opacity group-hover:opacity-0",
+              "pointer-events-none absolute top-1.5 right-1.5 flex h-6 items-center gap-1 rounded-md bg-black/55 px-1.5 text-xs font-medium text-white transition-opacity group-hover:opacity-0",
               menuOpen && "opacity-0",
             )}
             title={aiMarkTitle(aiMark)}
