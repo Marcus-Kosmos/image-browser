@@ -1133,6 +1133,10 @@ export default function App() {
           savedLook={viewerLook ?? undefined}
           headingOf={(img) => settings.images[imageKey(img)]?.heading}
           onHeadingChange={(i, heading) => images[i] && updateImage(imageKey(images[i]), { heading })}
+          textsOf={(img) => settings.images[imageKey(img)]?.texts ?? []}
+          onTextsChange={(i, texts) =>
+            images[i] && updateImage(imageKey(images[i]), { texts: texts.length ? texts : undefined })
+          }
           shadow={settings.shadow}
           paused={trashIndex !== null || shortcutsOpen || upscaleFor !== null}
         />

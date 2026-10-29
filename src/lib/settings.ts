@@ -1,4 +1,5 @@
 import type { ItemSize } from "./layout";
+import type { CaptionAlign, CaptionPlace } from "./viewer";
 import { useCallback, useEffect, useState } from "react";
 
 export type ViewMode = "flow" | "pages";
@@ -32,6 +33,9 @@ export interface Heading {
   color?: string;
   /** Installed font family; unset uses the system font. */
   font?: string;
+  /** Where a further text by the picture in full screen goes; the first one follows the viewer's setting. */
+  place?: CaptionPlace;
+  align?: CaptionAlign;
 }
 
 export interface ImageSettings {
@@ -42,6 +46,8 @@ export interface ImageSettings {
   heading?: Heading;
   /** Page heading before the image, which then starts a new page. */
   pageHeading?: Heading;
+  /** Further texts by the picture in full screen, each on a side or a corner of its own. */
+  texts?: Heading[];
 }
 
 /** Height of the heading row above an image, per level. */
