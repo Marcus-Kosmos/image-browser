@@ -44,20 +44,30 @@ describe("theme", () => {
 describe("themesFromColors", () => {
   const many = (rgb: [number, number, number], n: number) => Array.from({ length: n }, () => rgb);
 
-  it("makes themes from the three main hues, each used once, readable", () => {
+  it("makes six readable themes on different kinds of page, from the main hues", () => {
     const colors = [...many([200, 40, 40], 60), ...many([40, 60, 200], 30), ...many([40, 170, 60], 20)];
     const themes = themesFromColors(colors);
     expect(themes).toHaveLength(6);
     for (const t of themes) {
       const bg = parseHex(t.background)!;
-      expect(contrast(parseHex(t.text)!, bg)).toBeGreaterThanOrEqual(9);
+      expect(contrast(parseHex(t.text)!, bg)).toBeGreaterThanOrEqual(7);
       expect(contrast(parseHex(t.accent)!, bg)).toBeGreaterThanOrEqual(3.5);
-      expect(luminance(bg)).toBeLessThan(0.05);
     }
-    // The first theme's page is in the hue there is most of.
-    const [r, g, b] = parseHex(themes[0].background)!;
-    expect(r).toBeGreaterThan(g);
-    expect(r).toBeGreaterThan(b);
+    // The first theme's page is dark, in the hue there is most of; others are pale.
+    const first = parseHex(themes[0].background)!;
+    expect(luminance(first)).toBeLessThan(0.05);
+    expect(first[0]).toBeGreaterThan(first[1]);
+    expect(first[0]).toBeGreaterThan(first[2]);
+    expect(themes.some((t) => prefersDarkText(t.background))).toBe(true);
+    expect(new Set(themes.map((t) => t.background)).size).toBe(6);
+  });
+
+  it("gives other themes when asked again", () => {
+    const colors = [...many([200, 40, 40], 60), ...many([40, 60, 200], 30), ...many([40, 170, 60], 20)];
+    const key = (t: { background: string; text: string; accent: string }) => t.background + t.text + t.accent;
+    const first = new Set(themesFromColors(colors).map(key));
+    const next = themesFromColors(colors, 1).map(key);
+    expect(next.filter((k) => !first.has(k)).length).toBeGreaterThanOrEqual(3);
   });
 
   it("is light for mostly light pictures", () => {

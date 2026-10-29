@@ -114,7 +114,7 @@ export function dominantHues(colors: Rgb[], count = 3) {
     if (best < 0) break;
     // The heaviest bin of the three is the hue's own.
     for (const n of [(best + BINS - 1) % BINS, (best + 1) % BINS]) if (!taken.has(n) && weight[n] > weight[best]) best = n;
-    for (let d = -2; d <= 2; d++) taken.add((best + d + BINS) % BINS);
+    for (let d = -1; d <= 1; d++) taken.add((best + d + BINS) % BINS);
     const [x, y, sat] = sums[best];
     hues.push({ hue: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360, saturation: sat / weight[best] });
   }
@@ -132,40 +132,56 @@ function against(bg: Rgb, hue: number, saturation: number, minContrast: number):
   return darker ? [0, 0, 0] : [255, 255, 255];
 }
 
+/** Kinds of page a theme can have, so the six offered differ in more than which hue goes where. */
+const PAGES = [
+  // Quiet and dark, or quiet and pale: the pictures stand out most.
+  { lightness: 0.15, light: 0.91, saturation: [0.18, 0.45] },
+  // The other way round from the pictures: pale under dark pictures, dark under light ones.
+  { lightness: 0.91, light: 0.15, saturation: [0.18, 0.45] },
+  // Deep and colorful.
+  { lightness: 0.24, light: 0.8, saturation: [0.45, 0.7] },
+  // Nearly gray, with only a hint of the hue.
+  { lightness: 0.12, light: 0.94, saturation: [0.05, 0.08] },
+  // Soft and mid-light.
+  { lightness: 0.78, light: 0.3, saturation: [0.3, 0.5] },
+  // Dark and colorful.
+  { lightness: 0.19, light: 0.86, saturation: [0.35, 0.6] },
+] as const;
+
 /**
- * Color themes from the colors a set of pictures has most of: each of their main hues in turn as the
- * page, the text and the buttons. The page is kept quiet so the pictures stand out, dark unless they
- * are mostly light; text and buttons keep readable contrast on it. Pictures with hardly any color
- * give one gray theme; no pixels give none.
+ * Color themes from the colors a set of pictures has most of: their main hues in turn as the page,
+ * the text and the buttons, on pages of different kinds (dark, pale, deep, nearly gray). Text and
+ * buttons keep readable contrast. `round` turns the hues and kinds of page, so asking again gives
+ * other themes. Pictures with hardly any color give gray themes; no pixels give none.
  */
-export function themesFromColors(colors: Rgb[]): ColorTheme[] {
+export function themesFromColors(colors: Rgb[], round = 0): ColorTheme[] {
   if (colors.length === 0) return [];
-  const { hues, light } = dominantHues(colors);
-  const page = ({ hue, saturation }: { hue: number; saturation: number }) =>
-    fromHsl([hue, saturation && Math.min(0.45, Math.max(0.18, saturation)), light ? 0.9 : 0.15]);
-  const make = (bg: Rgb, text: { hue: number; saturation: number }, accent: { hue: number; saturation: number }) => ({
-    background: toHex(bg),
-    text: toHex(against(bg, text.hue, Math.min(0.5, text.saturation), 9)),
-    accent: toHex(against(bg, accent.hue, Math.max(0.55, accent.saturation), 3.5)),
-  });
-  if (hues.length === 0) {
-    const gray = { hue: 0, saturation: 0 };
-    return [make(page(gray), gray, gray)];
-  }
+  const { hues: found, light } = dominantHues(colors, 6);
+  // Without color there is one gray theme, dark or pale as the pictures are.
+  const hues = found.length > 0 ? found : [{ hue: 0, saturation: 0 }];
+  const kinds = found.length > 0 ? PAGES.length : 1;
+  const n = hues.length;
   const themes: ColorTheme[] = [];
   const seen = new Set<string>();
-  for (const b of hues)
-    for (const t of hues)
-      for (const a of hues) {
-        // With three hues, each theme uses all three; with fewer, the page's own hue may come back.
-        if (hues.length === 3 && (b === t || b === a || t === a)) continue;
-        if (hues.length === 2 && b === t && t === a) continue;
-        const theme = make(page(b), t, a);
-        const key = `${theme.background}${theme.text}${theme.accent}`;
-        if (!seen.has(key)) seen.add(key), themes.push(theme);
-      }
-  if (hues.length === 1) return themes;
-  return themes.slice(0, 6);
+  for (let i = 0; themes.length < 6 && i < 36; i++) {
+    const kind = PAGES[(i + round) % kinds];
+    // Hues turn at another pace than kinds of page, so a new round pairs them anew.
+    const at = i + 2 * round;
+    const b = hues[at % n];
+    // Text and buttons take the next hues, so with several hues the three differ.
+    const t = hues[(at + Math.floor(i / n) + 1) % n];
+    const a = hues[(at + Math.floor(i / n) + 2) % n];
+    const [low, high] = kind.saturation;
+    const bg = fromHsl([b.hue, b.saturation && Math.min(high, Math.max(low, b.saturation)), light ? kind.light : kind.lightness]);
+    const theme = {
+      background: toHex(bg),
+      text: toHex(against(bg, t.hue, Math.min(0.5, t.saturation), 7.2)),
+      accent: toHex(against(bg, a.hue, a.saturation && Math.max(0.55, a.saturation), 3.5)),
+    };
+    const key = `${theme.background}${theme.text}${theme.accent}`;
+    if (!seen.has(key)) seen.add(key), themes.push(theme);
+  }
+  return themes;
 }
 
 /**

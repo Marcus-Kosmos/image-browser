@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ColorPicker";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Dialog } from "@/components/ui/dialog";
 import { listFonts } from "@/lib/api";
@@ -136,24 +137,14 @@ export function HeadingDialog({ kind, imageName, heading, onSave, onClose }: Hea
               {draft.color === c && <Mark dark={prefersDarkText(c)} />}
             </button>
           ))}
-          <label
-            title="Valfri färg"
-            className="relative size-7 cursor-pointer overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-ring"
-            style={{
-              background: custom
-                ? draft.color
-                : "conic-gradient(#f87171, #facc15, #4ade80, #22d3ee, #818cf8, #e879f9, #f87171)",
-            }}
+          <ColorPicker
+            value={draft.color}
+            custom={!!custom}
+            onChange={(color) => update({ color })}
+            className="size-7 rounded-md"
           >
-            <span className="sr-only">Valfri färg</span>
-            <input
-              type="color"
-              value={draft.color ?? "#808080"}
-              onChange={(e) => update({ color: e.target.value })}
-              className="absolute inset-0 cursor-pointer opacity-0"
-            />
             {custom && <Mark dark={prefersDarkText(draft.color!)} />}
-          </label>
+          </ColorPicker>
         </div>
 
         <label className="text-xs font-medium text-muted-foreground" htmlFor="heading-font">

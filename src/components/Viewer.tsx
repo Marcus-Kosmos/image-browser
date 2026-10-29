@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { AiMark, aiMarkTitle } from "./AiMark";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ColorPicker";
 import { listFonts, originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
@@ -2254,8 +2255,10 @@ function HeadingTools({
   return (
     <div
       className="flex items-center gap-1"
-      // Lists and the slider need the pointer; everything else leaves the typing in the text.
-      onPointerDown={(e) => e.target instanceof HTMLSelectElement || isSlider(e.target) || keep(e)}
+      // Lists, sliders and the color code need the pointer; everything else leaves the typing in the text.
+      onPointerDown={(e) =>
+        e.target instanceof HTMLSelectElement || isSlider(e.target) || isColorCode(e.target) || keep(e)
+      }
     >
       <PlacePicker
         place={place}
@@ -2296,24 +2299,16 @@ function HeadingTools({
         {HEADING_COLORS.slice(0, 6).map((c) => (
           <Swatch key={c} selected={heading.color === c} onClick={() => onChange({ color: c })} label={c} style={{ background: c }} />
         ))}
-        <label
-          title="Valfri färg"
+        <ColorPicker
+          value={heading.color}
+          custom={!!custom}
+          onChange={(color) => onChange({ color })}
+          side="above"
           className={cn(
-            "relative size-6 cursor-pointer overflow-hidden rounded-full border border-current/30",
+            "size-6 rounded-full border-current/30",
             custom && "ring-2 ring-current ring-offset-1 ring-offset-transparent",
           )}
-          style={{
-            background: custom ? heading.color : "conic-gradient(#f87171, #facc15, #4ade80, #22d3ee, #818cf8, #e879f9, #f87171)",
-          }}
-        >
-          <span className="sr-only">Valfri färg</span>
-          <input
-            type="color"
-            value={heading.color ?? "#808080"}
-            onChange={(e) => onChange({ color: e.target.value })}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
-        </label>
+        />
       </div>
       <DockDivider />
       <NativeSelect
@@ -2467,6 +2462,10 @@ function PlacePicker({
 
 function isSlider(target: EventTarget) {
   return target instanceof HTMLInputElement && target.type === "range";
+}
+
+function isColorCode(target: EventTarget) {
+  return target instanceof HTMLInputElement && !!target.closest("[data-color-picker]");
 }
 
 function Swatch({
