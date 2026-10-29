@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderMinus, FolderPlus, ArrowDownToDot, Heart, HeartOff, X } from "lucide-react";
+import { ChevronDown, FolderMinus, FolderPlus, ArrowDownToDot, Heart, HeartOff, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ interface SelectionBarProps {
   onClear: () => void;
   /** Shows the selected files in Finder. */
   onReveal: () => void;
+  /** Moves the selected files to the trash. */
+  onTrash: () => void;
 }
 
 /** Shown while images are selected: what can be done with all of them at once. */
@@ -40,6 +42,7 @@ export function SelectionBar({
   allSelected,
   onClear,
   onReveal,
+  onTrash,
 }: SelectionBarProps) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
@@ -150,6 +153,16 @@ export function SelectionBar({
       )}
       <Button variant="ghost" size="icon-sm" onClick={onReveal} title="Visa i Finder" aria-label="Visa i Finder">
         <ArrowDownToDot />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onTrash}
+        title="Flytta de markerade till papperskorgen"
+        aria-label="Flytta de markerade till papperskorgen"
+        className="hover:text-destructive"
+      >
+        <Trash2 />
       </Button>
       <div className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button variant="ghost" size="icon-sm" onClick={onClear} title="Avmarkera (Esc)" aria-label="Avmarkera">

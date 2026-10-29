@@ -6,26 +6,28 @@ import type { ImageEntry } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface TrashDialogProps {
-  image: ImageEntry | null;
+  /** The pictures asked about; the question is closed when null. */
+  images: ImageEntry[] | null;
   onCancel: () => void;
   /** `dontAsk` is true when the user chose to trash without this question from now on. */
   onConfirm: (dontAsk: boolean) => void;
 }
 
-export function TrashDialog({ image, onCancel, onConfirm }: TrashDialogProps) {
+export function TrashDialog({ images, onCancel, onConfirm }: TrashDialogProps) {
   const [dontAsk, setDontAsk] = useState(false);
   useEffect(() => {
-    if (image) setDontAsk(false);
-  }, [image]);
+    if (images) setDontAsk(false);
+  }, [images]);
+  const many = (images?.length ?? 0) > 1;
 
   return (
-    <Dialog open={image !== null} onClose={onCancel} labelledBy="trash-title">
+    <Dialog open={images !== null} onClose={onCancel} labelledBy="trash-title">
       <h2 id="trash-title" className="text-lg font-semibold">
         Flytta till papperskorgen?
       </h2>
       <p className="mt-2 text-sm break-all text-muted-foreground">
-        <span className="font-medium text-foreground">{image?.name}</span> flyttas till papperskorgen. Du kan
-        lägga tillbaka den från papperskorgen i Finder.
+        <span className="font-medium text-foreground">{many ? `${images?.length} bilder` : images?.[0]?.name}</span>{" "}
+        flyttas till papperskorgen. Du kan lägga tillbaka {many ? "dem" : "den"} från papperskorgen i Finder.
       </p>
       <button
         role="checkbox"
@@ -49,7 +51,7 @@ export function TrashDialog({ image, onCancel, onConfirm }: TrashDialogProps) {
       )}
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={onCancel}>
-          Behåll bilden
+          {many ? "Behåll bilderna" : "Behåll bilden"}
         </Button>
         <Button variant="destructive" onClick={() => onConfirm(dontAsk)} data-autofocus>
           <Trash2 />

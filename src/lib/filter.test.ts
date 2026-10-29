@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ImageEntry } from "./api";
-import { NO_FILTER, filterImages, keepDuplicates, libraryIndex, possibleDuplicates } from "./filter";
+import { NO_FILTER, extraCopies, filterImages, keepDuplicates, libraryIndex, possibleDuplicates } from "./filter";
 import { EMPTY_LIBRARY, createSeries, setPrivacy, toggleFavorite } from "./library";
 
 const NOW = new Date("2026-10-27T12:00:00").getTime();
@@ -79,5 +79,15 @@ describe("newest first and duplicates", () => {
       [sameSize.path, "y"],
     ]);
     expect(keepDuplicates([a, b, sameSize, aCopy], hashes).map((i) => i.name)).toEqual(["a.jpg", "a kopia.jpg"]);
+  });
+
+  it("picks all copies but one of each picture, keeping the one asked for", () => {
+    const hashes = new Map([
+      [a.path, "x"],
+      [aCopy.path, "x"],
+      [sameSize.path, "y"],
+    ]);
+    expect(extraCopies([a, b, sameSize, aCopy], hashes, () => false).map((i) => i.name)).toEqual(["a kopia.jpg"]);
+    expect(extraCopies([a, b, sameSize, aCopy], hashes, (img) => img === aCopy).map((i) => i.name)).toEqual(["a.jpg"]);
   });
 });
