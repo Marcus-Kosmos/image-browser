@@ -5,8 +5,6 @@ import { cn } from "@/lib/utils";
 export interface Waiting {
   path: string;
   since: number;
-  /** Brings forward the window the picture is being enlarged in, when there is one. */
-  onShow?: () => void;
 }
 
 // An enlargement takes from seconds to minutes, so the ring fills fast at first and then
@@ -22,15 +20,13 @@ interface WaitingRingProps {
   since: number;
   /** Small on gallery tiles, where there is no room for words. */
   compact?: boolean;
-  /** Offers a button that brings forward the window the picture is being enlarged in. */
-  onShow?: () => void;
 }
 
 /**
  * Laid over the old picture while its enlarged copy is on its way, so it is clear the
  * picture shown is still the old one.
  */
-export function WaitingRing({ since, compact = false, onShow }: WaitingRingProps) {
+export function WaitingRing({ since, compact = false }: WaitingRingProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 250);
@@ -73,14 +69,6 @@ export function WaitingRing({ since, compact = false, onShow }: WaitingRingProps
       <span className={cn("rounded-full bg-black/50 px-3 py-1 text-sm drop-shadow", compact && "sr-only")}>
         Gamla versionen, väntar på den förstorade
       </span>
-      {onShow && !compact && (
-        <button
-          onClick={onShow}
-          className="pointer-events-auto rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-black shadow hover:bg-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-        >
-          Visa bigger.pics för att skicka tillbaka
-        </button>
-      )}
     </div>
   );
 }

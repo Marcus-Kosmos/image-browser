@@ -914,7 +914,6 @@ export function Viewer({
                     zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
                     panning={panning}
                     waitingSince={waiting?.path === layer.path ? waiting.since : undefined}
-                    onShowWaiting={waiting?.path === layer.path ? waiting.onShow : undefined}
                   />
                 ))}
                 {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
@@ -1202,8 +1201,6 @@ interface LayerViewProps {
   panning: boolean;
   /** When an enlarged copy of this picture began to be made, while it is on its way. */
   waitingSince?: number;
-  /** Brings forward the window the picture is being enlarged in. */
-  onShowWaiting?: () => void;
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
@@ -1219,7 +1216,6 @@ function LayerView({
   zoom,
   panning,
   waitingSince,
-  onShowWaiting,
 }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
@@ -1284,7 +1280,7 @@ function LayerView({
         )}
         {waitingSince !== undefined && (
           <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: radius.outer }}>
-            <WaitingRing since={waitingSince} onShow={onShowWaiting} />
+            <WaitingRing since={waitingSince} />
           </div>
         )}
       </div>

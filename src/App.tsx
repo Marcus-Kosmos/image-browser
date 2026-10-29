@@ -730,14 +730,14 @@ export default function App() {
     }
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
-    // bigger.pics works in a window behind the app's; it is brought forward to send the picture back.
+    // bigger.pics works in a window behind the app's and sends the picture back by itself.
     const bigger = choice.mode === "bigger";
-    setWaiting({ path: image.path, since: Date.now(), onShow: bigger ? showBiggerPics : undefined });
+    setWaiting({ path: image.path, since: Date.now() });
     showToast(
       choice.mode === "local"
         ? `Förstorar ${image.name} med AI. Det kan ta upp till en minut.`
         : bigger
-          ? `bigger.pics förstorar ${image.name} i ett fönster bakom Imagime. Ta fram det och klicka på Send this back när bilden är klar.`
+          ? `bigger.pics förstorar ${image.name} i ett fönster bakom Imagime. Bilden kommer hit när den är klar.`
           : `Skickar ${image.name} till Stability AI. Det kan ta ett par minuter.`,
       undefined,
       bigger ? { label: "Visa bigger.pics", run: showBiggerPics } : undefined,
