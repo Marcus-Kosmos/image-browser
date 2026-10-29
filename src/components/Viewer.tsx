@@ -652,9 +652,23 @@ export function Viewer({
     press.current = { x: e.clientX, y: e.clientY, from: zoom, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
+  // Beside the picture a click leaves rather than zooms, so the pointer is the plain one there.
+  const [offPicture, setOffPicture] = useState(false);
+  /** Whether a point is on the stage but beside the picture, where a click leaves. */
+  const besidePicture = (x: number, y: number) => {
+    if (zoomed || !stage) return false;
+    const rect = stage.getBoundingClientRect();
+    const px = x - rect.left - rect.width / 2;
+    const py = y - rect.top - rect.height / 2;
+    return Math.abs(px - slide / 2) > box.width / 2 || Math.abs(py - shift / 2) > box.height / 2;
+  };
   const onStageMove = (e: React.PointerEvent) => {
     const p = press.current;
-    if (!p) return;
+    if (!p) {
+      const off = besidePicture(e.clientX, e.clientY);
+      if (off !== offPicture) setOffPicture(off);
+      return;
+    }
     const dx = e.clientX - p.x;
     const dy = e.clientY - p.y;
     if (!zoomed) {
@@ -683,7 +697,7 @@ export function Viewer({
     const px = e.clientX - rect.left - rect.width / 2;
     const py = e.clientY - rect.top - rect.height / 2;
     // A click beside the picture leaves, like the cross; on it, it zooms.
-    if (!zoomed && (Math.abs(px - slide / 2) > box.width / 2 || Math.abs(py - shift / 2) > box.height / 2)) return leave();
+    if (besidePicture(e.clientX, e.clientY)) return leave();
     if (e.altKey) stepZoom(-1, px, py);
     else if (atMax) zoomTo(1);
     else stepZoom(1, px, py);
@@ -1106,7 +1120,7 @@ export function Viewer({
                     ...zoomView,
                     background: look.background ? "var(--canvas)" : "#000",
                   }),
-                  cursor: panning || carry ? "grabbing" : atMax ? "zoom-out" : "zoom-in",
+                  cursor: panning || carry ? "grabbing" : offPicture && !zoomed ? "default" : atMax ? "zoom-out" : "zoom-in",
                 }}
                 onPointerDown={onStageDown}
                 onPointerMove={onStageMove}
