@@ -7,6 +7,9 @@ import type { ImageFilter, Tag } from "@/lib/filter";
 import { REVEAL_LABELS, type FolderSettings, type Reveal, type ViewMode } from "@/lib/settings";
 import { cn, folderName } from "@/lib/utils";
 
+/** A toggle that is on: dark on a light toolbar and light on a dark one, so its state is plain to see. */
+const ON = "bg-foreground text-background hover:bg-foreground/85 hover:text-background";
+
 interface ToolbarProps {
   folders: string[];
   /** Name of the favorites or series shown instead of the folders. */
@@ -158,7 +161,7 @@ export function Toolbar({
             variant="ghost"
             size="icon-sm"
             aria-pressed={includeSubfolders}
-            className={cn(includeSubfolders && "bg-accent")}
+            className={cn(includeSubfolders && ON)}
             onClick={onToggleSubfolders}
             title={includeSubfolders ? "Visar bilder i undermappar. Klicka för att bara visa mappen." : "Visa även bilder i undermappar"}
             aria-label="Visa bilder i undermappar"
@@ -201,7 +204,7 @@ export function Toolbar({
               variant="ghost"
               size="icon-sm"
               aria-pressed={settings.showPageNumbers}
-              className={cn(settings.showPageNumbers && "bg-accent")}
+              className={cn(settings.showPageNumbers && ON)}
               onClick={() => onSettingsChange({ showPageNumbers: !settings.showPageNumbers })}
               title={settings.showPageNumbers ? "Dölj sidnummer" : "Visa sidnummer"}
               aria-label="Sidnummer"
