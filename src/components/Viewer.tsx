@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  FolderMinus,
+  CircleMinus,
   FolderSearch,
   Heart,
   Info,
@@ -1057,7 +1057,7 @@ export function Viewer({
             />
             {onRemove && (
               <DockButton onClick={() => onRemove(actIndex)} title="Ta bort ur serien (filen finns kvar)" label="Ta bort ur serien">
-                <FolderMinus />
+                <CircleMinus />
               </DockButton>
             )}
             {pageCount > 1 && !zoomed && (
