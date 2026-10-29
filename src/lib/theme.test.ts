@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHex, prefersDarkText, themeFor } from "./theme";
+import { contrast, parseHex, prefersDarkText, themeFor } from "./theme";
 
 describe("theme", () => {
   it("parses short and long hex colors", () => {
@@ -18,10 +18,25 @@ describe("theme", () => {
   it("derives button and text colors from the background", () => {
     const dark = themeFor("#202830")!;
     expect(dark["--canvas"]).toBe("#202830");
-    expect(dark["--foreground"]).toBe("#fafafa");
+    expect(prefersDarkText(dark["--foreground"])).toBe(true);
     expect(dark["--primary-foreground"]).toBe("#202830");
     expect(dark["--accent"]).toContain("#202830");
-    expect(themeFor("#fffaf0")!["--foreground"]).toBe("#18181b");
+    expect(prefersDarkText(themeFor("#fffaf0")!["--foreground"])).toBe(false);
     expect(themeFor("nope")).toBeNull();
+  });
+
+  it("tints text and buttons with the background's hue and keeps them readable", () => {
+    for (const bg of ["#bfdbfe", "#fde68a", "#1e3a5f", "#808080", "#7c3aed", "#ffffff", "#000000"]) {
+      const t = themeFor(bg)!;
+      const rgb = parseHex(bg)!;
+      // Mid tones such as gray or violet can't reach 7 against anything; they get the best there is.
+      expect(contrast(parseHex(t["--foreground"])!, rgb)).toBeGreaterThanOrEqual(["#808080", "#7c3aed"].includes(bg) ? 5 : 7);
+      expect(contrast(parseHex(t["--muted-foreground"])!, rgb)).toBeGreaterThanOrEqual(4.5);
+    }
+    // Light blue gets dark blue text and buttons, not plain black.
+    const [r, g, b] = parseHex(themeFor("#bfdbfe")!["--foreground"])!;
+    expect(b).toBeGreaterThan(r);
+    expect(b).toBeGreaterThan(20);
+    expect(g).toBeGreaterThan(r);
   });
 });
