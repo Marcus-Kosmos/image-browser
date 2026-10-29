@@ -87,6 +87,8 @@ const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
 const STORAGE_SIDEBAR = "image-browser:sidebar";
 const STORAGE_VIEW = "image-browser:view";
 const STORAGE_ASK_TRASH = "image-browser:ask-before-trash";
+/** How long a picture put in the trash can be brought back with "Ångra", a little past its toast. */
+const UNDO_TRASH_MS = 6500;
 
 /** The images of one or more folders opened together. */
 interface Collection {
@@ -124,6 +126,18 @@ export default function App() {
   // Set when the viewer closes, so the gallery can show where that image is.
   const [highlight, setHighlight] = useState<{ index: number } | null>(null);
   const [trashIndex, setTrashIndex] = useState<number | null>(null);
+  const pendingTrash = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => Promise<void> }>());
+  // Leaving before the time to undo is over still puts the pictures in the trash.
+  useEffect(() => {
+    const flush = () => {
+      for (const { timer, commit } of [...pendingTrash.current.values()]) {
+        clearTimeout(timer);
+        void commit();
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, []);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Off when the user chose to trash with one click, without the question.
   const [askBeforeTrash, setAskBeforeTrash] = useState(() => readStored(STORAGE_ASK_TRASH) !== "false");
@@ -377,7 +391,7 @@ export default function App() {
     [onDisk],
   );
 
-  const allImages = useMemo(() => {
+  const shownImages = useMemo(() => {
     if (locked) return [];
     if (view.kind === "folders") return listing?.images ?? [];
     const kept = view.kind === "favorites" ? library.favorites : (series?.images ?? []);
@@ -389,6 +403,12 @@ export default function App() {
       return image;
     });
   }, [locked, view.kind, library.favorites, series, listing, onDisk]);
+  // Pictures put in the trash a moment ago are gone from view while they can still be brought back.
+  const [trashing, setTrashing] = useState<string[]>([]);
+  const allImages = useMemo(
+    () => (trashing.length ? shownImages.filter((img) => !trashing.includes(img.path)) : shownImages),
+    [shownImages, trashing],
+  );
   // Tags are Favoriter and the series an image is in; hidden ones count only while shown.
   const index = useMemo(() => libraryIndex(library, showHidden), [library, showHidden]);
   const [filter, setFilter] = useState<ImageFilter>(NO_FILTER);
@@ -668,18 +688,38 @@ export default function App() {
     if (view.kind === "series" && view.id === id) selectView({ kind: "folders" });
   };
 
-  const trashImage = async (image: ImageEntry) => {
-    try {
-      await trashFile(image.path);
-    } catch (err) {
-      showToast(typeof err === "string" ? err : "Kunde inte flytta bilden till papperskorgen.", "error");
-      return;
-    }
-    changeLibrary((lib) => removeImage(lib, image.path));
-    setListing((prev) => prev && { ...prev, images: prev.images.filter((img) => img.path !== image.path) });
+  // The picture leaves the view at once but goes to the trash only when the time to undo is over,
+  // so "Ångra" needs nothing from the Trash, which the app may not reach.
+  const trashImage = (image: ImageEntry) => {
+    if (pendingTrash.current.has(image.path)) return;
+    const back = () => setTrashing((t) => t.filter((p) => p !== image.path));
+    const commit = async () => {
+      pendingTrash.current.delete(image.path);
+      try {
+        await trashFile(image.path);
+      } catch (err) {
+        back();
+        showToast(typeof err === "string" ? err : "Kunde inte flytta bilden till papperskorgen.", "error");
+        return;
+      }
+      changeLibrary((lib) => removeImage(lib, image.path));
+      setListing((prev) => prev && { ...prev, images: prev.images.filter((img) => img.path !== image.path) });
+      back();
+    };
+    pendingTrash.current.set(image.path, { timer: setTimeout(() => void commit(), UNDO_TRASH_MS), commit });
+    setTrashing((t) => [...t, image.path]);
     if (viewerIndex !== null && images.length === 1) setViewerIndex(null);
     // Otherwise the viewer stays on the same position, which now holds the next image.
-    showToast(`${image.name} flyttades till papperskorgen.`);
+    showToast(`${image.name} flyttades till papperskorgen.`, "success", {
+      label: "Ångra",
+      run: () => {
+        const pending = pendingTrash.current.get(image.path);
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        pendingTrash.current.delete(image.path);
+        back();
+      },
+    });
   };
 
   const changeAskBeforeTrash = (ask: boolean) => {
@@ -691,14 +731,14 @@ export default function App() {
     const image = images[index];
     if (!image) return;
     if (askBeforeTrash) setTrashIndex(index);
-    else void trashImage(image);
+    else trashImage(image);
   };
 
   const confirmTrash = (dontAsk: boolean) => {
     const image = trashIndex !== null ? images[trashIndex] : undefined;
     setTrashIndex(null);
     if (dontAsk) changeAskBeforeTrash(false);
-    if (image) void trashImage(image);
+    if (image) trashImage(image);
   };
 
   // Files and folders dragged in from Finder. In a series the images are added to it;
