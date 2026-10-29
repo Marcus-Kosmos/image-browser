@@ -105,6 +105,8 @@ export const ImageTile = memo(function ImageTile({
   // Wait for the thumbnail too, so the effect plays on the picture rather than an empty box.
   const shown = inView && (loaded || reveal === "none" || !!image.gone);
   const header = box.header ?? 0;
+  // Too narrow for its buttons side by side: they go into the menu, which opens from one button.
+  const compact = box.width < (onRemove ? 168 : 136);
   const framing = frameStyle(frame, box.width, box.height - header);
 
   return (
@@ -228,8 +230,28 @@ export const ImageTile = memo(function ImageTile({
           settings={settings}
           onChange={(change) => onChange(settingsKey, change)}
           onOpenChange={setMenuOpen}
+          actions={
+            compact
+              ? [
+                  {
+                    label: favorite ? "Ta bort från favoriter" : "Lägg till i favoriter",
+                    icon: <Heart className={cn(favorite && "fill-current")} />,
+                    onClick: () => onToggleFavorite(box.index),
+                  },
+                  ...(onRemove
+                    ? [{ label: "Ta bort ur serien", icon: <FolderMinus />, onClick: () => onRemove(box.index) }]
+                    : []),
+                  {
+                    label: "Flytta till papperskorgen",
+                    icon: <Trash2 />,
+                    onClick: () => onTrash(box.index),
+                    danger: true,
+                  },
+                ]
+              : undefined
+          }
         />
-        {onRemove && (
+        {onRemove && !compact && (
           <button
             onClick={() => onRemove(box.index)}
             className={cn(
@@ -243,23 +265,26 @@ export const ImageTile = memo(function ImageTile({
             <FolderMinus className="size-4" />
           </button>
         )}
-        <button
-          onClick={() => onTrash(box.index)}
-          className={cn(
-            "absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-            menuOpen && "opacity-100",
-          )}
-          title="Flytta till papperskorgen"
-          aria-label={`Flytta ${image.name} till papperskorgen`}
-          tabIndex={-1}
-        >
-          <Trash2 className="size-4" />
-        </button>
+        {!compact && (
+          <button
+            onClick={() => onTrash(box.index)}
+            className={cn(
+              "absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+              menuOpen && "opacity-100",
+            )}
+            title="Flytta till papperskorgen"
+            aria-label={`Flytta ${image.name} till papperskorgen`}
+            tabIndex={-1}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        )}
         <button
           onClick={() => onToggleFavorite(box.index)}
           className={cn(
             "absolute right-1.5 bottom-1.5 flex size-7 items-center justify-center rounded-md text-white transition-opacity hover:bg-black/40 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-            favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            // Small, it shows only when it is a favorite; the menu has it otherwise.
+            favorite ? "opacity-100" : compact ? "hidden" : "opacity-0 group-hover:opacity-100",
           )}
           title={favorite ? "Ta bort från favoriter (F)" : "Lägg till i favoriter (F)"}
           aria-label={favorite ? `Ta bort ${image.name} från favoriter` : `Lägg till ${image.name} i favoriter`}
@@ -276,7 +301,7 @@ export const ImageTile = memo(function ImageTile({
             )}
             title={aiMarkTitle(aiMark)}
           >
-            <AiMark kind={aiMark} className="size-3.5" />
+            <AiMark kind={aiMark} className="size-3.5" iconOnly={compact} />
           </span>
         )}
         {selected && (

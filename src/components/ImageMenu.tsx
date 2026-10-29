@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Heading as HeadingIcon, SlidersHorizontal } from "lucide-react";
+import { Check, Ellipsis, Heading as HeadingIcon, SlidersHorizontal } from "lucide-react";
 import type { HeadingKind } from "./HeadingDialog";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -22,13 +22,35 @@ interface ImageMenuProps {
   settings: ImageSettings;
   onChange: (change: ImageSettings) => void;
   onOpenChange: (open: boolean) => void;
+  /**
+   * The tile's own buttons, given here when the tile is too small for them: the menu then opens
+   * from a "more" button with these first.
+   */
+  actions?: MenuAction[];
+}
+
+export interface MenuAction {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
 }
 
 const SIZES: ImageSize[] = ["small", "medium", "large"];
 const REVEALS: Reveal[] = ["none", "fade", "slide-left", "slide-right", "rise", "cascade", "parallax"];
 
 /** Per-image settings: size in the layout and the effect it appears with. */
-export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, settings, onChange, onOpenChange }: ImageMenuProps) {
+export function ImageMenu({
+  name,
+  path,
+  series,
+  onToggleSeries,
+  onEditHeading,
+  settings,
+  onChange,
+  onOpenChange,
+  actions,
+}: ImageMenuProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -93,12 +115,12 @@ export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, s
           "absolute top-1.5 left-1.5 flex size-7 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/75 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
           open && "opacity-100",
         )}
-        title="Bildinställningar"
-        aria-label={`Inställningar för ${name}`}
+        title={actions ? "Mer" : "Bildinställningar"}
+        aria-label={actions ? `Mer för ${name}` : `Inställningar för ${name}`}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
-        <SlidersHorizontal className="size-4" />
+        {actions ? <Ellipsis className="size-4" /> : <SlidersHorizontal className="size-4" />}
       </button>
       {open &&
         createPortal(
@@ -109,6 +131,26 @@ export function ImageMenu({ name, path, series, onToggleSeries, onEditHeading, s
             className="fixed z-50 max-h-[calc(100vh-16px)] w-60 overflow-y-auto rounded-lg border bg-popover p-3 text-sm text-foreground shadow-lg"
             style={pos}
           >
+            {actions && (
+              <div className="mb-3 flex flex-col border-b pb-2">
+                {actions.map((a) => (
+                  <button
+                    key={a.label}
+                    onClick={() => {
+                      close();
+                      a.onClick();
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5 [&_svg]:shrink-0",
+                      a.danger && "text-destructive",
+                    )}
+                  >
+                    {a.icon}
+                    <span className="truncate">{a.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="mb-1.5 text-xs font-medium text-muted-foreground">Storlek</div>
             <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
               {SIZES.map((s) => (
