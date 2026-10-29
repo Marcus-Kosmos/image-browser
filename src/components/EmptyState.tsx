@@ -27,7 +27,7 @@ const CONTENT: Record<EmptyKind, { icon: typeof FolderOpen; title: string; text:
   series: {
     icon: GalleryHorizontalEnd,
     title: "Serien är tom",
-    text: "Lägg till bilder via bildens inställningar (reglageikonen uppe till vänster på bilden).",
+    text: "Välj bilder att lägga här, eller dra dem hit från Finder.",
   },
 };
 
@@ -38,6 +38,7 @@ export function EmptyState({
   onClearFilter,
   onRefresh,
   onShowSubfolders,
+  onAddToSeries,
 }: {
   kind: EmptyKind;
   onOpenFolder: () => void;
@@ -46,6 +47,8 @@ export function EmptyState({
   onRefresh?: () => void;
   /** Set when the folder has subfolders whose images are not shown. */
   onShowSubfolders?: () => void;
+  /** Picks pictures to put in the empty series shown. */
+  onAddToSeries?: () => void;
 }) {
   const { icon: Icon, title } = CONTENT[kind];
   const text =
@@ -92,6 +95,12 @@ export function EmptyState({
             Öppna en annan mapp
           </Button>
         </div>
+      )}
+      {kind === "series" && onAddToSeries && (
+        <Button onClick={onAddToSeries}>
+          <ImagePlus />
+          Lägg till bilder
+        </Button>
       )}
       {kind === "no-match" && onClearFilter && (
         <Button variant="outline" onClick={onClearFilter}>
