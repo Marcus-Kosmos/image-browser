@@ -60,6 +60,13 @@ export async function scanFolder(path: string, recursive: boolean): Promise<Fold
   return invoke<FolderListing>("scan_folder", { path, recursive });
 }
 
+/** A fingerprint of each picture's contents, to find copies; null for files that can't be read. */
+export async function contentHashes(paths: string[]): Promise<(string | null)[]> {
+  // In the demo, pictures of the same name and size in different folders count as copies.
+  if (demo) return paths.map((p) => p.split("/").pop() ?? p);
+  return invoke<(string | null)[]>("content_hashes", { paths });
+}
+
 /** Returns a URL the webview can load for a thumbnail with the given longest side. */
 export async function thumbnailUrl(image: ImageEntry, size: number): Promise<string> {
   if (demo) return demoImage(image);

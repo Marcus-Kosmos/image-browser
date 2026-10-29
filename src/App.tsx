@@ -23,6 +23,7 @@ import {
   publishWebPage,
   scanFolder,
   sortDropped,
+  contentHashes,
   trashFile,
   upscaleImage,
   cloudUpscaleImage,
@@ -35,7 +36,16 @@ import {
   type ImageEntry,
   type WebHost,
 } from "@/lib/api";
-import { NO_FILTER, filterImages, isFiltering, libraryIndex, type ImageFilter, type Tag } from "@/lib/filter";
+import {
+  NO_FILTER,
+  filterImages,
+  isFiltering,
+  keepDuplicates,
+  libraryIndex,
+  possibleDuplicates,
+  type ImageFilter,
+  type Tag,
+} from "@/lib/filter";
 import {
   addToFavorites,
   addToSeries,
@@ -376,7 +386,39 @@ export default function App() {
   const index = useMemo(() => libraryIndex(library, showHidden), [library, showHidden]);
   const [filter, setFilter] = useState<ImageFilter>(NO_FILTER);
   const filtering = isFiltering(filter);
-  const images = useMemo(() => filterImages(allImages, filter, index), [allImages, filter, index]);
+  // Fingerprints of pictures' contents by path and change time, read only when looking for copies.
+  const [hashCache, setHashCache] = useState<Map<string, string>>(() => new Map());
+  const hashKey = (img: ImageEntry) => `${img.path}|${img.modified}`;
+  useEffect(() => {
+    if (!filter.duplicates) return;
+    const wanted = possibleDuplicates(allImages).filter((img) => !hashCache.has(hashKey(img)));
+    if (wanted.length === 0) return;
+    let stale = false;
+    if (wanted.length > 20) showToast(`Jämför ${wanted.length} bilder för att hitta dubbletter…`);
+    contentHashes(wanted.map((img) => img.path))
+      .then((found) => {
+        if (stale) return;
+        setHashCache((prev) => {
+          const next = new Map(prev);
+          wanted.forEach((img, i) => next.set(hashKey(img), found[i] ?? `oläslig:${img.path}`));
+          return next;
+        });
+      })
+      .catch(() => !stale && showToast("Kunde inte jämföra bilderna.", "error"));
+    return () => {
+      stale = true;
+    };
+  }, [filter.duplicates, allImages, hashCache, showToast]);
+  const images = useMemo(() => {
+    const shown = filterImages(allImages, filter, index);
+    if (!filter.duplicates) return shown;
+    const hashes = new Map<string, string>();
+    for (const img of shown) {
+      const hash = hashCache.get(hashKey(img));
+      if (hash) hashes.set(img.path, hash);
+    }
+    return keepDuplicates(shown, hashes);
+  }, [allImages, filter, index, hashCache]);
   const tagChoices = useMemo<Tag[]>(
     () => [
       ...(showHidden || !library.favoritesPrivacy?.hidden ? [{ key: "favorites", name: "Favoriter" }] : []),

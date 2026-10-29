@@ -19,7 +19,8 @@ export function FilterBar({ filter, onChange, tags }: FilterBarProps) {
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const active = filter.tags.length + (filter.since !== "all" ? 1 : 0);
+  const active =
+    filter.tags.length + (filter.since !== "all" ? 1 : 0) + (filter.newestFirst ? 1 : 0) + (filter.duplicates ? 1 : 0);
 
   // ⌘F jumps to the search field.
   useEffect(() => {
@@ -97,7 +98,7 @@ export function FilterBar({ filter, onChange, tags }: FilterBarProps) {
         onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Filtrera på taggar och datum"
+        title="Filtrera och sortera: taggar, datum, senast ändrad och dubbletter"
         aria-label={active > 0 ? `Filter, ${active} valda` : "Filter"}
       >
         <ListFilter />
@@ -133,6 +134,29 @@ export function FilterBar({ filter, onChange, tags }: FilterBarProps) {
           ))}
           <p className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground">
             När bilden lades i Favoriter eller en serie, annars filens datum.
+          </p>
+          <div className="my-1 h-px bg-border" role="separator" />
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Ordning</div>
+          <Option
+            role="menuitemradio"
+            checked={!filter.newestFirst}
+            onClick={() => onChange({ ...filter, newestFirst: false })}
+          >
+            Mappens eller seriens ordning
+          </Option>
+          <Option role="menuitemradio" checked={filter.newestFirst} onClick={() => onChange({ ...filter, newestFirst: true })}>
+            Senast ändrad först
+          </Option>
+          <div className="my-1 h-px bg-border" role="separator" />
+          <Option
+            role="menuitemcheckbox"
+            checked={filter.duplicates}
+            onClick={() => onChange({ ...filter, duplicates: !filter.duplicates })}
+          >
+            Visa bara dubbletter
+          </Option>
+          <p className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground">
+            Bilder med exakt samma innehåll, sida vid sida. Slå på undermappar för att jämföra dem också.
           </p>
           {active > 0 && (
             <>
