@@ -646,7 +646,9 @@ export function Viewer({
     setAdded(target);
   };
   const onStageDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu], input, select, label")) return;
+    // A click on a text, or in the one being written, is for the text, not the picture.
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button, [role=menu], input, textarea, select, label, [data-caption]"))
+      return;
     press.current = { x: e.clientX, y: e.clientY, from: zoom, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -2044,8 +2046,11 @@ function Caption({ heading, place, align, aside, height, inset, width, pictureHe
   };
   return (
     <div
+      data-caption
       className={cn("absolute", onEdit ? "pointer-events-auto" : "pointer-events-none")}
       style={{ ...captionPosition(place, inset, aside), textAlign: align, ...motion }}
+      // Between its lines and beside a short last one, the text is still the text.
+      onClick={onEdit && ((e) => !(e.target as HTMLElement).closest("button") && onEdit())}
     >
       <HeadingText
         heading={heading}
