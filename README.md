@@ -149,6 +149,8 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 
 - Utseende (palettknappen): bakgrundsfärg, ram (tunn linje, vitt passepartout, svart) och skugga (under eller inåt)
 - Knappar, menyer och sidopanel tar färg efter bakgrunden och byter mellan mörk och ljus text för läsbarhet
+- Färger från bilderna (pipetten under Bakgrund) tar fram de tre färger som bilderna har mest av och ger
+  upp till sex teman där de byter plats som bakgrund, text och knappar. Texten och knapparna hålls läsbara
 - Sparas per mapp, favoriter eller serie
 
 ## Funktioner (steg 4, del 2: rubriker)

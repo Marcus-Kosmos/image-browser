@@ -69,34 +69,140 @@ function shade(bg: Rgb, darker: boolean, minContrast: number): Rgb {
   return darker ? [0, 0, 0] : [255, 255, 255];
 }
 
+/** Page, text and button colors that go together, as #rrggbb. */
+export interface ColorTheme {
+  background: string;
+  text: string;
+  accent: string;
+}
+
+/**
+ * The hues a set of pictures has most of, up to `count`, each with how saturated it tends to be,
+ * and whether the pictures are mostly light. Grays, near-black and near-white say nothing about hue.
+ */
+export function dominantHues(colors: Rgb[], count = 3) {
+  const BINS = 24;
+  const weight = new Array<number>(BINS).fill(0);
+  const sums = Array.from({ length: BINS }, () => [0, 0, 0]);
+  let lightness = 0;
+  for (const rgb of colors) {
+    const [h, s, l] = toHsl(rgb);
+    lightness += l;
+    if (s < 0.15 || l < 0.08 || l > 0.94) continue;
+    const w = s * (1 - Math.abs(2 * l - 1));
+    const bin = Math.floor(h / (360 / BINS)) % BINS;
+    weight[bin] += w;
+    sums[bin][0] += Math.cos((h * Math.PI) / 180) * w;
+    sums[bin][1] += Math.sin((h * Math.PI) / 180) * w;
+    sums[bin][2] += s * w;
+  }
+  const hues: Array<{ hue: number; saturation: number }> = [];
+  const taken = new Set<number>();
+  while (hues.length < count) {
+    // Neighbouring bins count together, so a hue on a bin's edge is not split in two; hues already
+    // found and their neighbours are passed over, so each one found is a hue of its own.
+    let best = -1;
+    let bestWeight = colors.length * 0.02;
+    for (let i = 0; i < BINS; i++) {
+      if (taken.has(i)) continue;
+      const around = weight[(i + BINS - 1) % BINS] + weight[i] + weight[(i + 1) % BINS];
+      if (around > bestWeight) {
+        best = i;
+        bestWeight = around;
+      }
+    }
+    if (best < 0) break;
+    // The heaviest bin of the three is the hue's own.
+    for (const n of [(best + BINS - 1) % BINS, (best + 1) % BINS]) if (!taken.has(n) && weight[n] > weight[best]) best = n;
+    for (let d = -2; d <= 2; d++) taken.add((best + d + BINS) % BINS);
+    const [x, y, sat] = sums[best];
+    hues.push({ hue: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360, saturation: sat / weight[best] });
+  }
+  return { hues, light: colors.length > 0 && lightness / colors.length > 0.6 };
+}
+
+/** Lightness of this hue and saturation, moved away from `bg` until it reaches `minContrast`. */
+function against(bg: Rgb, hue: number, saturation: number, minContrast: number): Rgb {
+  const darker = prefersDarkText(toHex(bg));
+  for (let i = 0; i <= 50; i++) {
+    const lightness = darker ? 0.5 * (1 - i / 50) : 0.5 + 0.5 * (i / 50);
+    const c = fromHsl([hue, saturation, lightness]);
+    if (contrast(c, bg) >= minContrast) return c;
+  }
+  return darker ? [0, 0, 0] : [255, 255, 255];
+}
+
+/**
+ * Color themes from the colors a set of pictures has most of: each of their main hues in turn as the
+ * page, the text and the buttons. The page is kept quiet so the pictures stand out, dark unless they
+ * are mostly light; text and buttons keep readable contrast on it. Pictures with hardly any color
+ * give one gray theme; no pixels give none.
+ */
+export function themesFromColors(colors: Rgb[]): ColorTheme[] {
+  if (colors.length === 0) return [];
+  const { hues, light } = dominantHues(colors);
+  const page = ({ hue, saturation }: { hue: number; saturation: number }) =>
+    fromHsl([hue, saturation && Math.min(0.45, Math.max(0.18, saturation)), light ? 0.9 : 0.15]);
+  const make = (bg: Rgb, text: { hue: number; saturation: number }, accent: { hue: number; saturation: number }) => ({
+    background: toHex(bg),
+    text: toHex(against(bg, text.hue, Math.min(0.5, text.saturation), 9)),
+    accent: toHex(against(bg, accent.hue, Math.max(0.55, accent.saturation), 3.5)),
+  });
+  if (hues.length === 0) {
+    const gray = { hue: 0, saturation: 0 };
+    return [make(page(gray), gray, gray)];
+  }
+  const themes: ColorTheme[] = [];
+  const seen = new Set<string>();
+  for (const b of hues)
+    for (const t of hues)
+      for (const a of hues) {
+        // With three hues, each theme uses all three; with fewer, the page's own hue may come back.
+        if (hues.length === 3 && (b === t || b === a || t === a)) continue;
+        if (hues.length === 2 && b === t && t === a) continue;
+        const theme = make(page(b), t, a);
+        const key = `${theme.background}${theme.text}${theme.accent}`;
+        if (!seen.has(key)) seen.add(key), themes.push(theme);
+      }
+  if (hues.length === 1) return themes;
+  return themes.slice(0, 6);
+}
+
 /**
  * Interface colors derived from a page background. Text and buttons are deeper
  * (or paler) shades of the background's own hue, so a light blue gets dark blue
  * buttons, and every shade keeps readable contrast (WCAG AA or better).
  */
-export function themeFor(background: string): Record<string, string> | null {
+export function themeFor(background: string, text?: string, accent?: string): Record<string, string> | null {
   const bg = parseHex(background);
   if (!bg) return null;
   const darker = prefersDarkText(background);
-  const fg = toHex(shade(bg, darker, 9));
-  const muted = toHex(shade(bg, darker, 4.8));
+  const fg = text && parseHex(text) ? text : toHex(shade(bg, darker, 9));
+  const muted = text && parseHex(text) ? `color-mix(in oklab, ${text} 72%, ${background})` : toHex(shade(bg, darker, 4.8));
   const mix = (percent: number) => `color-mix(in oklab, ${background}, ${fg} ${percent}%)`;
+  // Buttons in a color of their own, with text on them that reads.
+  const button = accent ? parseHex(accent) : null;
+  const onButton = button
+    ? contrast(button, bg) >= 4.5
+      ? background
+      : toHex(contrast(button, [0, 0, 0]) >= contrast(button, [255, 255, 255]) ? [0, 0, 0] : [255, 255, 255])
+    : background;
   return {
     "--canvas": background,
     "--background": mix(6),
     "--card": mix(6),
     "--popover": mix(5),
     "--foreground": fg,
-    "--primary": fg,
-    "--primary-foreground": background,
+    "--primary": accent ?? fg,
+    "--primary-foreground": onButton,
     "--secondary": mix(12),
     "--secondary-foreground": fg,
     "--muted": mix(12),
     "--muted-foreground": muted,
-    "--accent": mix(16),
+    "--accent": accent ? `color-mix(in oklab, ${background}, ${accent} 24%)` : mix(16),
     "--accent-foreground": fg,
     "--border": mix(22),
-    "--ring": mix(50),
+    "--ring": accent ?? mix(50),
   };
 }
 
@@ -104,7 +210,7 @@ export function themeFor(background: string): Record<string, string> | null {
 const PAINT = "imagime:paint";
 
 /** Applies the colors for `background` to the whole document (menus are portalled to <body>). */
-export function useBackgroundTheme(background: string | undefined) {
+export function useBackgroundTheme(background: string | undefined, text?: string, accent?: string) {
   useEffect(() => {
     // Remembered for the next start, which paints it before the app has loaded.
     try {
@@ -113,12 +219,12 @@ export function useBackgroundTheme(background: string | undefined) {
     } catch {
       // Without storage the next start shows the system's light or dark look first.
     }
-    const vars = background ? themeFor(background) : null;
+    const vars = background ? themeFor(background, text, accent) : null;
     if (!vars) return;
     const root = document.documentElement.style;
     for (const [name, value] of Object.entries(vars)) root.setProperty(name, value);
     return () => {
       for (const name of Object.keys(vars)) root.removeProperty(name);
     };
-  }, [background]);
+  }, [background, text, accent]);
 }
