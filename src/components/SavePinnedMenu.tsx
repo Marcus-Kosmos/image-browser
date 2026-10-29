@@ -3,6 +3,7 @@ import { GalleryHorizontalEnd } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "./ViewerLookMenu";
 import { cn } from "@/lib/utils";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 export interface SavePinnedChoice {
   name: string;
@@ -27,6 +28,8 @@ export function SavePinnedMenu({ count, defaultName, onSave }: SavePinnedMenuPro
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
+
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

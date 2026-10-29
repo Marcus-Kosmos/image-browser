@@ -10,6 +10,7 @@ import {
 } from "@/lib/settings";
 import { prefersDarkText } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface AppearanceMenuProps {
   settings: FolderSettings;
@@ -49,6 +50,8 @@ export function AppearanceMenu({
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+
+  useCloseOnLeaveAfterChoice(root, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

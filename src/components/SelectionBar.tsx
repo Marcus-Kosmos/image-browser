@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { Series } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { SeriesMenuList } from "./SeriesMenuList";
+import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 
 interface SelectionBarProps {
   count: number;
@@ -42,6 +43,8 @@ export function SelectionBar({
 }: SelectionBarProps) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
+
+  useCloseOnLeaveAfterChoice(menu, open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;
