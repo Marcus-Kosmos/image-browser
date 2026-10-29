@@ -1212,7 +1212,12 @@ export function Viewer({
                 side="left"
                 disabled={!hasPrev}
                 onClick={() => onIndexChange(index - 1)}
-                style={pinsWidth ? { left: pinsWidth + 4 } : undefined}
+                // Over a picture that fills the screen the folded collections lie on top, so it steps past them.
+                style={
+                  pinsWidth || (wide && !look.collections)
+                    ? { left: (pinsWidth ? pinsWidth + 4 : 8) + (wide && !look.collections ? RAIL_WIDTH : 0) }
+                    : undefined
+                }
               />
               <NavButton side="right" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} />
             </>
@@ -1863,6 +1868,9 @@ function asidePicture(place: CaptionPlace) {
 
 /** Space between a heading to the side and its picture. */
 const ASIDE_GAP = 24;
+
+/** Width of the folded collections, `w-12`. */
+const RAIL_WIDTH = 48;
 
 /** Width of the column a heading to the side takes, gap included, out of `room`. */
 function asideWidth(room: number) {
