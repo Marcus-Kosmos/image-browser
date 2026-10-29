@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -535,6 +535,19 @@ export function Viewer({
   // Dragging the whole picture carries it to Favoriter or a series beside it; zoomed, a drag pans instead.
   const [carry, setCarry] = useState<{ x: number; y: number; over: string | null } | null>(null);
   const [railOpen, setRailOpen] = useState(false);
+  /** Set when the side menu is folded in under the pointer, so it stays folded until the pointer leaves. */
+  const railHeld = useRef(false);
+  const pinCollections = (collections: boolean) => {
+    updateLook({ collections });
+    if (!collections) {
+      setRailOpen(false);
+      railHeld.current = true;
+    }
+  };
+  const aiOf = useMemo(
+    () => new Map(images.flatMap((img) => (img.ai ? [[img.path, img.ai] as const] : []))),
+    [images],
+  );
   const [added, setAdded] = useState<string | null>(null);
   useEffect(() => {
     if (!added) return;
@@ -690,7 +703,7 @@ export function Viewer({
       else if (e.key === "0") setZoom(WHOLE);
       else if (e.key === "p") togglePin();
       else if (e.key === "h") updateLook({ screen: nextScreenFit(look.screen) });
-      else if (e.key === "c") updateLook({ collections: !look.collections });
+      else if (e.key === "c") pinCollections(!look.collections);
       else if (Number.isInteger(digit) && digit >= 1 && digit <= series.length)
         onToggleSeries(series[digit - 1].id, index);
       else if (e.key === "s") setPicking((p) => !p);
@@ -803,8 +816,11 @@ export function Viewer({
             "z-30 shrink-0",
             look.collections ? "relative w-56" : wide ? "absolute inset-y-0 left-0 w-12" : "relative w-12",
           )}
-          onPointerEnter={() => setRailOpen(true)}
-          onPointerLeave={() => setRailOpen(false)}
+          onPointerEnter={() => !railHeld.current && setRailOpen(true)}
+          onPointerLeave={() => {
+            railHeld.current = false;
+            setRailOpen(false);
+          }}
         >
           <CollectionsPanel
             series={series}
@@ -816,15 +832,15 @@ export function Viewer({
             added={added}
             compact={!look.collections && !railOpen && !carry}
             pinned={look.collections}
-            onPinnedChange={(collections) => updateLook({ collections })}
+            onPinnedChange={pinCollections}
             className={cn("absolute bottom-0 left-0", wide ? "top-12" : "top-0", !look.collections && (railOpen || carry) && "shadow-xl")}
             style={{
               background:
                 look.collections && !wide
                   ? undefined
                   : look.background
-                    ? "color-mix(in oklab, var(--canvas) 85%, transparent)"
-                    : "rgb(0 0 0 / 0.6)",
+                    ? "color-mix(in oklab, var(--canvas) 94%, transparent)"
+                    : "rgb(0 0 0 / 0.88)",
             }}
           />
         </div>
@@ -936,6 +952,7 @@ export function Viewer({
                     zoom={i === layers.length - 1 && layer.path === image.path ? zoom : WHOLE}
                     panning={panning}
                     waitingSince={waiting?.path === layer.path ? waiting.since : undefined}
+                    aiMark={showAiMark ? aiOf.get(layer.path) : undefined}
                   />
                 ))}
                 {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
@@ -1052,13 +1069,13 @@ export function Viewer({
                 onClick={() => onShowAiMarkChange(!showAiMark)}
                 pressed={showAiMark}
                 title={
-                  (showAiMark && image.ai ? aiMarkTitle(image.ai) + ". " : "") +
-                  (showAiMark ? "Dölj AI-märkningen" : "Visa AI-märkning: om bilden är gjord eller förstorad med AI")
+                  showAiMark
+                    ? "Dölj AI-märkningen"
+                    : "Visa AI-märkning: ett märke i hörnet på bilder som är gjorda eller förstorade med AI"
                 }
                 label="Visa AI-märkning"
-                wide={showAiMark && !!image.ai}
               >
-                {showAiMark && image.ai ? <AiMark kind={image.ai} /> : <Sparkles />}
+                <Sparkles />
               </DockButton>
             )}
             <DockDivider />
@@ -1257,6 +1274,8 @@ interface LayerViewProps {
   panning: boolean;
   /** When an enlarged copy of this picture began to be made, while it is on its way. */
   waitingSince?: number;
+  /** Shown in the picture's top right corner: made or enlarged with AI. */
+  aiMark?: NonNullable<ImageEntry["ai"]>;
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
@@ -1272,6 +1291,7 @@ function LayerView({
   zoom,
   panning,
   waitingSince,
+  aiMark,
 }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
@@ -1338,6 +1358,15 @@ function LayerView({
           <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: radius.outer }}>
             <WaitingRing since={waitingSince} />
           </div>
+        )}
+        {aiMark && zoom.scale === 1 && (
+          <span
+            className="absolute top-2.5 right-2.5 flex h-7 items-center gap-1.5 rounded-md bg-black/55 px-2 text-xs font-medium text-white backdrop-blur-sm"
+            style={{ marginTop: framing.padding, marginRight: framing.padding }}
+            title={aiMarkTitle(aiMark)}
+          >
+            <AiMark kind={aiMark} className="size-3.5" />
+          </span>
         )}
       </div>
     </div>
