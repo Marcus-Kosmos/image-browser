@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageEntry } from "@/lib/api";
 import { justifiedLayout, paginate, rowHeightForPage, type LayoutBox } from "@/lib/layout";
@@ -55,6 +55,38 @@ interface GalleryProps {
   showAiMark?: boolean;
   /** The picture being enlarged, shown as the old version until the copy arrives. */
   waiting?: Waiting | null;
+  /** Given in a series: the empty space after the last picture shows a plus that picks pictures to add. */
+  onAdd?: () => void;
+  /** Says what the plus adds to, e.g. the series' name. */
+  addTo?: string;
+}
+
+/** Where the plus for adding pictures goes, beside the last row or under it. */
+interface AddSlot {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Under the last row, so it adds to the height of the content. */
+  below: boolean;
+}
+
+/** Narrowest free space beside the last row that the plus is placed in. */
+const ADD_MIN_WIDTH = 120;
+/** Height of the plus when it goes under the last row. */
+const ADD_MAX_HEIGHT = 160;
+
+/** The free space after the last row's boxes, or a band under them when the row is full. */
+function addSlotAfter(boxes: LayoutBox[], width: number, room: number): AddSlot | null {
+  const bottom = Math.max(...boxes.map((b) => b.y));
+  const row = boxes.filter((b) => b.y === bottom);
+  const right = Math.max(...row.map((b) => b.x + b.width));
+  const height = Math.max(...row.map((b) => b.height));
+  const free = width - right - GAP;
+  if (free >= Math.min(ADD_MIN_WIDTH, height)) return { x: right + GAP, y: bottom, width: free, height, below: false };
+  const under = Math.min(height, ADD_MAX_HEIGHT, room - (bottom + height + GAP));
+  if (under < 64) return null;
+  return { x: 0, y: bottom + height + GAP, width, height: under, below: true };
 }
 
 const GAP = 6;
@@ -117,6 +149,8 @@ export function Gallery({
   highlight,
   waiting,
   showAiMark = false,
+  onAdd,
+  addTo,
 }: GalleryProps) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -161,6 +195,13 @@ export function Gallery({
     }
     return justifiedLayout(items, size.width - FLOW_PADDING * 2, rowHeight, GAP);
   }, [pagesMode, items, size.width, pageContent.width, pageContent.height, rowHeight]);
+
+  const flowAdd = useMemo(() => {
+    if (!onAdd || pagesMode) return null;
+    const boxes = layout.rows.flatMap((r) => r.boxes);
+    if (boxes.length === 0) return null;
+    return addSlotAfter(boxes, size.width - FLOW_PADDING * 2, Infinity);
+  }, [onAdd, pagesMode, layout, size.width]);
 
   const pages = useMemo(
     () => (pagesMode && pageContent.height > 0 ? paginate(layout, pageContent.width, pageContent.height) : []),
@@ -512,6 +553,29 @@ export function Gallery({
     );
   };
 
+  const pageAdd =
+    onAdd && pagesMode && pages.length > 0 && pages[pages.length - 1].boxes.length > 0
+      ? addSlotAfter(pages[pages.length - 1].boxes, pageContent.width, pageContent.height)
+      : null;
+  const renderAdd = (slot: AddSlot, x: number, y: number) => (
+    <button
+      key="add"
+      type="button"
+      onClick={onAdd}
+      title={addTo ? `Lägg till bilder i ${addTo}` : "Lägg till bilder"}
+      aria-label={addTo ? `Lägg till bilder i ${addTo}` : "Lägg till bilder"}
+      className="group absolute flex items-center justify-center rounded-lg border-2 border-dashed border-transparent text-current/70 transition-colors hover:border-current/25 hover:bg-current/5 focus-visible:border-current/40 focus-visible:outline-none"
+      style={{ left: x + slot.x, top: y + slot.y, width: slot.width, height: slot.height }}
+    >
+      <span className="flex flex-col items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span className="flex size-11 items-center justify-center rounded-full bg-current/10">
+          <Plus className="size-5" />
+        </span>
+        <span className="text-xs">Lägg till bilder</span>
+      </span>
+    </button>
+  );
+
   const renderSection = (section: { index: number; y: number; height: number }, x: number, y: number, width: number) => {
     const heading = settings.images[imageKey(images[section.index])]?.pageHeading;
     if (!heading) return null;
@@ -554,6 +618,7 @@ export function Gallery({
                 >
                   {page.section && renderSection(page.section, PAGE_PADDING_X, PAGE_PADDING_Y, pageContent.width)}
                   {page.boxes.map((box) => renderTile(box, PAGE_PADDING_X, PAGE_PADDING_Y))}
+                  {pageAdd && i === pages.length - 1 && renderAdd(pageAdd, PAGE_PADDING_X, PAGE_PADDING_Y)}
                   {settings.showPageNumbers && (
                     <div
                       className="absolute inset-x-0 text-center text-xs text-muted-foreground tabular-nums"
@@ -577,7 +642,10 @@ export function Gallery({
             )}
           </div>
         ) : (
-          <div className="relative" style={{ height: layout.height + FLOW_PADDING * 2 }}>
+          <div
+            className="relative"
+            style={{ height: layout.height + FLOW_PADDING * 2 + (flowAdd?.below ? flowAdd.height + GAP : 0) }}
+          >
             {layout.rows
               .filter(
                 (row) =>
@@ -588,6 +656,7 @@ export function Gallery({
                 ...(row.section ? [renderSection(row.section, FLOW_PADDING, FLOW_PADDING, size.width - FLOW_PADDING * 2)] : []),
                 ...row.boxes.map((box) => renderTile(box, FLOW_PADDING, FLOW_PADDING)),
               ])}
+            {flowAdd && renderAdd(flowAdd, FLOW_PADDING, FLOW_PADDING)}
           </div>
         )}
       </div>

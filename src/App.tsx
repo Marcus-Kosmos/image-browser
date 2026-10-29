@@ -708,7 +708,8 @@ export default function App() {
   const dropInto = series && !locked ? series : null;
   /** Paths compare equal however their letters (å, ä, ö) were composed. */
   const samePath = (path: string) => path.normalize("NFC");
-  const handleDrop = async (paths: string[]) => {
+  /** `show` opens the first picture in full screen once it is in place. */
+  const handleDrop = async (paths: string[], show = true) => {
     const { folders: droppedFolders, images: droppedImages } = await sortDropped(paths);
     if (droppedFolders.length === 0 && droppedImages.length === 0) {
       showToast("Det finns inga bilder eller mappar bland det du släppte.", "error");
@@ -727,7 +728,7 @@ export default function App() {
       }
       addTo(`series:${dropInto.id}`, entries);
       // Show the first one where it now is in the series.
-      setShowOnLoad(entries[0].path);
+      if (show) setShowOnLoad(entries[0].path);
       return;
     }
     const parents = droppedImages.map(parentFolder).filter((p): p is string => p !== null);
@@ -814,6 +815,12 @@ export default function App() {
   const openImages = async () => {
     const paths = await pickImages();
     if (paths.length > 0) await handleDrop(paths);
+  };
+  // Picked to go into the series shown, staying in the gallery where they now appear last.
+  const addImagesToSeries = async () => {
+    if (!dropInto) return;
+    const paths = await pickImages(`Välj bilder att lägga i ${dropInto.name}`);
+    if (paths.length > 0) await handleDrop(paths, false);
   };
   const latestOpenImages = useRef(openImages);
   latestOpenImages.current = openImages;
@@ -1002,10 +1009,13 @@ export default function App() {
               highlight={highlight}
               showAiMark={showAiMark}
               waiting={waiting}
+              onAdd={dropInto && !filtering ? () => void addImagesToSeries() : undefined}
+              addTo={dropInto?.name}
             />
           ) : (
             <EmptyState
               kind={emptyKind}
+              onAddToSeries={emptyKind === "series" && dropInto ? () => void addImagesToSeries() : undefined}
               onOpenFolder={() => void openFolders()}
               onOpenImages={() => void openImages()}
               onClearFilter={() => setFilter(NO_FILTER)}
