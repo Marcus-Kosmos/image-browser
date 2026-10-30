@@ -164,8 +164,6 @@ export default function App() {
       return { kind: "folders" };
     }
   });
-  // Hidden series and favorites are listed only after "Visa dolda", until the app restarts.
-  const [showHidden, setShowHidden] = useState(false);
   // The locked series (or favorites) opened with Touch ID; it locks again when left.
   const [unlocked, setUnlocked] = useState<string | null>(null);
   // A series just created, whose name the sidebar should open for editing.
@@ -421,8 +419,8 @@ export default function App() {
     () => (trashing.length ? shownImages.filter((img) => !trashing.includes(img.path)) : shownImages),
     [shownImages, trashing],
   );
-  // Tags are Favoriter and the series an image is in; hidden ones count only while shown.
-  const index = useMemo(() => libraryIndex(library, showHidden), [library, showHidden]);
+  // Tags are Favoriter and the series an image is in; private ones are left out, so they don't show on pictures.
+  const index = useMemo(() => libraryIndex(library, false), [library]);
   const [filter, setFilter] = useState<ImageFilter>(NO_FILTER);
   const filtering = isFiltering(filter);
   // Fingerprints of pictures' contents by path and change time, read only when looking for copies.
@@ -464,10 +462,10 @@ export default function App() {
   }, [allImages, filter, index, hashCache]);
   const tagChoices = useMemo<Tag[]>(
     () => [
-      ...(showHidden || !library.favoritesPrivacy?.hidden ? [{ key: "favorites", name: "Favoriter" }] : []),
-      ...library.series.filter((s) => showHidden || !s.hidden).map((s) => ({ key: `series:${s.id}`, name: s.name })),
+      ...(!library.favoritesPrivacy?.hidden ? [{ key: "favorites", name: "Favoriter" }] : []),
+      ...library.series.filter((s) => !s.hidden).map((s) => ({ key: `series:${s.id}`, name: s.name })),
     ],
-    [library, showHidden],
+    [library],
   );
   // A filter on a tag that no longer exists (deleted or hidden series) is dropped.
   useEffect(() => {
@@ -475,10 +473,7 @@ export default function App() {
     if (filter.tags.some((k) => !keys.has(k))) setFilter((f) => ({ ...f, tags: f.tags.filter((k) => keys.has(k)) }));
   }, [tagChoices, filter.tags]);
   const place = useMemo(() => (listing ? findPlace(library, listing.folders) : undefined), [library, listing]);
-  const listedSeries = useMemo(
-    () => (showHidden ? library.series : library.series.filter((s) => !s.hidden)),
-    [showHidden, library.series],
-  );
+  const listedSeries = library.series;
   const favoritePaths = useMemo(() => new Set(library.favorites.map((img) => img.path)), [library.favorites]);
 
   // The list can shrink under the viewer, e.g. when an image is taken out of the favorites shown.
@@ -1028,8 +1023,6 @@ export default function App() {
             onDelete={removeSeries}
             renamingId={renamingId}
             onRenamingDone={() => setRenamingId(null)}
-            showHidden={showHidden}
-            onToggleShowHidden={() => setShowHidden(!showHidden)}
             onSetPrivacy={(item, change) => void changePrivacy(item, change)}
             currentPlace={place}
             onSavePlace={() => {

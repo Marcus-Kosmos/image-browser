@@ -137,9 +137,10 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Ändra ordning i en serie: dra en bild till en ny plats (en linje visar var den hamnar), eller
   markera bilden och tryck Alt + pil vänster/höger. Håll bilden vid kanten för att bläddra.
   Ordningen sparas och gäller i flöde, sidläge och helskärm
-- Dölj och lås: ⋯-menyn på en serie, eller på Favoriter, kan dölja den eller låsa den med Touch ID
-  (eller datorns lösenord). Dolda syns bara efter ögonknappen vid Bibliotek; låsta låses igen när du
-  lämnar dem eller lägger appen i bakgrunden, och appen startar aldrig i något dolt eller låst.
+- Privat och låst: ⋯-menyn på en serie, eller på Favoriter, kan göra den privat eller låsa den med Touch ID
+  (eller datorns lösenord). En privat samling ligger kvar i listan men syns inte som märkning på bilderna
+  eller bland filtren; låsta låses igen när du lämnar dem eller lägger appen i bakgrunden, och appen
+  startar aldrig i något privat eller låst.
   Bildfilerna själva ligger kvar i sina mappar och syns i Finder
 - Taggar: Favoriter och varje serie fungerar som taggar; en bild i en serie får seriens tagg.
   Taggarna syns när du för musen över en bild och i helskärm

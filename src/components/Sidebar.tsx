@@ -41,9 +41,6 @@ interface SidebarProps {
   /** A series that was just created and should start with its name being edited. */
   renamingId: string | null;
   onRenamingDone: () => void;
-  /** Whether hidden series (and hidden favorites) are listed. */
-  showHidden: boolean;
-  onToggleShowHidden: () => void;
   onSetPrivacy: (item: LibraryItem, change: Privacy) => void;
   /** The saved place for the open folders, if they are saved. */
   currentPlace: Place | undefined;
@@ -72,8 +69,6 @@ export function Sidebar({
   onDelete,
   renamingId,
   onRenamingDone,
-  showHidden,
-  onToggleShowHidden,
   onSetPrivacy,
   currentPlace,
   onSavePlace,
@@ -87,7 +82,7 @@ export function Sidebar({
   newSeriesName,
 }: SidebarProps) {
   const copyTo = (from: LibraryView, exclude?: string) => ({
-    series: visibleSeries.filter((s) => s.id !== exclude),
+    series: library.series.filter((s) => s.id !== exclude),
     onPick: (id: string) => onCopyAll(from, id),
     onCreate: (name: string) => onCopyAllToNew(from, name),
     defaultName: newSeriesName,
@@ -104,7 +99,6 @@ export function Sidebar({
   // Folders opened before stay listed; saved ones show under their own name instead.
   const recent = (library.recent ?? []).filter((r) => !places.some((p) => sameFolders(p.folders, r)));
   const folderLabel = (paths: string[]) => (paths.length === 1 ? folderName(paths[0]) : `${paths.length} mappar`);
-  const visibleSeries = showHidden ? library.series : library.series.filter((s) => !s.hidden);
 
   const stopEditing = () => {
     setEditing(null);
@@ -189,40 +183,24 @@ export function Sidebar({
         ),
       )}
 
-      {/* The toggle sits in the column of the row icons below, the title in line with their names. */}
-      <div className="mt-4 flex items-center gap-0.5 pl-2.5">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-7"
-          onClick={onToggleShowHidden}
-          aria-pressed={showHidden}
-          title={showHidden ? "Göm det dolda igen" : "Visa dolda"}
-          aria-label="Visa dolda"
-        >
-          {showHidden ? <Eye /> : <EyeOff />}
-        </Button>
-        <SectionTitle className="mb-0 px-0">Bibliotek</SectionTitle>
-      </div>
-      {(showHidden || !library.favoritesPrivacy?.hidden) && (
-        <Item
-          active={view.kind === "favorites"}
-          onClick={() => onSelect({ kind: "favorites" })}
-          icon={<Heart />}
-          label="Favoriter"
-          count={library.favorites.length}
-          privacy={library.favoritesPrivacy}
-          dropTarget="favorites"
-          actions={
-            <RowMenu
-              label="Favoriter"
-              privacy={library.favoritesPrivacy ?? {}}
-              onPrivacy={(change) => onSetPrivacy({ kind: "favorites" }, change)}
-              copyTo={library.favorites.length > 0 ? copyTo({ kind: "favorites" }) : undefined}
-            />
-          }
-        />
-      )}
+      <SectionTitle className="mt-4">Bibliotek</SectionTitle>
+      <Item
+        active={view.kind === "favorites"}
+        onClick={() => onSelect({ kind: "favorites" })}
+        icon={<Heart />}
+        label="Favoriter"
+        count={library.favorites.length}
+        privacy={library.favoritesPrivacy}
+        dropTarget="favorites"
+        actions={
+          <RowMenu
+            label="Favoriter"
+            privacy={library.favoritesPrivacy ?? {}}
+            onPrivacy={(change) => onSetPrivacy({ kind: "favorites" }, change)}
+            copyTo={library.favorites.length > 0 ? copyTo({ kind: "favorites" }) : undefined}
+          />
+        }
+      />
 
       <div className="mt-4 flex items-center justify-between pr-2">
         <SectionTitle className="mb-0">Serier</SectionTitle>
@@ -238,15 +216,12 @@ export function Sidebar({
           <Plus />
         </Button>
       </div>
-      {visibleSeries.length < library.series.length && visibleSeries.length === 0 && (
-        <p className="px-4 py-1 text-xs text-muted-foreground">Alla serier är dolda.</p>
-      )}
       {library.series.length === 0 && (
         <p className="px-4 py-1 text-xs text-muted-foreground">
           Spara det som visas som en serie med plus-knappen, eller dra bilder hit.
         </p>
       )}
-      {visibleSeries.map((s) =>
+      {library.series.map((s) =>
         editing === s.id ? (
           <RenameField
             key={s.id}
@@ -364,7 +339,7 @@ function Item({ active, onClick, icon, label, title, count, privacy, dropTarget,
         <span className={cn("truncate", active && "font-medium", gone && "text-muted-foreground")}>
           {label}
         </span>
-        {privacy?.hidden && <EyeOff className="!size-3" aria-label="Dold" />}
+        {privacy?.hidden && <EyeOff className="!size-3" aria-label="Privat" />}
         {privacy?.locked && <Lock className="!size-3" aria-label="Låst" />}
         {count !== undefined && (
           <span
@@ -491,7 +466,7 @@ function RowMenu({ label, privacy, onPrivacy, onRename, onDelete, deleteLabel = 
                 icon={privacy.hidden ? <Eye /> : <EyeOff />}
                 onClick={choose(() => onPrivacy({ hidden: !privacy.hidden }))}
               >
-                {privacy.hidden ? "Sluta dölja" : "Dölj"}
+                {privacy.hidden ? "Sluta vara privat" : "Gör privat"}
               </MenuItem>
               <MenuItem
                 icon={privacy.locked ? <LockOpen /> : <Lock />}
