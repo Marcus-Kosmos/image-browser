@@ -92,6 +92,8 @@ const STORAGE_VIEW = "image-browser:view";
 const STORAGE_ASK_TRASH = "image-browser:ask-before-trash";
 /** How long a picture put in the trash can be brought back with "Ångra", a little past its toast. */
 const UNDO_TRASH_MS = 6500;
+/** How long the app must be out of sight before what was unlocked locks again. */
+const LOCK_AFTER_HIDDEN_MS = 2000;
 
 /** The images of one or more folders opened together. */
 interface Collection {
@@ -257,13 +259,19 @@ export default function App() {
     if (change.locked) setUnlocked((key) => (key === itemKey(item) ? null : key));
   };
 
-  // Lock again when the app goes to the background or is minimized.
+  // Lock again when the app goes to the background or is minimized. The page also reads as hidden for a
+  // moment in full screen (when the viewer or the menu bar comes and goes), so only a longer absence locks.
   useEffect(() => {
+    let timer: number | undefined;
     const onVisibility = () => {
-      if (document.hidden) setUnlocked(null);
+      window.clearTimeout(timer);
+      if (document.hidden) timer = window.setTimeout(() => setUnlocked(null), LOCK_AFTER_HIDDEN_MS);
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const loadFolders = useCallback(
