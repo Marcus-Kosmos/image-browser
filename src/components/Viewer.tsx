@@ -2268,6 +2268,7 @@ function HeadingTools({
         onPlace={onPlace}
         onAlign={onAlign}
         onWide={onWide}
+        onAdd={onAdd}
       />
       <DockDivider />
       <label className="flex items-center gap-2 px-2" title="Textens storlek: liten för brödtext, stor för rubriker">
@@ -2328,11 +2329,6 @@ function HeadingTools({
         ))}
       </NativeSelect>
       <DockDivider />
-      {onAdd && (
-        <DockButton onClick={onAdd} title="Skriv en text till, på en annan sida av bilden" label="Skriv en text till">
-          <Plus />
-        </DockButton>
-      )}
       {canRemove && (
         <DockButton onClick={onRemove} title="Ta bort texten" label="Ta bort texten" danger>
           <Trash2 />
@@ -2360,6 +2356,7 @@ function PlacePicker({
   onPlace,
   onAlign,
   onWide,
+  onAdd,
 }: {
   place: CaptionPlace;
   /** In the page's colors, as the bar it opens from. */
@@ -2369,6 +2366,8 @@ function PlacePicker({
   onPlace: (place: CaptionPlace) => void;
   onAlign: (align: CaptionAlign) => void;
   onWide: (wide: boolean) => void;
+  /** Another text, on a side of the picture not yet taken. */
+  onAdd?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -2400,7 +2399,7 @@ function PlacePicker({
           className="absolute bottom-full left-0 mb-3 flex flex-col gap-2 rounded-2xl border border-current/10 p-2 shadow-lg backdrop-blur-md"
           style={{ background: themed ? "color-mix(in oklab, var(--canvas) 88%, transparent)" : "rgb(24 24 24 / 0.9)" }}
         >
-          {PLACE_GROUPS.map((group) => (
+          {PLACE_GROUPS.map((group, i) => (
             <div key={group.label} role="group" aria-label={group.label} className="flex flex-col gap-1">
               <span className="px-1 text-xs whitespace-nowrap text-current/60">{group.label}</span>
               <div className="flex gap-0.5">
@@ -2415,6 +2414,18 @@ function PlacePicker({
                     {icon}
                   </DockButton>
                 ))}
+                {onAdd && i === PLACE_GROUPS.length - 1 && (
+                  <DockButton
+                    onClick={() => {
+                      setOpen(false);
+                      onAdd();
+                    }}
+                    title="Skriv en text till, på en annan sida av bilden"
+                    label="Skriv en text till"
+                  >
+                    <Plus />
+                  </DockButton>
+                )}
               </div>
             </div>
           ))}
