@@ -122,9 +122,24 @@ export const CAPTION_SIZE_LABELS: Record<CaptionSize, string> = {
 /** How much larger than normal each size draws the headings. */
 export const CAPTION_SCALE: Record<CaptionSize, number> = { normal: 1, large: 1.6, "x-large": 2.5, huge: 4 };
 
-/** The range of the text size slider, from body text to a large heading. */
-export const TEXT_SIZE_MIN = 14;
-export const TEXT_SIZE_MAX = 120;
+/**
+ * The range of the text size slider, in line height on screen, from body text (16 gives letters of
+ * about 10 points) to a very large heading.
+ */
+export const TEXT_SIZE_MIN = 16;
+export const TEXT_SIZE_MAX = 240;
+
+/** Steps of the text size slider. It goes by ratio, so the small sizes get as much room as the large. */
+export const TEXT_SLIDER_STEPS = 100;
+
+export function sliderForSize(size: number): number {
+  const at = Math.log(size / TEXT_SIZE_MIN) / Math.log(TEXT_SIZE_MAX / TEXT_SIZE_MIN);
+  return Math.round(Math.min(1, Math.max(0, at)) * TEXT_SLIDER_STEPS);
+}
+
+export function sizeForSlider(step: number): number {
+  return Math.round(TEXT_SIZE_MIN * (TEXT_SIZE_MAX / TEXT_SIZE_MIN) ** (step / TEXT_SLIDER_STEPS));
+}
 
 /** A heading's line height in full screen at the normal caption size. */
 export function textSize(heading: Pick<Heading, "level" | "size">): number {
@@ -142,9 +157,17 @@ export function levelForSize(size: number): HeadingLevel {
   return size >= 46 ? 1 : size >= 35 ? 2 : 3;
 }
 
+/**
+ * A heading's line height in full screen before it is fitted to the room. A size set with the slider
+ * is the size on screen; only texts without one grow with the caption size setting.
+ */
+export function shownTextSize(heading: Pick<Heading, "level" | "size">, size: CaptionSize): number {
+  return heading.size ?? CAPTION_HEIGHT[heading.level] * CAPTION_SCALE[size];
+}
+
 /** A heading's line height in full screen, kept to at most a third of the room it sits in. */
 export function captionLineHeight(heading: Pick<Heading, "level" | "size">, size: CaptionSize, roomHeight: number): number {
-  return Math.round(Math.min(textSize(heading) * CAPTION_SCALE[size], roomHeight / 3));
+  return Math.round(Math.min(shownTextSize(heading, size), roomHeight / 3));
 }
 
 /** How large one image at a time is shown in full screen. */

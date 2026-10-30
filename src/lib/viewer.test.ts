@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, textWeight } from "./viewer";
+import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -108,7 +108,19 @@ describe("captionLineHeight", () => {
 
   it("goes by the size from the slider when there is one", () => {
     expect(captionLineHeight({ level: 1, size: 20 }, "normal", 900)).toBe(20);
-    expect(captionLineHeight({ level: 3, size: 100 }, "large", 900)).toBe(160);
+    expect(captionLineHeight({ level: 3, size: 100 }, "large", 900)).toBe(100);
+    expect(captionLineHeight({ level: 3, size: 16 }, "huge", 900)).toBe(16);
+  });
+});
+
+describe("text size slider", () => {
+  it("runs from body text of about 10 points to the largest size, and back", () => {
+    expect(sizeForSlider(0)).toBe(TEXT_SIZE_MIN);
+    expect(TEXT_SIZE_MIN * 0.62).toBeCloseTo(10, 0);
+    expect(sizeForSlider(100)).toBe(TEXT_SIZE_MAX);
+    for (const size of [16, 20, 30, 52, 120]) expect(Math.abs(sizeForSlider(sliderForSize(size)) - size) / size).toBeLessThan(0.03);
+    expect(sliderForSize(4)).toBe(0);
+    expect(sliderForSize(1000)).toBe(100);
   });
 });
 
