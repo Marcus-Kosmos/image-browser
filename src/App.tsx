@@ -247,10 +247,6 @@ export default function App() {
     [askOwner, itemName],
   );
 
-  const openView = (next: LibraryView) => {
-    selectView(next);
-    if (privacyOf(library, next).locked && unlocked !== itemKey(next)) void unlock(next);
-  };
 
   const changePrivacy = async (item: LibraryItem, change: Privacy) => {
     // Anyone could take a lock off otherwise.
@@ -1020,7 +1016,7 @@ export default function App() {
             goneFolders={goneFolders}
             library={library}
             view={view}
-            onSelect={openView}
+            onSelect={selectView}
             onOpenFolder={() => void openFolders()}
             onNewSeries={newSeries}
             canCreateSeries={images.length > 0}
