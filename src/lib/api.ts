@@ -423,6 +423,23 @@ export function useWindowFullscreen(on: boolean) {
   }, [on]);
 }
 
+/** The color at a spot of a picture file, `x` and `y` from 0 to 1 across it, as red, green and blue. */
+export function colorAt(path: string, x: number, y: number): Promise<[number, number, number]> {
+  return invoke("color_at", { path, x, y });
+}
+
+/** The file a picture shown in the app comes from, when its address is one of the app's own. */
+export function fileOfUrl(src: string): string | null {
+  try {
+    const url = new URL(src);
+    // convertFileSrc gives asset://localhost/<path> on the Mac, http://asset.localhost/<path> elsewhere.
+    if (url.protocol !== "asset:" && url.hostname !== "asset.localhost") return null;
+    return decodeURIComponent(url.pathname.slice(1));
+  } catch {
+    return null;
+  }
+}
+
 /** A few pixels from each picture, as red, green and blue, for a background in their colors. */
 export async function sampleColors(images: ImageEntry[]): Promise<Array<[number, number, number]>> {
   if (!demo) return invoke("sample_colors", { paths: images.map((i) => i.path) });
