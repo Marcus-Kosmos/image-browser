@@ -49,26 +49,6 @@ async fn sample_colors(app: tauri::AppHandle, paths: Vec<String>) -> Result<Vec<
         .map_err(|e| e.to_string())
 }
 
-/// The color at a spot of a picture file, `x` and `y` from 0 to 1 across it, for the color picker's pipette.
-#[tauri::command]
-async fn color_at(app: tauri::AppHandle, path: String, x: f64, y: f64) -> Result<[u8; 3], String> {
-    let cache_dir = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?
-        .join("thumbs");
-    tauri::async_runtime::spawn_blocking(move || {
-        let path = PathBuf::from(path);
-        // Pictures the image library can't read, such as HEIC, are read from their large thumbnail.
-        thumbs::color_at(&path, x, y).or_else(|_| {
-            let thumb = thumbs::thumbnail(&path, 1600, &cache_dir)?;
-            thumbs::color_at(&thumb, x, y)
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 /// Splits paths dropped from Finder into folders and image files.
 #[tauri::command]
 async fn sort_dropped(paths: Vec<String>) -> Result<scan::Dropped, String> {
@@ -317,7 +297,6 @@ pub fn run() {
             scan_folder,
             thumbnail,
             sample_colors,
-            color_at,
             sort_dropped,
             trash_file,
             list_fonts,

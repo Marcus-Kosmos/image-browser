@@ -117,29 +117,6 @@ mod tests {
 
 /// A few pixels from each picture, read from its grid thumbnail, for working out the colors a set of
 /// pictures has in common. Pictures that cannot be read are left out.
-/// The average color of the few pixels around a spot of a picture, `x` and `y` from 0 to 1 across it.
-pub fn color_at(path: &Path, x: f64, y: f64) -> Result<[u8; 3], String> {
-    let picture = image::open(path).map_err(|e| e.to_string())?.to_rgb8();
-    let (w, h) = picture.dimensions();
-    if w == 0 || h == 0 {
-        return Err("Bilden är tom.".into());
-    }
-    let cx = ((x.clamp(0.0, 1.0) * w as f64) as u32).min(w - 1);
-    let cy = ((y.clamp(0.0, 1.0) * h as f64) as u32).min(h - 1);
-    let mut sum = [0u32; 3];
-    let mut count = 0;
-    for py in cy.saturating_sub(1)..=(cy + 1).min(h - 1) {
-        for px in cx.saturating_sub(1)..=(cx + 1).min(w - 1) {
-            let p = picture.get_pixel(px, py).0;
-            for i in 0..3 {
-                sum[i] += p[i] as u32;
-            }
-            count += 1;
-        }
-    }
-    Ok(sum.map(|c| (c / count) as u8))
-}
-
 pub fn sample_colors(paths: &[PathBuf], cache_dir: &Path) -> Vec<[u8; 3]> {
     let mut colors = Vec::new();
     for path in paths {
