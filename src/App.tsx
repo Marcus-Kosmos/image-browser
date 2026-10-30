@@ -194,7 +194,11 @@ export default function App() {
     [inFolders, multiple, folders],
   );
 
+  // Folders take a while to read; only the last ones asked for are shown, and only while nothing else was chosen since.
+  const folderTurn = useRef(0);
+  const viewTurn = useRef(0);
   const selectView = useCallback((next: LibraryView) => {
+    if (next.kind !== "folders") viewTurn.current += 1;
     setUnlocked((key) => (key === itemKey(next) ? key : null));
     setView(next);
     setViewerIndex(null);
@@ -267,7 +271,11 @@ export default function App() {
   const loadFolders = useCallback(
     async (paths: string[], recursive = includeSubfolders, keepView = false) => {
       const sorted = [...new Set(paths)].sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
+      const turn = ++folderTurn.current;
+      const viewWas = viewTurn.current;
       const results = await Promise.allSettled(sorted.map((p) => scanFolder(p, recursive)));
+      // Other folders were opened while these were read.
+      if (turn !== folderTurn.current) return null;
       const loaded = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
       const failed = sorted.filter((_, i) => results[i].status === "rejected");
       if (loaded.length === 0) {
@@ -288,7 +296,7 @@ export default function App() {
         // Folders that are already open don't need a shortcut.
         subfolders: loaded.flatMap((l) => l.subfolders).filter((p) => !opened.includes(p)),
       });
-      if (!keepView) selectView({ kind: "folders" });
+      if (!keepView && viewTurn.current === viewWas) selectView({ kind: "folders" });
       store(STORAGE_FOLDERS, JSON.stringify(opened));
       return found.length;
     },
