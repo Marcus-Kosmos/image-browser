@@ -423,9 +423,12 @@ export function useWindowFullscreen(on: boolean) {
   }, [on]);
 }
 
-/** The color at a spot of a picture file, `x` and `y` from 0 to 1 across it, as red, green and blue. */
-export function colorAt(path: string, x: number, y: number): Promise<[number, number, number]> {
-  return invoke("color_at", { path, x, y });
+/** A picture file's bytes as an address the webview may read pixels from (HEIC and the like as JPEG). */
+export async function readablePictureUrl(path: string): Promise<string> {
+  const bytes = await invoke<ArrayBuffer>("image_bytes", { path, width: 4096, height: 4096 });
+  const ext = path.split(".").pop()?.toLowerCase();
+  const type = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+  return URL.createObjectURL(new Blob([bytes], { type }));
 }
 
 /** The file a picture shown in the app comes from, when its address is one of the app's own. */

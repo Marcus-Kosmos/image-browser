@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pipette } from "lucide-react";
-import { pickColorFromPicture } from "@/lib/eyedropper";
+import { startEyedropper } from "@/lib/eyedropper";
 import { cn } from "@/lib/utils";
 
 /** Any color, picked in a small panel of the app's own instead of the system's color window. */
@@ -62,13 +62,40 @@ export function ColorPicker({ value, custom, onChange, side = "below", className
     onChange(fromHsv(next));
   };
 
-  const takeFromPicture = async () => {
+  // The pipette stays on until Enter (keep) or Escape (back to the color from before it).
+  const stopPipette = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopPipette.current?.(), []);
+  useEffect(() => {
+    if (!open) stopPipette.current?.();
+  }, [open]);
+  const togglePipette = () => {
+    if (stopPipette.current) {
+      stopPipette.current();
+      stopPipette.current = null;
+      setPicking(false);
+      return;
+    }
+    const before = value;
     setPicking(true);
-    const color = await pickColorFromPicture();
-    setPicking(false);
-    if (!color) return;
-    setHsv(toHsv(color));
-    onChange(color);
+    const stop = startEyedropper({
+      onPick: (color) => {
+        setHsv(toHsv(color));
+        onChange(color);
+      },
+      onEnd: (keep) => {
+        stopPipette.current = null;
+        setPicking(false);
+        if (!keep && before) {
+          setHsv(toHsv(before));
+          onChange(before);
+        }
+      },
+    });
+    stopPipette.current = () => {
+      stop();
+      stopPipette.current = null;
+      setPicking(false);
+    };
   };
 
   const area = useRef<HTMLDivElement>(null);
@@ -103,7 +130,6 @@ export function ColorPicker({ value, custom, onChange, side = "below", className
           className={cn(
             "absolute right-0 z-50 w-52 rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg",
             side === "above" ? "bottom-full mb-2" : "top-full mt-2",
-            picking && "invisible",
           )}
         >
           <div
@@ -153,10 +179,14 @@ export function ColorPicker({ value, custom, onChange, side = "below", className
             />
             <button
               type="button"
-              onClick={() => void takeFromPicture()}
-              title="Ta en färg från en bild: klicka sedan på bilden (Esc avbryter)"
+              onClick={togglePipette}
+              title="Ta en färg från en bild: klicka på bilden så många gånger du vill, Enter behåller färgen, Esc ångrar"
               aria-label="Ta en färg från en bild"
-              className="flex size-7 shrink-0 items-center justify-center rounded-md border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              aria-pressed={picking}
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                picking && "bg-foreground text-background hover:bg-foreground/90",
+              )}
             >
               <Pipette className="size-4" />
             </button>
