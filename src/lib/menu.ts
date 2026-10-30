@@ -24,7 +24,7 @@ export function useCloseOnLeaveAfterChoice(root: RefObject<HTMLElement | null>, 
     };
     const onClick = (e: MouseEvent) => {
       const t = e.target;
-      if (!(t instanceof Element) || isField(t) || t.closest("[aria-expanded]")) return;
+      if (!(t instanceof Element) || isField(t) || t.closest("[aria-expanded], [data-color-picker]")) return;
       if (t.closest("button, [role^=menuitem], label, a")) chose = true;
     };
     // A color is picked in a panel of its own, outside the menu, and each step of it is a change:
