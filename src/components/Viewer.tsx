@@ -55,10 +55,11 @@ import {
   CAPTION_PLACE_LABELS,
   captionAlignAt,
   levelForSize,
-  textSize,
   textWeight,
-  TEXT_SIZE_MAX,
-  TEXT_SIZE_MIN,
+  TEXT_SLIDER_STEPS,
+  shownTextSize,
+  sizeForSlider,
+  sliderForSize,
   type CaptionAlign,
   type CaptionPlace,
   type CaptionSize,
@@ -1244,6 +1245,7 @@ export function Viewer({
                 place={writing.slot < 0 ? look.captionPlace : (draft.place ?? "below")}
                 align={writing.slot < 0 ? (look.captionAlign ?? "left") : (draft.align ?? "left")}
                 wide={look.captionWide}
+                captionSize={look.captionSize}
                 themed={look.background}
                 onChange={(change) => setDraft({ ...draft, ...change })}
                 // The heading's place is the viewer's setting, kept for all pictures; a further text keeps its own.
@@ -2214,6 +2216,8 @@ interface HeadingToolsProps {
   place: CaptionPlace;
   align: CaptionAlign;
   wide: boolean;
+  /** The caption size setting, which texts without a size of their own follow. */
+  captionSize: CaptionSize;
   themed: boolean;
   onChange: (change: Partial<Heading>) => void;
   onPlace: (place: CaptionPlace) => void;
@@ -2237,6 +2241,7 @@ function HeadingTools({
   place,
   align,
   wide,
+  captionSize,
   themed,
   onChange,
   onPlace,
@@ -2276,12 +2281,12 @@ function HeadingTools({
         <input
           type="range"
           aria-label="Textens storlek"
-          min={TEXT_SIZE_MIN}
-          max={TEXT_SIZE_MAX}
+          min={0}
+          max={TEXT_SLIDER_STEPS}
           step={1}
-          value={textSize(heading)}
+          value={sliderForSize(shownTextSize(heading, captionSize))}
           onChange={(e) => {
-            const size = Number(e.target.value);
+            const size = sizeForSlider(Number(e.target.value));
             onChange({ size, level: levelForSize(size) });
           }}
           // Back to the text when the slider is let go, to go on typing.
