@@ -123,7 +123,7 @@ export const CAPTION_SIZE_LABELS: Record<CaptionSize, string> = {
 export const CAPTION_SCALE: Record<CaptionSize, number> = { normal: 1, large: 1.6, "x-large": 2.5, huge: 4 };
 
 /** The range of the text size slider, from body text to a large heading. */
-export const TEXT_SIZE_MIN = 24;
+export const TEXT_SIZE_MIN = 14;
 export const TEXT_SIZE_MAX = 120;
 
 /** A heading's line height in full screen at the normal caption size. */
