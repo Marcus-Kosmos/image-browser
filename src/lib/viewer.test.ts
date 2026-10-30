@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
+import { captionLineHeight, goldenCells, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -135,5 +135,30 @@ describe("text sizes", () => {
     expect(levelForSize(20)).toBe(3);
     expect(levelForSize(40)).toBe(2);
     expect(levelForSize(80)).toBe(1);
+  });
+});
+
+describe("goldenCells", () => {
+  it("gives the first cell the golden section and turns the rest round", () => {
+    const cells = goldenCells(4, { width: 1618, height: 1000 }, 0);
+    expect(cells[0]).toEqual({ x: 0, y: 0, width: 1000, height: 1000 });
+    // Then the top of what is left, then its right side, then the bottom last.
+    expect(cells[1]).toMatchObject({ x: 1000, y: 0, width: 618 });
+    expect(cells[2].x).toBeGreaterThan(cells[3].x);
+    expect(cells[3].y).toBe(cells[2].y);
+    const area = cells.reduce((sum, c) => sum + c.width * c.height, 0);
+    expect(area).toBeCloseTo(1618 * 1000, -3);
+  });
+
+  it("puts the current picture in the largest cell", () => {
+    const landscape = { width: 1500, height: 1000 };
+    const layout = pinLayout("golden", [landscape, landscape], landscape, { width: 1600, height: 900 }, 10);
+    for (const pin of layout.pins) expect(layout.current.width).toBeGreaterThan(pin.width);
+  });
+
+  it("starts a new page before the pictures get too small", () => {
+    const square = { width: 1000, height: 1000 };
+    expect(hasRoomToPin("golden", [square, square], square, { width: 1600, height: 900 }, 10)).toBe(true);
+    expect(hasRoomToPin("golden", Array(8).fill(square), square, { width: 1600, height: 900 }, 10)).toBe(false);
   });
 });

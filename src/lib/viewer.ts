@@ -36,15 +36,16 @@ export const VIEWER_TRANSITION_LABELS: Record<ViewerTransition, string> = {
 };
 
 /** How images pinned while stepping are shown beside the current one. */
-export type PinSize = "small" | "medium" | "full" | "puzzle";
+export type PinSize = "small" | "medium" | "full" | "puzzle" | "golden";
 
-export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle"];
+export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle", "golden"];
 
 export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   small: "Små i hörnet",
   medium: "Mellan, bilden fyller resten",
   full: "Hela, i en rad",
   puzzle: "Pussel i rader som fyller skärmen",
+  golden: "Gyllene snittet, bilden du visar störst",
 };
 
 /** Where an image's heading goes in full screen. */
@@ -354,10 +355,57 @@ function fillRoom(columns: Size[][], room: Size, gap: number) {
   return { ...placed, height: Math.round(height) };
 }
 
+const GOLDEN = (Math.sqrt(5) - 1) / 2;
+
+/**
+ * Cells for `count` pictures by the golden section: the first takes 62 % of the room's long side, the
+ * rest share what is left the same way, turning round like a Fibonacci spiral (left, top, right, bottom).
+ */
+export function goldenCells(count: number, room: Size, gap: number): Rect[] {
+  const cells: Rect[] = [];
+  let rest: Rect = { x: 0, y: 0, ...room };
+  for (let i = 0; i < count; i++) {
+    if (i === count - 1) {
+      cells.push(rest);
+      break;
+    }
+    const across = rest.width >= rest.height;
+    const long = across ? rest.width : rest.height;
+    const take = Math.round((long - gap) * GOLDEN);
+    const left = long - take - gap;
+    // Turning round: the first cell on the left or top, the next on the far side, and so on.
+    const first = i % 4 < 2;
+    if (across) {
+      const cell = { x: first ? rest.x : rest.x + left + gap, y: rest.y, width: take, height: rest.height };
+      cells.push(cell);
+      rest = { x: first ? rest.x + take + gap : rest.x, y: rest.y, width: left, height: rest.height };
+    } else {
+      const cell = { x: rest.x, y: first ? rest.y : rest.y + left + gap, width: rest.width, height: take };
+      cells.push(cell);
+      rest = { x: rest.x, y: first ? rest.y + take + gap : rest.y, width: rest.width, height: left };
+    }
+  }
+  return cells;
+}
+
+/** Each picture as large as fits in its cell, in the middle of it. */
+function fitInCells(items: Size[], cells: Rect[]): Rect[] {
+  return items.map((s, i) => {
+    const cell = cells[i];
+    const box = fitIn(cell, s);
+    return {
+      x: cell.x + Math.round((cell.width - box.width) / 2),
+      y: cell.y + Math.round((cell.height - box.height) / 2),
+      ...box,
+    };
+  });
+}
+
 /**
  * Places pinned pictures and the current one. "full" puts them all in one row at the same height;
  * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" breaks
- * them into as many full-width rows as cover the room best, like the map, the current one last.
+ * them into as many full-width rows as cover the room best, like the map, the current one last;
+ * "golden" gives the current one the golden section of the room and the pinned ones the rest, in turn.
  */
 export function pinLayout(
   size: Exclude<PinSize, "small">,
@@ -399,6 +447,10 @@ export function pinLayout(
       height,
     };
   }
+  if (size === "golden") {
+    const rects = fitInCells([current, ...pins], goldenCells(pins.length + 1, room, gap));
+    return { pins: rects.slice(1), current: rects[0], width: room.width, height: room.height };
+  }
   const spot = Math.max(0, Math.min(at, pins.length));
   const items = [...pins.slice(0, spot), current, ...pins.slice(spot)];
   const placed =
@@ -422,6 +474,12 @@ export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], curr
   const { current: rect } = pinLayout(size, pins, current, room, gap);
   // A puzzle can grow many rows, until its pictures get really small.
   if (size === "puzzle") return rect.height >= room.height * 0.12;
+  // The spiral makes each next picture smaller; the smallest still has to be worth looking at.
+  if (size === "golden") {
+    const placed = pinLayout(size, pins, current, room, gap);
+    const smallest = placed.pins[placed.pins.length - 1] ?? placed.current;
+    return smallest.height >= room.height * 0.1 && smallest.width >= room.width * 0.06;
+  }
   return rect.height >= room.height * 0.25 && rect.width >= room.width * 0.15;
 }
 
