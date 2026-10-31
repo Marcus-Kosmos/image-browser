@@ -137,3 +137,31 @@ describe("text sizes", () => {
     expect(levelForSize(80)).toBe(1);
   });
 });
+
+describe("grid layout", () => {
+  const landscape = { width: 1500, height: 1000 };
+  const portrait = { width: 1000, height: 1500 };
+  const room = { width: 1600, height: 900 };
+
+  it("starts every picture on a column, with the same gap between them", () => {
+    const layout = pinLayout("grid", [landscape, portrait, portrait], landscape, room, 12);
+    const all = [...layout.pins, layout.current].sort((a, b) => a.y - b.y || a.x - b.x);
+    const row = all.filter((r) => r.y === all[0].y);
+    for (let i = 1; i < row.length; i++) {
+      const gap = row[i].x - (row[i - 1].x + row[i - 1].width);
+      expect(gap).toBeGreaterThanOrEqual(23);
+      expect(gap).toBeLessThanOrEqual(26);
+    }
+    expect(layout.height).toBeLessThanOrEqual(room.height);
+  });
+
+  it("gives a picture set large more room than one set small", () => {
+    const small = pinLayout("grid", [{ ...landscape, pictureSize: "small" }], { ...landscape, pictureSize: "large" }, room, 12);
+    expect(small.current.width).toBeGreaterThan(small.pins[0].width);
+  });
+
+  it("starts a new page before pictures turn into thumbnails", () => {
+    expect(hasRoomToPin("grid", [landscape, landscape], landscape, room, 12)).toBe(true);
+    expect(hasRoomToPin("grid", Array(12).fill(portrait), portrait, room, 12)).toBe(false);
+  });
+});

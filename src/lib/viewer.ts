@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import type { ItemSize } from "./layout";
 import type { Heading, HeadingLevel } from "./settings";
 
 /** How the next image comes in when stepping in full screen. */
@@ -36,15 +37,16 @@ export const VIEWER_TRANSITION_LABELS: Record<ViewerTransition, string> = {
 };
 
 /** How images pinned while stepping are shown beside the current one. */
-export type PinSize = "small" | "medium" | "full" | "puzzle";
+export type PinSize = "small" | "medium" | "full" | "puzzle" | "grid";
 
-export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle"];
+export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle", "grid"];
 
 export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   small: "Små i hörnet",
   medium: "Mellan, bilden fyller resten",
   full: "Hela, i en rad",
   puzzle: "Pussel i rader som fyller skärmen",
+  grid: "Rutnät, som en webbsida",
 };
 
 /** Where an image's heading goes in full screen. */
@@ -354,15 +356,106 @@ function fillRoom(columns: Size[][], room: Size, gap: number) {
   return { ...placed, height: Math.round(height) };
 }
 
+/** A picture to place, with the size it is set to show at (small, medium or large) if any. */
+export type SizedPicture = Size & { pictureSize?: ItemSize };
+
+const GRID_COLUMNS = 12;
+
+/** Columns a picture takes in the grid: landscape ones wider than upright ones, and by its size. */
+function gridSpan(s: SizedPicture) {
+  const a = aspect(s);
+  const base = a >= 1.25 ? 6 : 4;
+  const scaled = s.pictureSize === "small" ? Math.round((base * 2) / 3) : s.pictureSize === "large" ? Math.round(base * 1.5) : base;
+  return Math.max(3, Math.min(GRID_COLUMNS, scaled));
+}
+
+/** The pictures in rows of the grid, each row taking all its columns. */
+function gridRows(items: SizedPicture[]) {
+  const rows: { item: number; span: number }[][] = [];
+  let row: { item: number; span: number }[] = [];
+  let used = 0;
+  items.forEach((s, i) => {
+    const span = gridSpan(s);
+    if (row.length > 0 && used + span > GRID_COLUMNS) {
+      rows.push(row);
+      row = [];
+      used = 0;
+    }
+    row.push({ item: i, span });
+    used += span;
+  });
+  if (row.length > 0) rows.push(row);
+  // Within a row the columns are shared out by the pictures' shapes, so they stand about as tall as
+  // each other; a picture alone in its row takes no more than half as much again as its size asks.
+  for (const r of rows) {
+    const total = r.length === 1 ? Math.min(GRID_COLUMNS, Math.floor(r[0].span * 1.5)) : GRID_COLUMNS;
+    const widths = r.map((c) => aspect(items[c.item]));
+    const sum = widths.reduce((x, y) => x + y, 0);
+    const exact = widths.map((w) => (w / sum) * total);
+    r.forEach((c, i) => (c.span = Math.max(2, Math.floor(exact[i]))));
+    // The columns lost to rounding go to the pictures that lost the most.
+    let left = total - r.reduce((x, c) => x + c.span, 0);
+    const order = r.map((_, i) => i).sort((i, j) => exact[j] - r[j].span - (exact[i] - r[i].span));
+    for (let k = 0; left > 0; k = (k + 1) % order.length, left--) r[order[k]].span++;
+    while (r.reduce((x, c) => x + c.span, 0) > total) {
+      const widest = r.reduce((x, c) => (c.span > x.span ? c : x));
+      widest.span--;
+    }
+  }
+  return rows;
+}
+
+/**
+ * Places the pictures whole in a grid of twelve columns like a web page: every picture starts on a column,
+ * with the same gap between all of them, and the rows top-aligned. The grid shrinks as a whole to fit.
+ */
+function placeGrid(items: SizedPicture[], room: Size, gap: number) {
+  const rows = gridRows(items);
+  const cellWidth = (span: number, column: number) => span * column + (span - 1) * gap;
+  const heightAt = (column: number) =>
+    rows.reduce((sum, r) => sum + Math.max(...r.map((c) => cellWidth(c.span, column) / aspect(items[c.item]))), 0) +
+    gap * (rows.length - 1);
+  let column = Math.max(0, (room.width - gap * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
+  if (heightAt(column) > room.height) {
+    let low = 0;
+    let high = column;
+    for (let i = 0; i < 24; i++) {
+      const mid = (low + high) / 2;
+      if (heightAt(mid) > room.height) high = mid;
+      else low = mid;
+    }
+    column = low;
+  }
+  const rects: Rect[] = new Array(items.length);
+  let y = 0;
+  for (const r of rows) {
+    let at = (GRID_COLUMNS - r.reduce((sum, c) => sum + c.span, 0)) / 2;
+    let tallest = 0;
+    for (const c of r) {
+      const width = cellWidth(c.span, column);
+      const height = width / aspect(items[c.item]);
+      rects[c.item] = { x: Math.round(at * (column + gap)), y: Math.round(y), width: Math.floor(width), height: Math.floor(height) };
+      tallest = Math.max(tallest, height);
+      at += c.span;
+    }
+    y += tallest + gap;
+  }
+  return { rects, width: Math.round(cellWidth(GRID_COLUMNS, column)), height: Math.max(0, Math.round(y - gap)) };
+}
+
+/** The gap of the grid: grows with the room, so the page breathes the same at every size. */
+export const gridGap = (room: Size, gap: number) => Math.max(gap, Math.round(room.width * 0.015));
+
 /**
  * Places pinned pictures and the current one. "full" puts them all in one row at the same height;
  * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" breaks
- * them into as many full-width rows as cover the room best, like the map, the current one last.
+ * them into as many full-width rows as cover the room best, like the map, the current one last;
+ * "grid" lines them up whole on twelve columns, each as wide as its shape and size ask.
  */
 export function pinLayout(
   size: Exclude<PinSize, "small">,
-  pins: Size[],
-  current: Size,
+  pins: SizedPicture[],
+  current: SizedPicture,
   room: Size,
   gap: number,
   /** Where among the pinned pictures the current one stands; last unless said. Not for "medium". */
@@ -402,7 +495,9 @@ export function pinLayout(
   const spot = Math.max(0, Math.min(at, pins.length));
   const items = [...pins.slice(0, spot), current, ...pins.slice(spot)];
   const placed =
-    size === "full"
+    size === "grid"
+      ? placeGrid(items, room, gridGap(room, gap))
+      : size === "full"
       ? fillRoom(
           items.map((s) => [s]),
           room,
@@ -418,10 +513,15 @@ export function pinLayout(
 }
 
 /** Whether one more pinned picture still leaves the current one a useful size. */
-export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], current: Size, room: Size, gap: number) {
+export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: SizedPicture[], current: SizedPicture, room: Size, gap: number) {
   const { current: rect } = pinLayout(size, pins, current, room, gap);
   // A puzzle can grow many rows, until its pictures get really small.
   if (size === "puzzle") return rect.height >= room.height * 0.12;
+  // In the grid no picture may get so small it reads as a thumbnail.
+  if (size === "grid") {
+    const placed = pinLayout(size, pins, current, room, gap);
+    return Math.min(...[placed.current, ...placed.pins].map((r) => r.height)) >= room.height * 0.2;
+  }
   return rect.height >= room.height * 0.25 && rect.width >= room.width * 0.15;
 }
 
@@ -429,7 +529,7 @@ export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], curr
  * Splits pinned pictures into pages, in order: each page takes as many as fit with all of them still a
  * useful size. Returns each page's positions in `pins`.
  */
-export function pinPages(size: Exclude<PinSize, "small">, pins: Size[], room: Size, gap: number): number[][] {
+export function pinPages(size: Exclude<PinSize, "small">, pins: SizedPicture[], room: Size, gap: number): number[][] {
   const pages: number[][] = [];
   let page: number[] = [];
   pins.forEach((pin, i) => {

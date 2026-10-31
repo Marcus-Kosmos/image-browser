@@ -42,11 +42,13 @@ import { ColorPicker } from "@/components/ColorPicker";
 import { listFonts, originalUrl, useWindowFullscreen, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Frame, Heading, Shadow } from "@/lib/settings";
+import type { ItemSize } from "@/lib/layout";
 import {
   captionLineHeight,
   DEFAULT_VIEWER_SETTINGS,
   hasRoomToPin,
   pinLayout,
+  type SizedPicture,
   pinPages,
   nextScreenFit,
   resolveTransition,
@@ -130,6 +132,8 @@ interface ViewerProps {
   onHeadingChange?: (index: number, heading: Heading | undefined) => void;
   /** Further texts written by an image, each with a place of its own. */
   textsOf?: (image: ImageEntry) => Heading[];
+  /** The size an image is set to show at (small, medium or large), which the grid gives columns by. */
+  sizeOf?: (image: ImageEntry) => ItemSize | undefined;
   onTextsChange?: (index: number, texts: Heading[]) => void;
   /** Keyboard shortcuts pause while another dialog (the trash confirmation) is open. */
   paused: boolean;
@@ -302,6 +306,7 @@ export function Viewer({
   headingOf,
   onHeadingChange,
   textsOf = noTexts,
+  sizeOf,
   onTextsChange,
   paused,
 }: ViewerProps) {
@@ -441,7 +446,9 @@ export function Viewer({
   // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
   // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
   // as the start of the next.
-  const pages = arranged ? pinPages(arranged, pinned, space, PIN_ROW_GAP) : [];
+  // Pictures as the layouts see them: their shape, and the size each is set to show at.
+  const sized = (img: ImageEntry): SizedPicture => ({ width: img.width, height: img.height, pictureSize: sizeOf?.(img) });
+  const pages = arranged ? pinPages(arranged, pinned.map(sized), space, PIN_ROW_GAP) : [];
   const pinnedAt = pinned.findIndex((p) => p.path === image.path);
   let page = pages.findIndex((pg) => pg.includes(pinnedAt));
   let beside: ImageEntry[] = [];
@@ -451,7 +458,7 @@ export function Viewer({
     at = pages[page].indexOf(pinnedAt);
   } else if (arranged) {
     const last = (pages[pages.length - 1] ?? []).map((i) => pinned[i]);
-    const fits = last.length > 0 && hasRoomToPin(arranged, last, image, space, PIN_ROW_GAP);
+    const fits = last.length > 0 && hasRoomToPin(arranged, last.map(sized), sized(image), space, PIN_ROW_GAP);
     if (fits) beside = last;
     page = fits ? pages.length - 1 : pages.length;
   }
@@ -462,7 +469,7 @@ export function Viewer({
   const actIndex = aimedIndex >= 0 ? aimedIndex : index;
   const actOn = images[actIndex] ?? image;
   // Alone on its page it is shown like any single picture, so texts beside it get all the room there is.
-  const layout = arranged && beside.length > 0 ? pinLayout(arranged, beside, image, space, PIN_ROW_GAP, at) : null;
+  const layout = arranged && beside.length > 0 ? pinLayout(arranged, beside.map(sized), sized(image), space, PIN_ROW_GAP, at) : null;
   const goToPage = (k: number) => {
     const first = pages[k]?.[0];
     const i = first === undefined ? -1 : images.findIndex((img) => img.path === pinned[first].path);
@@ -495,7 +502,11 @@ export function Viewer({
         : placed(heading, writing.slot),
     );
   }
-  const textHeight = (heading: Heading) => captionLineHeight(heading, look.captionSize, room.height);
+  // Pictures shown together share one text size, as large as by a single picture, so headings read the
+  // same all over the page; only a very small picture keeps them to a third of its height.
+  const pageText = layout ? Math.min(layout.current.height, ...layout.pins.map((r) => r.height)) : 0;
+  const textHeight = (heading: Heading) =>
+    layout ? pageTextHeight(heading, look.captionSize, pageText) : captionLineHeight(heading, look.captionSize, room.height);
   // Texts above and under the picture take lines from its room, those to its sides columns.
   const edges = textEdges(texts, textHeight, room, image.width, image.height, pictureFrame, fitMode, look.captionWide);
   const lift = edges.top + edges.bottom;
@@ -1088,6 +1099,7 @@ export function Viewer({
                   rounded={look.rounded}
                   texts={textsBy(beside[i])}
                   size={look.captionSize}
+                  pageText={pageText}
                   wide={look.captionWide}
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
@@ -1714,6 +1726,8 @@ interface PinnedPictureProps {
   rounded: boolean;
   texts: PlacedText[];
   size: CaptionSize;
+  /** The height that sizes the texts of all pictures on the page alike. */
+  pageText: number;
   /** A heading to the side takes all the room beside the picture. */
   wide: boolean;
   dragging: boolean;
@@ -1750,6 +1764,11 @@ function AimButton({ name, onAim, className }: { name: string; onAim: () => void
   );
 }
 
+/** Text by pictures shown together: the same size for all of them, and still readable. */
+function pageTextHeight(heading: Heading, size: CaptionSize, smallest: number) {
+  return Math.max(14, captionLineHeight(heading, size, smallest));
+}
+
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
 function PinnedPicture({
   image,
@@ -1759,6 +1778,7 @@ function PinnedPicture({
   rounded,
   texts,
   size,
+  pageText,
   wide,
   dragging,
   onDragStart,
@@ -1769,9 +1789,7 @@ function PinnedPicture({
 }: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
-  // Texts shrink with smaller pictures, but stay readable.
-  const textHeight = (heading: Heading) =>
-    Math.max(14, Math.round(captionLineHeight(heading, size, rect.height) * Math.min(1, rect.height / 600)));
+  const textHeight = (heading: Heading) => pageTextHeight(heading, size, pageText);
   const edges = textEdges(texts, textHeight, rect, image.width, image.height, frame, "fit", wide);
   const shift = edges.top - edges.bottom;
   const slide = edges.left - edges.right;
