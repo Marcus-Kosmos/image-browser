@@ -33,7 +33,7 @@ export interface Heading {
   color?: string;
   /** Installed font family; unset uses the system font. */
   font?: string;
-  /** Where a further text by the picture in full screen goes; the first one follows the viewer's setting. */
+  /** Where the text goes by its picture in full screen; a heading never moved follows the viewer's setting. */
   place?: CaptionPlace;
   align?: CaptionAlign;
 }

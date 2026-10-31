@@ -485,21 +485,21 @@ export function Viewer({
   // The largest box with the picture's shape that fits, never larger than the picture itself.
   // The texts by each picture: the heading where the viewer's setting puts it, the further ones where
   // each was put.
+  // A heading put somewhere keeps that place for its own picture; one never moved follows the viewer's setting.
+  const headingPlaced = (heading: Heading): PlacedText => {
+    const place = heading.place ?? (look.captionPlace === "off" ? "above" : look.captionPlace);
+    return { heading, place, align: captionAlignAt(place, heading.align ?? look.captionAlign), slot: -1 };
+  };
   const textsBy = (img: ImageEntry): PlacedText[] => {
     const heading = look.captionPlace === "off" ? undefined : headingOf(img);
-    return [
-      ...(heading ? [{ heading, place: look.captionPlace, align: captionAlignAt(look.captionPlace, look.captionAlign), slot: -1 }] : []),
-      ...textsOf(img).map((t, slot) => placed(t, slot)),
-    ];
+    return [...(heading ? [headingPlaced(heading)] : []), ...textsOf(img).map((t, slot) => placed(t, slot))];
   };
   // A text being written takes its room as it is typed; an empty one keeps the room of a short one.
   const texts = textsBy(image).filter((t) => t.slot !== writing?.slot);
   if (writing) {
     const heading = { ...writing.heading, text: writing.heading.text || "Rubrik" };
     texts.push(
-      writing.slot < 0
-        ? { heading, place: look.captionPlace, align: captionAlignAt(look.captionPlace, look.captionAlign), slot: -1 }
-        : placed(heading, writing.slot),
+      writing.slot < 0 ? headingPlaced(heading) : placed(heading, writing.slot),
     );
   }
   // Pictures shown together share one text size, as large as by a single picture, so headings read the
@@ -825,6 +825,21 @@ export function Viewer({
       slot: -1,
     });
   };
+  // Writing by a pinned picture makes it the current one first, so the text lands by the picture meant.
+  const writeNext = useRef<number | null>(null);
+  const writeFor = (i: number, slot = -1) => {
+    if (i === index) return startWriting(slot);
+    if (writing) saveDraft();
+    writeNext.current = slot;
+    onIndexChange(i);
+  };
+  useEffect(() => {
+    const slot = writeNext.current;
+    if (slot === null) return;
+    writeNext.current = null;
+    startWriting(slot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image.path]);
   /** Saves the text written, or takes it away when `next` is null or empty; gives the further texts after. */
   const saveDraft = (next: Heading | null = draft): Heading[] => {
     const others = textsOf(image);
@@ -847,7 +862,7 @@ export function Viewer({
     const after = saveDraft();
     const heading = current?.slot === -1 && current.heading.text.trim() ? current.heading : headingOf(image);
     const taken = new Set([
-      ...(heading && look.captionPlace !== "off" ? [look.captionPlace] : []),
+      ...(heading && look.captionPlace !== "off" ? [headingPlaced(heading).place] : []),
       ...after.map((t) => t.place),
     ]);
     const place = FREE_PLACES.find((p) => !taken.has(p)) ?? "below";
@@ -1104,6 +1119,11 @@ export function Viewer({
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
                   onOpen={() => openPinned(beside[i])}
+                  onEditText={
+                    onHeadingChange && images.some((img) => img.path === beside[i].path)
+                      ? (slot) => writeFor(images.findIndex((img) => img.path === beside[i].path), slot)
+                      : undefined
+                  }
                   onUnpin={() => unpin(beside[i])}
                   aimed={aimedIndex >= 0 && beside[i].path === aimedAt}
                   onAim={
@@ -1254,19 +1274,15 @@ export function Viewer({
             {writing && draft ? (
               <HeadingTools
                 heading={draft}
-                place={writing.slot < 0 ? look.captionPlace : (draft.place ?? "below")}
-                align={writing.slot < 0 ? (look.captionAlign ?? "left") : (draft.align ?? "left")}
+                place={writing.slot < 0 ? headingPlaced(draft).place : (draft.place ?? "below")}
+                align={writing.slot < 0 ? headingPlaced(draft).align : (draft.align ?? "left")}
                 wide={look.captionWide}
                 captionSize={look.captionSize}
                 themed={look.background}
                 onChange={(change) => setDraft({ ...draft, ...change })}
-                // The heading's place is the viewer's setting, kept for all pictures; a further text keeps its own.
-                onPlace={(place) =>
-                  writing.slot < 0 ? updateLook({ captionPlace: place }) : setDraft({ ...draft, place })
-                }
-                onAlign={(align) =>
-                  writing.slot < 0 ? updateLook({ captionAlign: align }) : setDraft({ ...draft, align })
-                }
+                // Each text keeps its place and line for its own picture only.
+                onPlace={(place) => setDraft({ ...draft, place })}
+                onAlign={(align) => setDraft({ ...draft, align })}
                 onWide={(captionWide) => updateLook({ captionWide })}
                 onAdd={onTextsChange ? addText : undefined}
                 onSave={() => saveDraft()}
@@ -1298,9 +1314,9 @@ export function Viewer({
             )}
             {onHeadingChange && (
               <DockButton
-                onClick={() => startWriting()}
+                onClick={() => writeFor(actIndex)}
                 title="Skriv en rubrik direkt vid bilden"
-                label={headingOf(image) ? "Ändra rubriken" : "Skriv en rubrik"}
+                label={headingOf(actOn) ? "Ändra rubriken" : "Skriv en rubrik"}
               >
                 <PencilLine />
               </DockButton>
@@ -1733,6 +1749,8 @@ interface PinnedPictureProps {
   dragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
   onOpen: () => void;
+  /** Edits one of its texts (`slot` -1 is the heading), as the current picture. */
+  onEditText?: (slot: number) => void;
   onUnpin: () => void;
   /** The bar of buttons acts on it. */
   aimed: boolean;
@@ -1783,6 +1801,7 @@ function PinnedPicture({
   dragging,
   onDragStart,
   onOpen,
+  onEditText,
   onUnpin,
   aimed,
   onAim,
@@ -1855,6 +1874,7 @@ function PinnedPicture({
           pictureHeight={box.height}
           effect="none"
           animate={false}
+          onEdit={onEditText && (() => onEditText(t.slot))}
         />
       ))}
       {onAim && !aimed && <AimButton name={image.name} onAim={onAim} className="group-hover:opacity-100" />}
