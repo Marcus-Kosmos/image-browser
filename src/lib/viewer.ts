@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import type { ItemSize } from "./layout";
 import type { Heading, HeadingLevel } from "./settings";
 
 /** How the next image comes in when stepping in full screen. */
@@ -36,15 +37,16 @@ export const VIEWER_TRANSITION_LABELS: Record<ViewerTransition, string> = {
 };
 
 /** How images pinned while stepping are shown beside the current one. */
-export type PinSize = "small" | "medium" | "full" | "puzzle";
+export type PinSize = "small" | "medium" | "full" | "puzzle" | "grid";
 
-export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle"];
+export const PIN_SIZES: PinSize[] = ["small", "medium", "full", "puzzle", "grid"];
 
 export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   small: "Små i hörnet",
   medium: "Mellan, bilden fyller resten",
   full: "Hela, i en rad",
   puzzle: "Pussel i rader som fyller skärmen",
+  grid: "Komposition efter gyllene snittet",
 };
 
 /** Where an image's heading goes in full screen. */
@@ -354,15 +356,115 @@ function fillRoom(columns: Size[][], room: Size, gap: number) {
   return { ...placed, height: Math.round(height) };
 }
 
+/** A picture to place, with the size it is set to show at (small, medium or large) if any. */
+export type SizedPicture = Size & { pictureSize?: ItemSize };
+
+const GOLDEN = (Math.sqrt(5) - 1) / 2;
+
+/** How a row of the composed page shares its width, as parts of it: one picture, the golden section,
+ * two halves or three columns. */
+type RowKind = "whole" | "golden" | "pair" | "three";
+
+interface ComposedRow {
+  kind: RowKind;
+  items: number[];
+}
+
+const isUpright = (s: Size) => aspect(s) < 0.9;
+
+/**
+ * Splits the pictures, in order, into rows the way a well-set page is built: a large picture with a
+ * smaller one beside it by the golden section, pictures alike in pairs, upright ones three abreast, and
+ * one alone over the whole width. The order stays as pinned.
+ */
+export function composeRows(items: SizedPicture[]): ComposedRow[] {
+  const rows: ComposedRow[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const left = items.length - i;
+    const [a, b, c] = [items[i], items[i + 1], items[i + 2]];
+    const golden = () => {
+      rows.push({ kind: "golden", items: [i, i + 1] });
+      i += 2;
+    };
+    if (left === 1) {
+      rows.push({ kind: "whole", items: [i] });
+      i += 1;
+    } else if (a.pictureSize === "large" || (b.pictureSize === "small" && a.pictureSize !== "small")) {
+      golden();
+    } else if (b.pictureSize === "large" || (a.pictureSize === "small" && b.pictureSize !== "small")) {
+      golden();
+    } else if (left >= 3 && isUpright(a) && isUpright(b) && isUpright(c)) {
+      rows.push({ kind: "three", items: [i, i + 1, i + 2] });
+      i += 3;
+    } else if (aspect(a) / aspect(b) > 1.4) {
+      golden();
+    } else if (aspect(b) / aspect(a) > 1.4) {
+      golden();
+    } else {
+      rows.push({ kind: "pair", items: [i, i + 1] });
+      i += 2;
+    }
+  }
+  return rows;
+}
+
+/**
+ * Places the pictures whole, row by row: the pictures of a row share its width by their shapes, so they
+ * stand equally tall and fill it with no gaps, like a puzzle, and the row grouping keeps the golden
+ * section, halves and thirds between them. One gap between pictures, the golden section of it more between
+ * rows. The page shrinks as a whole to fit the room.
+ */
+function placeComposed(items: SizedPicture[], room: Size, gap: number) {
+  const rows = composeRows(items);
+  const rowGap = Math.round(gap / GOLDEN);
+  const layoutAt = (width: number) => {
+    const rects: Rect[] = new Array(items.length);
+    let y = 0;
+    for (const row of rows) {
+      const shapes = row.items.map((item) => aspect(items[item]));
+      // A picture alone takes the whole width only when it is wide; an upright one keeps to the large part.
+      const across =
+        row.kind === "whole" && isUpright(items[row.items[0]]) ? (width - gap) * GOLDEN : width - gap * (row.items.length - 1);
+      const height = across / shapes.reduce((sum, a) => sum + a, 0);
+      let x = 0;
+      row.items.forEach((item, k) => {
+        const w = height * shapes[k];
+        rects[item] = { x: Math.round(x), y: Math.round(y), width: Math.floor(w), height: Math.floor(height) };
+        x += w + gap;
+      });
+      y += height + rowGap;
+    }
+    return { rects, height: Math.max(0, y - rowGap) };
+  };
+  let width = room.width;
+  if (layoutAt(width).height > room.height) {
+    let low = 0;
+    let high = width;
+    for (let i = 0; i < 24; i++) {
+      const mid = (low + high) / 2;
+      if (layoutAt(mid).height > room.height) high = mid;
+      else low = mid;
+    }
+    width = low;
+  }
+  const placed = layoutAt(width);
+  return { rects: placed.rects, width: Math.round(width), height: Math.round(placed.height) };
+}
+
+/** The gap of the grid: grows with the room, so the page breathes the same at every size. */
+export const gridGap = (room: Size, gap: number) => Math.max(gap, Math.round(room.width * 0.015));
+
 /**
  * Places pinned pictures and the current one. "full" puts them all in one row at the same height;
  * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" breaks
- * them into as many full-width rows as cover the room best, like the map, the current one last.
+ * them into as many full-width rows as cover the room best, like the map, the current one last;
+ * "grid" composes them in rows by the golden section, halves and thirds, like a well-set web page.
  */
 export function pinLayout(
   size: Exclude<PinSize, "small">,
-  pins: Size[],
-  current: Size,
+  pins: SizedPicture[],
+  current: SizedPicture,
   room: Size,
   gap: number,
   /** Where among the pinned pictures the current one stands; last unless said. Not for "medium". */
@@ -402,7 +504,9 @@ export function pinLayout(
   const spot = Math.max(0, Math.min(at, pins.length));
   const items = [...pins.slice(0, spot), current, ...pins.slice(spot)];
   const placed =
-    size === "full"
+    size === "grid"
+      ? placeComposed(items, room, gridGap(room, gap))
+      : size === "full"
       ? fillRoom(
           items.map((s) => [s]),
           room,
@@ -418,10 +522,15 @@ export function pinLayout(
 }
 
 /** Whether one more pinned picture still leaves the current one a useful size. */
-export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], current: Size, room: Size, gap: number) {
+export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: SizedPicture[], current: SizedPicture, room: Size, gap: number) {
   const { current: rect } = pinLayout(size, pins, current, room, gap);
   // A puzzle can grow many rows, until its pictures get really small.
   if (size === "puzzle") return rect.height >= room.height * 0.12;
+  // In the grid no picture may get so small it reads as a thumbnail.
+  if (size === "grid") {
+    const placed = pinLayout(size, pins, current, room, gap);
+    return Math.min(...[placed.current, ...placed.pins].map((r) => r.height)) >= room.height * 0.2;
+  }
   return rect.height >= room.height * 0.25 && rect.width >= room.width * 0.15;
 }
 
@@ -429,7 +538,7 @@ export function hasRoomToPin(size: Exclude<PinSize, "small">, pins: Size[], curr
  * Splits pinned pictures into pages, in order: each page takes as many as fit with all of them still a
  * useful size. Returns each page's positions in `pins`.
  */
-export function pinPages(size: Exclude<PinSize, "small">, pins: Size[], room: Size, gap: number): number[][] {
+export function pinPages(size: Exclude<PinSize, "small">, pins: SizedPicture[], room: Size, gap: number): number[][] {
   const pages: number[][] = [];
   let page: number[] = [];
   pins.forEach((pin, i) => {
