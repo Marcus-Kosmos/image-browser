@@ -446,8 +446,34 @@ export function Viewer({
   // Larger pinned pictures go on pages, in the order they were pinned. The page shown is the current
   // picture's own, or else the last one, where it would be pinned next; on a full page it stands alone,
   // as the start of the next.
-  // Pictures as the layouts see them: their shape, and the size each is set to show at.
-  const sized = (img: ImageEntry): SizedPicture => ({ width: img.width, height: img.height, pictureSize: sizeOf?.(img) });
+  // The texts by each picture: the heading where the viewer's setting puts it, the further ones where
+  // each was put.
+  // A heading put somewhere keeps that place for its own picture; one never moved follows the viewer's setting.
+  const headingPlaced = (heading: Heading): PlacedText => {
+    const place = heading.place ?? (look.captionPlace === "off" ? "above" : look.captionPlace);
+    return { heading, place, align: captionAlignAt(place, heading.align ?? look.captionAlign), slot: -1 };
+  };
+  const textsBy = (img: ImageEntry): PlacedText[] => {
+    const heading = look.captionPlace === "off" ? undefined : headingOf(img);
+    return [...(heading ? [headingPlaced(heading)] : []), ...textsOf(img).map((t, slot) => placed(t, slot))];
+  };
+  // Texts on a page of pictures shown together have one size, set by the screen like type on a web page,
+  // whatever the size of the picture they go with.
+  const textScale = Math.min(1.5, Math.max(0.7, space.width / 1400));
+  const pageTextOf = (heading: Heading) => scaledTextHeight(heading, look.captionSize, textScale);
+  // A composed page gives texts room of their own beside, above and under their pictures, so neither the
+  // picture nor the text has to shrink for the other.
+  const composing = arranged === "grid";
+  const sized = (img: ImageEntry): SizedPicture => {
+    const picture = { width: img.width, height: img.height, pictureSize: sizeOf?.(img) };
+    if (!composing) return picture;
+    const room = textRoom(textsBy(img), pageTextOf);
+    if (room.width === 0 && room.height === 0) return picture;
+    // Measured against a picture of a usual height on the page: half the room's.
+    const tall = Math.max(1, space.height / 2);
+    const wide = tall * (img.width / Math.max(1, img.height));
+    return { ...picture, width: Math.round((wide + room.width) * 100), height: Math.round((tall + room.height) * 100) };
+  };
   const pages = arranged ? pinPages(arranged, pinned.map(sized), space, PIN_ROW_GAP) : [];
   const pinnedAt = pinned.findIndex((p) => p.path === image.path);
   let page = pages.findIndex((pg) => pg.includes(pinnedAt));
@@ -483,17 +509,6 @@ export function Viewer({
   useWindowFullscreen(wide);
   const room = layout ? { width: layout.current.width, height: layout.current.height } : space;
   // The largest box with the picture's shape that fits, never larger than the picture itself.
-  // The texts by each picture: the heading where the viewer's setting puts it, the further ones where
-  // each was put.
-  // A heading put somewhere keeps that place for its own picture; one never moved follows the viewer's setting.
-  const headingPlaced = (heading: Heading): PlacedText => {
-    const place = heading.place ?? (look.captionPlace === "off" ? "above" : look.captionPlace);
-    return { heading, place, align: captionAlignAt(place, heading.align ?? look.captionAlign), slot: -1 };
-  };
-  const textsBy = (img: ImageEntry): PlacedText[] => {
-    const heading = look.captionPlace === "off" ? undefined : headingOf(img);
-    return [...(heading ? [headingPlaced(heading)] : []), ...textsOf(img).map((t, slot) => placed(t, slot))];
-  };
   // A text being written takes its room as it is typed; an empty one keeps the room of a short one.
   const texts = textsBy(image).filter((t) => t.slot !== writing?.slot);
   if (writing) {
@@ -502,15 +517,22 @@ export function Viewer({
       writing.slot < 0 ? headingPlaced(heading) : placed(heading, writing.slot),
     );
   }
-  // Pictures shown together share one text size, as large as by a single picture, so headings read the
-  // same all over the page; only a very small picture keeps them to a third of its height.
   // A composed page lines its pictures up at the top and left of their places, like columns of a web page.
   const alignStart = arranged === "grid";
-  const pageText = layout ? Math.min(layout.current.height, ...layout.pins.map((r) => r.height)) : 0;
   const textHeight = (heading: Heading) =>
-    layout ? pageTextHeight(heading, look.captionSize, pageText) : captionLineHeight(heading, look.captionSize, room.height);
+    layout ? pageTextOf(heading) : captionLineHeight(heading, look.captionSize, room.height);
   // Texts above and under the picture take lines from its room, those to its sides columns.
-  const edges = textEdges(texts, textHeight, room, image.width, image.height, pictureFrame, fitMode, look.captionWide);
+  const edges = textEdges(
+    texts,
+    textHeight,
+    room,
+    image.width,
+    image.height,
+    pictureFrame,
+    fitMode,
+    look.captionWide,
+    composing && layout ? sideColumn(texts, textHeight) : undefined,
+  );
   const lift = edges.top + edges.bottom;
   // A text above moves the picture down, one under moves it up.
   const shift = edges.top - edges.bottom;
@@ -1116,8 +1138,9 @@ export function Viewer({
                   rounded={look.rounded}
                   texts={textsBy(beside[i])}
                   size={look.captionSize}
-                  pageText={pageText}
+                  textScale={textScale}
                   alignStart={alignStart}
+                  composing={composing}
                   wide={look.captionWide}
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
@@ -1745,8 +1768,10 @@ interface PinnedPictureProps {
   rounded: boolean;
   texts: PlacedText[];
   size: CaptionSize;
-  /** The height that sizes the texts of all pictures on the page alike. */
-  pageText: number;
+  /** How the screen scales the texts of all pictures on the page alike. */
+  textScale: number;
+  /** On a composed page, where the texts have room of their own around the picture. */
+  composing: boolean;
   /** Puts the picture (with its texts) at the top left of its place, in line with the others on the page. */
   alignStart: boolean;
   /** A heading to the side takes all the room beside the picture. */
@@ -1787,9 +1812,26 @@ function AimButton({ name, onAim, className }: { name: string; onAim: () => void
   );
 }
 
-/** Text by pictures shown together: the same size for all of them, and still readable. */
-function pageTextHeight(heading: Heading, size: CaptionSize, smallest: number) {
-  return Math.max(14, captionLineHeight(heading, size, smallest));
+/** Text by pictures shown together: its own size, scaled with the screen, the same for all of them. */
+function scaledTextHeight(heading: Heading, size: CaptionSize, scale: number) {
+  return Math.max(LEAST_LINE, Math.round(shownTextSize(heading, size) * scale));
+}
+
+/** Width of the column a text to the side of a picture needs, gap included: about 22 letters a line. */
+function sideColumn(texts: PlacedText[], heightOf: (heading: Heading) => number) {
+  const tallest = Math.max(0, ...texts.filter((t) => asidePicture(t.place)).map((t) => heightOf(t.heading)));
+  return tallest > 0 ? Math.round(Math.min(480, Math.max(140, tallest * 7))) + ASIDE_GAP : 0;
+}
+
+/**
+ * The room the texts around a picture take on a composed page: their columns beside it, and as many lines
+ * above and under it as a text there wraps to in the picture's width (two at most, counted roughly).
+ */
+function textRoom(texts: PlacedText[], heightOf: (heading: Heading) => number) {
+  const sides = (["left", "right"] as const).filter((side) => texts.some((t) => t.place === side)).length;
+  const line = (place: CaptionPlace) =>
+    Math.max(0, ...texts.filter((t) => t.place === place).map((t) => heightOf(t.heading)));
+  return { width: sides * sideColumn(texts, heightOf), height: line("above") + line("below") };
 }
 
 /** A pinned picture shown large beside the current one; a click shows it on its own again. */
@@ -1801,8 +1843,9 @@ function PinnedPicture({
   rounded,
   texts,
   size,
-  pageText,
+  textScale,
   alignStart,
+  composing,
   wide,
   dragging,
   onDragStart,
@@ -1814,8 +1857,18 @@ function PinnedPicture({
 }: PinnedPictureProps) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => requestThumbnail(image, VIEWER_THUMB_SIZE, setSrc), [image]);
-  const textHeight = (heading: Heading) => pageTextHeight(heading, size, pageText);
-  const edges = textEdges(texts, textHeight, rect, image.width, image.height, frame, "fit", wide);
+  const textHeight = (heading: Heading) => scaledTextHeight(heading, size, textScale);
+  const edges = textEdges(
+    texts,
+    textHeight,
+    rect,
+    image.width,
+    image.height,
+    frame,
+    "fit",
+    wide,
+    composing ? sideColumn(texts, textHeight) : undefined,
+  );
   const shift = edges.top - edges.bottom;
   const slide = edges.left - edges.right;
   const box = fit(
@@ -1969,6 +2022,8 @@ function textEdges(
   frame: Frame,
   mode: "fit" | "grow" | "cover",
   wide: boolean,
+  /** A set width for each column to a side, instead of one by the room. */
+  column?: number,
 ): { top: number; bottom: number; left: number; right: number } {
   const line = (place: CaptionPlace) =>
     Math.max(0, ...texts.filter((t) => t.place === place).map((t) => heightOf(t.heading)));
@@ -1976,14 +2031,15 @@ function textEdges(
   const bottom = line("below");
   const sides = (["left", "right"] as const).filter((side) => texts.some((t) => t.place === side));
   if (sides.length === 0) return { top, bottom, left: 0, right: 0 };
+  if (column !== undefined) return { top, bottom, left: sides.includes("left") ? column : 0, right: sides.includes("right") ? column : 0 };
   const narrow = asideWidth(room.width);
-  let column = narrow;
+  let side = narrow;
   if (wide) {
     const rest = { width: Math.max(0, room.width - narrow * sides.length), height: Math.max(0, room.height - top - bottom) };
     const picture = fit(rest, width, height, frame, mode);
-    column += Math.max(0, rest.width - Math.min(picture.width, rest.width)) / sides.length;
+    side += Math.max(0, rest.width - Math.min(picture.width, rest.width)) / sides.length;
   }
-  return { top, bottom, left: sides.includes("left") ? column : 0, right: sides.includes("right") ? column : 0 };
+  return { top, bottom, left: sides.includes("left") ? side : 0, right: sides.includes("right") ? side : 0 };
 }
 
 /** On the picture rather than around it. */

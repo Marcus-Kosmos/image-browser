@@ -368,8 +368,6 @@ type RowKind = "whole" | "golden" | "pair" | "three";
 interface ComposedRow {
   kind: RowKind;
   items: number[];
-  /** In a golden row, whether the large part is on the right, with the row's second picture. */
-  flipped?: boolean;
 }
 
 const isUpright = (s: Size) => aspect(s) < 0.9;
@@ -377,8 +375,7 @@ const isUpright = (s: Size) => aspect(s) < 0.9;
 /**
  * Splits the pictures, in order, into rows the way a well-set page is built: a large picture with a
  * smaller one beside it by the golden section, pictures alike in pairs, upright ones three abreast, and
- * one alone over the whole width. The order stays as pinned, so the large part of a golden row is on
- * the side of its larger picture.
+ * one alone over the whole width. The order stays as pinned.
  */
 export function composeRows(items: SizedPicture[]): ComposedRow[] {
   const rows: ComposedRow[] = [];
@@ -386,24 +383,24 @@ export function composeRows(items: SizedPicture[]): ComposedRow[] {
   while (i < items.length) {
     const left = items.length - i;
     const [a, b, c] = [items[i], items[i + 1], items[i + 2]];
-    const golden = (big: number) => {
-      rows.push({ kind: "golden", items: [i, i + 1], flipped: big === 1 });
+    const golden = () => {
+      rows.push({ kind: "golden", items: [i, i + 1] });
       i += 2;
     };
     if (left === 1) {
       rows.push({ kind: "whole", items: [i] });
       i += 1;
     } else if (a.pictureSize === "large" || (b.pictureSize === "small" && a.pictureSize !== "small")) {
-      golden(0);
+      golden();
     } else if (b.pictureSize === "large" || (a.pictureSize === "small" && b.pictureSize !== "small")) {
-      golden(1);
+      golden();
     } else if (left >= 3 && isUpright(a) && isUpright(b) && isUpright(c)) {
       rows.push({ kind: "three", items: [i, i + 1, i + 2] });
       i += 3;
     } else if (aspect(a) / aspect(b) > 1.4) {
-      golden(0);
+      golden();
     } else if (aspect(b) / aspect(a) > 1.4) {
-      golden(1);
+      golden();
     } else {
       rows.push({ kind: "pair", items: [i, i + 1] });
       i += 2;
@@ -412,21 +409,11 @@ export function composeRows(items: SizedPicture[]): ComposedRow[] {
   return rows;
 }
 
-/** The widths of a row's columns, left to right, for a page `width` wide. */
-function rowColumns(row: ComposedRow, width: number, gap: number): number[] {
-  if (row.kind === "whole") return [width];
-  if (row.kind === "three") return Array(3).fill((width - 2 * gap) / 3);
-  if (row.kind === "pair") return Array(2).fill((width - gap) / 2);
-  const large = (width - gap) * GOLDEN;
-  const small = width - gap - large;
-  // The large part is the row's first picture unless the row is flipped.
-  return row.flipped ? [small, large] : [large, small];
-}
-
 /**
- * Places the pictures whole, row by row, every row top-aligned and starting at the page's left edge,
- * with one gap between pictures and the golden section of it more between rows. The page shrinks as a
- * whole to fit the room.
+ * Places the pictures whole, row by row: the pictures of a row share its width by their shapes, so they
+ * stand equally tall and fill it with no gaps, like a puzzle, and the row grouping keeps the golden
+ * section, halves and thirds between them. One gap between pictures, the golden section of it more between
+ * rows. The page shrinks as a whole to fit the room.
  */
 function placeComposed(items: SizedPicture[], room: Size, gap: number) {
   const rows = composeRows(items);
@@ -435,19 +422,18 @@ function placeComposed(items: SizedPicture[], room: Size, gap: number) {
     const rects: Rect[] = new Array(items.length);
     let y = 0;
     for (const row of rows) {
-      const columns = rowColumns(row, width, gap);
+      const shapes = row.items.map((item) => aspect(items[item]));
+      // A picture alone takes the whole width only when it is wide; an upright one keeps to the large part.
+      const across =
+        row.kind === "whole" && isUpright(items[row.items[0]]) ? (width - gap) * GOLDEN : width - gap * (row.items.length - 1);
+      const height = across / shapes.reduce((sum, a) => sum + a, 0);
       let x = 0;
-      let tallest = 0;
       row.items.forEach((item, k) => {
-        const column = columns[k];
-        // A picture alone takes the whole width only when it is wide; an upright one keeps to the large part.
-        const w = row.kind === "whole" && isUpright(items[item]) ? (width - gap) * GOLDEN : column;
-        const h = w / aspect(items[item]);
-        rects[item] = { x: Math.round(x), y: Math.round(y), width: Math.floor(w), height: Math.floor(h) };
-        tallest = Math.max(tallest, h);
-        x += column + gap;
+        const w = height * shapes[k];
+        rects[item] = { x: Math.round(x), y: Math.round(y), width: Math.floor(w), height: Math.floor(height) };
+        x += w + gap;
       });
-      y += tallest + rowGap;
+      y += height + rowGap;
     }
     return { rects, height: Math.max(0, y - rowGap) };
   };

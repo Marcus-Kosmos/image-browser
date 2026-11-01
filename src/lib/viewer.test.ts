@@ -143,11 +143,9 @@ describe("composed layout", () => {
   const portrait = { width: 1000, height: 1500 };
   const room = { width: 1600, height: 900 };
 
-  it("sets a large picture beside a small one by the golden section, on its side", () => {
+  it("pairs a large picture with a smaller one", () => {
     const rows = composeRows([{ ...landscape, pictureSize: "large" }, portrait, portrait, { ...landscape, pictureSize: "large" }]);
     expect(rows.map((r) => r.kind)).toEqual(["golden", "golden"]);
-    expect(rows[0].flipped).toBe(false);
-    expect(rows[1].flipped).toBe(true);
   });
 
   it("puts upright pictures three abreast and alike ones in pairs", () => {
@@ -165,11 +163,12 @@ describe("composed layout", () => {
     expect(layout.height).toBeLessThanOrEqual(room.height);
   });
 
-  it("gives the large part of a golden row 62 % of the width", () => {
+  it("fills each row, its pictures equally tall, with no gaps", () => {
     const layout = pinLayout("grid", [{ ...portrait, pictureSize: "small" }], { ...landscape, pictureSize: "large" }, room, 12);
-    const share = layout.pins[0].width / (layout.current.width + layout.pins[0].width);
-    expect(share).toBeGreaterThan(0.36);
-    expect(share).toBeLessThan(0.4);
+    const [big, small] = [layout.current, layout.pins[0]];
+    expect(big.height).toBe(small.height);
+    expect(Math.max(small.x + small.width, big.x + big.width)).toBeGreaterThanOrEqual(layout.width - 2);
+    expect(big.width).toBeGreaterThan(small.width);
   });
 
   it("starts a new page before pictures turn into thumbnails", () => {
