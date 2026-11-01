@@ -46,7 +46,7 @@ export const PIN_SIZE_LABELS: Record<PinSize, string> = {
   medium: "Mellan, bilden fyller resten",
   full: "Hela, i en rad",
   puzzle: "Pussel i rader som fyller skärmen",
-  grid: "Rutnät, som en webbsida",
+  grid: "Komposition efter gyllene snittet",
 };
 
 /** Where an image's heading goes in full screen. */
@@ -359,88 +359,111 @@ function fillRoom(columns: Size[][], room: Size, gap: number) {
 /** A picture to place, with the size it is set to show at (small, medium or large) if any. */
 export type SizedPicture = Size & { pictureSize?: ItemSize };
 
-const GRID_COLUMNS = 12;
+const GOLDEN = (Math.sqrt(5) - 1) / 2;
 
-/** Columns a picture takes in the grid: landscape ones wider than upright ones, and by its size. */
-function gridSpan(s: SizedPicture) {
-  const a = aspect(s);
-  const base = a >= 1.25 ? 6 : 4;
-  const scaled = s.pictureSize === "small" ? Math.round((base * 2) / 3) : s.pictureSize === "large" ? Math.round(base * 1.5) : base;
-  return Math.max(3, Math.min(GRID_COLUMNS, scaled));
+/** How a row of the composed page shares its width, as parts of it: one picture, the golden section,
+ * two halves or three columns. */
+type RowKind = "whole" | "golden" | "pair" | "three";
+
+interface ComposedRow {
+  kind: RowKind;
+  items: number[];
+  /** In a golden row, whether the large part is on the right, with the row's second picture. */
+  flipped?: boolean;
 }
 
-/** The pictures in rows of the grid, each row taking all its columns. */
-function gridRows(items: SizedPicture[]) {
-  const rows: { item: number; span: number }[][] = [];
-  let row: { item: number; span: number }[] = [];
-  let used = 0;
-  items.forEach((s, i) => {
-    const span = gridSpan(s);
-    if (row.length > 0 && used + span > GRID_COLUMNS) {
-      rows.push(row);
-      row = [];
-      used = 0;
-    }
-    row.push({ item: i, span });
-    used += span;
-  });
-  if (row.length > 0) rows.push(row);
-  // Within a row the columns are shared out by the pictures' shapes, so they stand about as tall as
-  // each other; a picture alone in its row takes no more than half as much again as its size asks.
-  for (const r of rows) {
-    const total = r.length === 1 ? Math.min(GRID_COLUMNS, Math.floor(r[0].span * 1.5)) : GRID_COLUMNS;
-    const widths = r.map((c) => aspect(items[c.item]));
-    const sum = widths.reduce((x, y) => x + y, 0);
-    const exact = widths.map((w) => (w / sum) * total);
-    r.forEach((c, i) => (c.span = Math.max(2, Math.floor(exact[i]))));
-    // The columns lost to rounding go to the pictures that lost the most.
-    let left = total - r.reduce((x, c) => x + c.span, 0);
-    const order = r.map((_, i) => i).sort((i, j) => exact[j] - r[j].span - (exact[i] - r[i].span));
-    for (let k = 0; left > 0; k = (k + 1) % order.length, left--) r[order[k]].span++;
-    while (r.reduce((x, c) => x + c.span, 0) > total) {
-      const widest = r.reduce((x, c) => (c.span > x.span ? c : x));
-      widest.span--;
+const isUpright = (s: Size) => aspect(s) < 0.9;
+
+/**
+ * Splits the pictures, in order, into rows the way a well-set page is built: a large picture with a
+ * smaller one beside it by the golden section, pictures alike in pairs, upright ones three abreast, and
+ * one alone over the whole width. The order stays as pinned, so the large part of a golden row is on
+ * the side of its larger picture.
+ */
+export function composeRows(items: SizedPicture[]): ComposedRow[] {
+  const rows: ComposedRow[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const left = items.length - i;
+    const [a, b, c] = [items[i], items[i + 1], items[i + 2]];
+    const golden = (big: number) => {
+      rows.push({ kind: "golden", items: [i, i + 1], flipped: big === 1 });
+      i += 2;
+    };
+    if (left === 1) {
+      rows.push({ kind: "whole", items: [i] });
+      i += 1;
+    } else if (a.pictureSize === "large" || (b.pictureSize === "small" && a.pictureSize !== "small")) {
+      golden(0);
+    } else if (b.pictureSize === "large" || (a.pictureSize === "small" && b.pictureSize !== "small")) {
+      golden(1);
+    } else if (left >= 3 && isUpright(a) && isUpright(b) && isUpright(c)) {
+      rows.push({ kind: "three", items: [i, i + 1, i + 2] });
+      i += 3;
+    } else if (aspect(a) / aspect(b) > 1.4) {
+      golden(0);
+    } else if (aspect(b) / aspect(a) > 1.4) {
+      golden(1);
+    } else {
+      rows.push({ kind: "pair", items: [i, i + 1] });
+      i += 2;
     }
   }
   return rows;
 }
 
+/** The widths of a row's columns, left to right, for a page `width` wide. */
+function rowColumns(row: ComposedRow, width: number, gap: number): number[] {
+  if (row.kind === "whole") return [width];
+  if (row.kind === "three") return Array(3).fill((width - 2 * gap) / 3);
+  if (row.kind === "pair") return Array(2).fill((width - gap) / 2);
+  const large = (width - gap) * GOLDEN;
+  const small = width - gap - large;
+  // The large part is the row's first picture unless the row is flipped.
+  return row.flipped ? [small, large] : [large, small];
+}
+
 /**
- * Places the pictures whole in a grid of twelve columns like a web page: every picture starts on a column,
- * with the same gap between all of them, and the rows top-aligned. The grid shrinks as a whole to fit.
+ * Places the pictures whole, row by row, every row top-aligned and starting at the page's left edge,
+ * with one gap between pictures and the golden section of it more between rows. The page shrinks as a
+ * whole to fit the room.
  */
-function placeGrid(items: SizedPicture[], room: Size, gap: number) {
-  const rows = gridRows(items);
-  const cellWidth = (span: number, column: number) => span * column + (span - 1) * gap;
-  const heightAt = (column: number) =>
-    rows.reduce((sum, r) => sum + Math.max(...r.map((c) => cellWidth(c.span, column) / aspect(items[c.item]))), 0) +
-    gap * (rows.length - 1);
-  let column = Math.max(0, (room.width - gap * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
-  if (heightAt(column) > room.height) {
+function placeComposed(items: SizedPicture[], room: Size, gap: number) {
+  const rows = composeRows(items);
+  const rowGap = Math.round(gap / GOLDEN);
+  const layoutAt = (width: number) => {
+    const rects: Rect[] = new Array(items.length);
+    let y = 0;
+    for (const row of rows) {
+      const columns = rowColumns(row, width, gap);
+      let x = 0;
+      let tallest = 0;
+      row.items.forEach((item, k) => {
+        const column = columns[k];
+        // A picture alone takes the whole width only when it is wide; an upright one keeps to the large part.
+        const w = row.kind === "whole" && isUpright(items[item]) ? (width - gap) * GOLDEN : column;
+        const h = w / aspect(items[item]);
+        rects[item] = { x: Math.round(x), y: Math.round(y), width: Math.floor(w), height: Math.floor(h) };
+        tallest = Math.max(tallest, h);
+        x += column + gap;
+      });
+      y += tallest + rowGap;
+    }
+    return { rects, height: Math.max(0, y - rowGap) };
+  };
+  let width = room.width;
+  if (layoutAt(width).height > room.height) {
     let low = 0;
-    let high = column;
+    let high = width;
     for (let i = 0; i < 24; i++) {
       const mid = (low + high) / 2;
-      if (heightAt(mid) > room.height) high = mid;
+      if (layoutAt(mid).height > room.height) high = mid;
       else low = mid;
     }
-    column = low;
+    width = low;
   }
-  const rects: Rect[] = new Array(items.length);
-  let y = 0;
-  for (const r of rows) {
-    let at = (GRID_COLUMNS - r.reduce((sum, c) => sum + c.span, 0)) / 2;
-    let tallest = 0;
-    for (const c of r) {
-      const width = cellWidth(c.span, column);
-      const height = width / aspect(items[c.item]);
-      rects[c.item] = { x: Math.round(at * (column + gap)), y: Math.round(y), width: Math.floor(width), height: Math.floor(height) };
-      tallest = Math.max(tallest, height);
-      at += c.span;
-    }
-    y += tallest + gap;
-  }
-  return { rects, width: Math.round(cellWidth(GRID_COLUMNS, column)), height: Math.max(0, Math.round(y - gap)) };
+  const placed = layoutAt(width);
+  return { rects: placed.rects, width: Math.round(width), height: Math.round(placed.height) };
 }
 
 /** The gap of the grid: grows with the room, so the page breathes the same at every size. */
@@ -450,7 +473,7 @@ export const gridGap = (room: Size, gap: number) => Math.max(gap, Math.round(roo
  * Places pinned pictures and the current one. "full" puts them all in one row at the same height;
  * "medium" stacks the pinned ones two high and leaves the rest to the current one; "puzzle" breaks
  * them into as many full-width rows as cover the room best, like the map, the current one last;
- * "grid" lines them up whole on twelve columns, each as wide as its shape and size ask.
+ * "grid" composes them in rows by the golden section, halves and thirds, like a well-set web page.
  */
 export function pinLayout(
   size: Exclude<PinSize, "small">,
@@ -496,7 +519,7 @@ export function pinLayout(
   const items = [...pins.slice(0, spot), current, ...pins.slice(spot)];
   const placed =
     size === "grid"
-      ? placeGrid(items, room, gridGap(room, gap))
+      ? placeComposed(items, room, gridGap(room, gap))
       : size === "full"
       ? fillRoom(
           items.map((s) => [s]),

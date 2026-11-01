@@ -504,6 +504,8 @@ export function Viewer({
   }
   // Pictures shown together share one text size, as large as by a single picture, so headings read the
   // same all over the page; only a very small picture keeps them to a third of its height.
+  // A composed page lines its pictures up at the top and left of their places, like columns of a web page.
+  const alignStart = arranged === "grid";
   const pageText = layout ? Math.min(layout.current.height, ...layout.pins.map((r) => r.height)) : 0;
   const textHeight = (heading: Heading) =>
     layout ? pageTextHeight(heading, look.captionSize, pageText) : captionLineHeight(heading, look.captionSize, room.height);
@@ -1115,6 +1117,7 @@ export function Viewer({
                   texts={textsBy(beside[i])}
                   size={look.captionSize}
                   pageText={pageText}
+                  alignStart={alignStart}
                   wide={look.captionWide}
                   dragging={dragging === beside[i].path}
                   onDragStart={(e) => startPinDrag(beside[i].path, e)}
@@ -1142,8 +1145,8 @@ export function Viewer({
                   // Marks the picture the bar of buttons acts on, among several.
                   ...(beside.length > 0 && aimedIndex < 0 && !zoomed && { outline: AIMED_OUTLINE, outlineOffset: 6 }),
                   ...(layout && {
-                    left: layout.current.x + (layout.current.width - box.width - aside) / 2,
-                    top: layout.current.y + (layout.current.height - box.height - lift) / 2,
+                    left: layout.current.x + (alignStart ? 0 : (layout.current.width - box.width - aside) / 2),
+                    top: layout.current.y + (alignStart ? 0 : (layout.current.height - box.height - lift) / 2),
                     ...view,
                     transition: SLOT_TRANSITION,
                   }),
@@ -1744,6 +1747,8 @@ interface PinnedPictureProps {
   size: CaptionSize;
   /** The height that sizes the texts of all pictures on the page alike. */
   pageText: number;
+  /** Puts the picture (with its texts) at the top left of its place, in line with the others on the page. */
+  alignStart: boolean;
   /** A heading to the side takes all the room beside the picture. */
   wide: boolean;
   dragging: boolean;
@@ -1797,6 +1802,7 @@ function PinnedPicture({
   texts,
   size,
   pageText,
+  alignStart,
   wide,
   dragging,
   onDragStart,
@@ -1826,8 +1832,8 @@ function PinnedPicture({
       onPointerDown={onDragStart}
       className={cn("group absolute touch-none", dragging && "z-10 cursor-grabbing opacity-60")}
       style={{
-        left: rect.x + (rect.width - box.width + slide) / 2,
-        top: rect.y + (rect.height - box.height + shift) / 2,
+        left: rect.x + (alignStart ? edges.left : (rect.width - box.width + slide) / 2),
+        top: rect.y + (alignStart ? edges.top : (rect.height - box.height + shift) / 2),
         width: box.width,
         height: box.height,
         transition: SLOT_TRANSITION,

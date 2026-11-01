@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
+import { captionLineHeight, composeRows, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -138,26 +138,38 @@ describe("text sizes", () => {
   });
 });
 
-describe("grid layout", () => {
+describe("composed layout", () => {
   const landscape = { width: 1500, height: 1000 };
   const portrait = { width: 1000, height: 1500 };
   const room = { width: 1600, height: 900 };
 
-  it("starts every picture on a column, with the same gap between them", () => {
-    const layout = pinLayout("grid", [landscape, portrait, portrait], landscape, room, 12);
-    const all = [...layout.pins, layout.current].sort((a, b) => a.y - b.y || a.x - b.x);
-    const row = all.filter((r) => r.y === all[0].y);
-    for (let i = 1; i < row.length; i++) {
-      const gap = row[i].x - (row[i - 1].x + row[i - 1].width);
-      expect(gap).toBeGreaterThanOrEqual(23);
-      expect(gap).toBeLessThanOrEqual(26);
-    }
+  it("sets a large picture beside a small one by the golden section, on its side", () => {
+    const rows = composeRows([{ ...landscape, pictureSize: "large" }, portrait, portrait, { ...landscape, pictureSize: "large" }]);
+    expect(rows.map((r) => r.kind)).toEqual(["golden", "golden"]);
+    expect(rows[0].flipped).toBe(false);
+    expect(rows[1].flipped).toBe(true);
+  });
+
+  it("puts upright pictures three abreast and alike ones in pairs", () => {
+    expect(composeRows([portrait, portrait, portrait]).map((r) => r.kind)).toEqual(["three"]);
+    expect(composeRows([landscape, landscape]).map((r) => r.kind)).toEqual(["pair"]);
+    expect(composeRows([landscape]).map((r) => r.kind)).toEqual(["whole"]);
+  });
+
+  it("lines the pictures of a row up at the top and fits the room", () => {
+    const layout = pinLayout("grid", [landscape, portrait, landscape], portrait, room, 12);
+    const all = [...layout.pins, layout.current];
+    const tops = new Set(all.map((r) => r.y));
+    expect(tops.size).toBeLessThanOrEqual(2);
+    expect(Math.min(...all.map((r) => r.x))).toBe(0);
     expect(layout.height).toBeLessThanOrEqual(room.height);
   });
 
-  it("gives a picture set large more room than one set small", () => {
-    const small = pinLayout("grid", [{ ...landscape, pictureSize: "small" }], { ...landscape, pictureSize: "large" }, room, 12);
-    expect(small.current.width).toBeGreaterThan(small.pins[0].width);
+  it("gives the large part of a golden row 62 % of the width", () => {
+    const layout = pinLayout("grid", [{ ...portrait, pictureSize: "small" }], { ...landscape, pictureSize: "large" }, room, 12);
+    const share = layout.pins[0].width / (layout.current.width + layout.pins[0].width);
+    expect(share).toBeGreaterThan(0.36);
+    expect(share).toBeLessThan(0.4);
   });
 
   it("starts a new page before pictures turn into thumbnails", () => {
