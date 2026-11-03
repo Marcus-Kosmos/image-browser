@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionLineHeight, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
+import { captionLineHeight, composeRows, hasRoomToPin, levelForSize, pinLayout, pinPages, resolveTransition, sizeForSlider, sliderForSize, TEXT_SIZE_MAX, TEXT_SIZE_MIN, textWeight } from "./viewer";
 
 describe("resolveTransition", () => {
   it("keeps a chosen transition", () => {
@@ -135,5 +135,44 @@ describe("text sizes", () => {
     expect(levelForSize(20)).toBe(3);
     expect(levelForSize(40)).toBe(2);
     expect(levelForSize(80)).toBe(1);
+  });
+});
+
+describe("composed layout", () => {
+  const landscape = { width: 1500, height: 1000 };
+  const portrait = { width: 1000, height: 1500 };
+  const room = { width: 1600, height: 900 };
+
+  it("pairs a large picture with a smaller one", () => {
+    const rows = composeRows([{ ...landscape, pictureSize: "large" }, portrait, portrait, { ...landscape, pictureSize: "large" }]);
+    expect(rows.map((r) => r.kind)).toEqual(["golden", "golden"]);
+  });
+
+  it("puts upright pictures three abreast and alike ones in pairs", () => {
+    expect(composeRows([portrait, portrait, portrait]).map((r) => r.kind)).toEqual(["three"]);
+    expect(composeRows([landscape, landscape]).map((r) => r.kind)).toEqual(["pair"]);
+    expect(composeRows([landscape]).map((r) => r.kind)).toEqual(["whole"]);
+  });
+
+  it("lines the pictures of a row up at the top and fits the room", () => {
+    const layout = pinLayout("grid", [landscape, portrait, landscape], portrait, room, 12);
+    const all = [...layout.pins, layout.current];
+    const tops = new Set(all.map((r) => r.y));
+    expect(tops.size).toBeLessThanOrEqual(2);
+    expect(Math.min(...all.map((r) => r.x))).toBe(0);
+    expect(layout.height).toBeLessThanOrEqual(room.height);
+  });
+
+  it("fills each row, its pictures equally tall, with no gaps", () => {
+    const layout = pinLayout("grid", [{ ...portrait, pictureSize: "small" }], { ...landscape, pictureSize: "large" }, room, 12);
+    const [big, small] = [layout.current, layout.pins[0]];
+    expect(big.height).toBe(small.height);
+    expect(Math.max(small.x + small.width, big.x + big.width)).toBeGreaterThanOrEqual(layout.width - 2);
+    expect(big.width).toBeGreaterThan(small.width);
+  });
+
+  it("starts a new page before pictures turn into thumbnails", () => {
+    expect(hasRoomToPin("grid", [landscape, landscape], landscape, room, 12)).toBe(true);
+    expect(hasRoomToPin("grid", Array(12).fill(portrait), portrait, room, 12)).toBe(false);
   });
 });

@@ -1177,6 +1177,7 @@ export default function App() {
           headingOf={(img) => settings.images[imageKey(img)]?.heading}
           onHeadingChange={(i, heading) => images[i] && updateImage(imageKey(images[i]), { heading })}
           textsOf={(img) => settings.images[imageKey(img)]?.texts ?? []}
+          sizeOf={(img) => settings.images[imageKey(img)]?.size}
           onTextsChange={(i, texts) =>
             images[i] && updateImage(imageKey(images[i]), { texts: texts.length ? texts : undefined })
           }
