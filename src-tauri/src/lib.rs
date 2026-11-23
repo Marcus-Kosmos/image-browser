@@ -28,7 +28,7 @@ async fn thumbnail(app: tauri::AppHandle, path: String, size: u32) -> Result<Str
         .map_err(|e| e.to_string())?
         .join("thumbs");
     tauri::async_runtime::spawn_blocking(move || {
-        thumbs::thumbnail(&PathBuf::from(path), size, &cache_dir)
+        thumbs::for_display(&PathBuf::from(path), size, &cache_dir)
             .map(|p| p.to_string_lossy().into_owned())
     })
     .await
@@ -321,6 +321,10 @@ pub fn run() {
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.
         .setup(|app| {
+            // Clear out thumbnails from earlier versions and keep the cache under its limit.
+            if let Ok(cache) = app.path().app_cache_dir() {
+                std::thread::spawn(move || thumbs::tidy(&cache.join("thumbs"), thumbs::CACHE_LIMIT));
+            }
             let config = app.config().app.windows.first().cloned().ok_or("Fönsterinställningar saknas")?;
             let handle = app.handle().clone();
             let window = tauri::WebviewWindowBuilder::from_config(app, &config)?
