@@ -150,7 +150,7 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
     Ok(subfolders)
 }
 
-fn display_dimensions(path: &Path) -> Option<(u32, u32)> {
+pub fn display_dimensions(path: &Path) -> Option<(u32, u32)> {
     // imagesize only reads the header; fall back to a full decoder for unusual files.
     let (w, h) = match imagesize::size(path) {
         Ok(size) => (size.width as u32, size.height as u32),
