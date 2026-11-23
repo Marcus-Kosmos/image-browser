@@ -25,6 +25,7 @@ import {
   publishWebPage,
   scanFolder,
   sortDropped,
+  thumbnailUrl,
   contentHashes,
   trashFile,
   upscaleImage,
@@ -84,6 +85,7 @@ import { openBiggerPics, upscaleWithBiggerPics } from "@/lib/biggerpics";
 import { buildWebPage, pagePictures, saveWebHost } from "@/lib/webpage";
 import { folderName, parentFolder } from "@/lib/utils";
 import type { Waiting } from "@/components/WaitingRing";
+import { ReadyPreview, type ReadyPicture } from "@/components/ReadyPreview";
 
 const STORAGE_FOLDERS = "image-browser:last-folders";
 const STORAGE_SUBFOLDERS = "image-browser:include-subfolders";
@@ -846,9 +848,17 @@ export default function App() {
     }
   };
   // What is shown when a slow job finishes, rather than when it started.
-  const current = useRef({ viewKey, listing, includeSubfolders, loadFolders, addToSeries: async (_id: string, _path: string) => {} });
+  const current = useRef({
+    viewKey,
+    listing,
+    includeSubfolders,
+    loadFolders,
+    viewerPath: null as string | null,
+    addToSeries: async (_id: string, _path: string) => {},
+  });
   current.current = {
     viewKey,
+    viewerPath: viewerIndex !== null ? (images[viewerIndex]?.path ?? null) : null,
     listing,
     includeSubfolders,
     loadFolders,
@@ -856,6 +866,41 @@ export default function App() {
       const entries = await readImages([path]);
       if (entries.length > 0) addTo(`series:${id}`, entries);
     },
+  };
+  // An enlargement that finished while the user looked at something else, waiting in a corner.
+  const [ready, setReady] = useState<(ReadyPicture & { series: string | null }) | null>(null);
+  const offerReady = async (path: string, inSeries: string | null) => {
+    const name = path.split("/").pop() ?? path;
+    let url: string | null = null;
+    try {
+      const listing = await scanFolder(parentFolder(path) ?? path, false);
+      const entry = listing.images.find((img) => samePath(img.path) === samePath(path));
+      if (entry) url = await thumbnailUrl(entry, 800);
+    } catch {
+      // Shown without a picture; clicking it still opens the file.
+    }
+    setReady({ path, name, url, series: inSeries });
+  };
+  /** Opens the enlarged picture: where it is shown now, else in its series or its folder. */
+  const openReady = () => {
+    if (!ready) return;
+    setReady(null);
+    const wanted = samePath(ready.path);
+    const i = images.findIndex((img) => samePath(img.path) === wanted);
+    if (i >= 0) {
+      setViewerIndex(i);
+      return;
+    }
+    setShowOnLoad(ready.path);
+    if (ready.series && library.series.some((s) => s.id === ready.series)) {
+      selectView({ kind: "series", id: ready.series });
+      return;
+    }
+    const folder = parentFolder(ready.path);
+    if (!folder) return;
+    setFilter(NO_FILTER);
+    if (view.kind !== "folders") selectView({ kind: "folders" });
+    void loadFolders([folder]);
   };
   const upscale = async (image: ImageEntry, choice: UpscaleChoice, popup: Window | null) => {
     const startedIn = viewKey;
@@ -894,7 +939,10 @@ export default function App() {
       } else if (stayed && now.listing) {
         await now.loadFolders(now.listing.folders, now.includeSubfolders, true);
       }
-      if (stayed) setShowOnLoad(made);
+      // Still on the picture that was enlarged: show the result in its place. Otherwise the user
+      // has moved on, so the result waits in a corner preview instead of pulling them back.
+      if (stayed && now.viewerPath === image.path) setShowOnLoad(made);
+      else void offerReady(made, startedInSeries);
       showToast(`Sparad som ${name}, bredvid originalet.`, "success", {
         label: "Visa i Finder",
         run: () => void reveal([made]),
@@ -1226,6 +1274,7 @@ export default function App() {
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {dropping && <DropOverlay into={dropInto?.name ?? null} />}
+      {ready && <ReadyPreview ready={ready} onOpen={openReady} onDismiss={() => setReady(null)} />}
       <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} raised={selectedImages.length > 0} />
     </div>
   );
