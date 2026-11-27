@@ -30,8 +30,14 @@ import {
   PanelBottom,
   PanelTop,
   PencilLine,
+  Pause,
   Pin,
+  Play,
   RectangleEllipsis,
+  Repeat,
+  Square,
+  Volume2,
+  VolumeX,
   Trash2,
   WandSparkles,
   X,
@@ -83,7 +89,7 @@ import { useCloseOnLeaveAfterChoice } from "@/lib/menu";
 import { WaitingRing, type Waiting } from "./WaitingRing";
 import { GRID_THUMB_SIZE, VIEWER_THUMB_SIZE, requestThumbnail, viewerSize } from "@/lib/thumbnails";
 import { LayoutGridCircles } from "./icons";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn, formatBytes, formatDuration } from "@/lib/utils";
 
 interface ViewerProps {
   images: ImageEntry[];
@@ -378,6 +384,23 @@ export function Viewer({
           return [...prev.slice(-1), layer];
         });
       });
+    // A video comes in at once, playing over its still, which follows when ready.
+    if (image.video) {
+      setLayers((prev) => {
+        if (prev[prev.length - 1]?.path === image.path) return prev;
+        const layer: Layer = {
+          id: nextId.current++,
+          path: image.path,
+          src: "",
+          alt: image.name,
+          width: image.width,
+          height: image.height,
+          effect,
+          dir,
+        };
+        return [...prev.slice(-1), layer];
+      });
+    }
     // Show the grid thumbnail quickly, then swap in the sharp version.
     const cancelPreview = requestThumbnail(image, GRID_THUMB_SIZE, (src) => show(src, false));
     const cancelFull = requestThumbnail(image, viewerSize(image), (src) => show(src, true));
@@ -603,6 +626,8 @@ export function Viewer({
   );
   const stepZoom = useCallback(
     (dir: 1 | -1, px = 0, py = 0) => {
+      // A video is watched whole; a click on it plays or pauses instead.
+      if (image.video) return;
       // From its place among pinned pictures, the picture first grows to fill the area, centered.
       if (dir > 0 && !zoomed && fullScale > 1.05) return zoomTo(fullScale);
       const next =
@@ -612,7 +637,7 @@ export function Viewer({
       zoomTo(next, px, py);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [zoom.scale, zoomed, fullScale, maxScale, zoomTo],
+    [zoom.scale, zoomed, fullScale, maxScale, zoomTo, image.video],
   );
 
   // The file itself once zoomed in, as the largest thumbnail runs out of detail.
@@ -621,7 +646,7 @@ export function Viewer({
     src: string;
   } | null>(null);
   useEffect(() => {
-    if (!zoomed || original?.path === image.path) return;
+    if (!zoomed || image.video || original?.path === image.path) return;
     let cancelled = false;
     let cancelConverted = () => {};
     const use = (src: string) =>
@@ -643,6 +668,48 @@ export function Viewer({
       cancelConverted();
     };
   }, [zoomed, image, original?.path]);
+
+  // The video shown, played from the bar of buttons, a click on it or the space bar.
+  const videoEl = useRef<HTMLVideoElement | null>(null);
+  const [playback, setPlayback] = useState({ playing: false, time: 0, duration: image.duration ?? 0 });
+  useEffect(() => {
+    setPlayback({ playing: false, time: 0, duration: image.duration ?? 0 });
+  }, [image.path, image.duration]);
+  const togglePlay = useCallback(() => {
+    const video = videoEl.current;
+    if (!video) return;
+    if (video.paused) {
+      if (video.ended) video.currentTime = 0;
+      void video.play().catch(() => {});
+    } else video.pause();
+  }, []);
+  const stopVideo = () => {
+    const video = videoEl.current;
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+  };
+  const seekVideo = (time: number) => {
+    const video = videoEl.current;
+    if (!video) return;
+    video.currentTime = time;
+    setPlayback((p) => ({ ...p, time }));
+  };
+  const videoBinding: VideoBinding | undefined = image.video
+    ? {
+        src: originalUrl(image),
+        autoplay: look.videoAutoplay,
+        loop: look.videoLoop,
+        muted: look.videoMuted,
+        ref: videoEl,
+        onState: (video) =>
+          setPlayback({
+            playing: !video.paused && !video.ended,
+            time: video.currentTime,
+            duration: Number.isFinite(video.duration) ? video.duration : (image.duration ?? 0),
+          }),
+      }
+    : undefined;
 
   // A press either drags the zoomed picture around or, without moving, is a zoom click.
   const press = useRef<{
@@ -735,7 +802,8 @@ export function Viewer({
     const py = e.clientY - rect.top - rect.height / 2;
     // A click beside the picture leaves, like the cross; on it, it zooms.
     if (besidePicture(e.clientX, e.clientY)) return leave();
-    if (e.altKey) stepZoom(-1, px, py);
+    if (image.video) togglePlay();
+    else if (e.altKey) stepZoom(-1, px, py);
     else if (atMax) zoomTo(1);
     else stepZoom(1, px, py);
   };
@@ -941,6 +1009,7 @@ export function Viewer({
       else if (e.key === "ArrowRight" && hasNext) onIndexChange(index + 1);
       else if (e.key === "Delete" || e.key === "Backspace") onTrash(actIndex);
       else if (e.key === "f") onToggleFavorite(actIndex);
+      else if (e.key === " " && image.video) togglePlay();
       else return;
       e.preventDefault();
     };
@@ -1014,7 +1083,8 @@ export function Viewer({
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-sm font-medium">{image.name}</div>
           <div className="text-xs text-current/60">
-            {index + 1} av {images.length} · {image.width} × {image.height} · {formatBytes(image.size)}
+            {index + 1} av {images.length} · {image.width} × {image.height}
+            {image.video && image.duration !== undefined && ` · ${formatDuration(image.duration)}`} · {formatBytes(image.size)}
             {tagsOf(image).map((t) => (
               <span key={t.key} className="ml-1.5 rounded-sm bg-current/15 px-1.5 py-px">
                 {t.name}
@@ -1209,6 +1279,7 @@ export function Viewer({
                     panning={panning}
                     waitingSince={waiting?.path === layer.path ? waiting.since : undefined}
                     aiMark={showAiMark ? aiOf.get(layer.path) : undefined}
+                    video={i === layers.length - 1 && layer.path === image.path ? videoBinding : undefined}
                   />
                 ))}
                 {/* Sized to the picture, so the heart sits on its corner whatever its shape. Hidden while zoomed. */}
@@ -1323,7 +1394,23 @@ export function Viewer({
               <Trash2 />
             </DockButton>
             <DockDivider />
-            {onUpscale && (
+            {videoBinding && (
+              <>
+                <VideoControls
+                  playback={playback}
+                  loop={look.videoLoop}
+                  muted={look.videoMuted}
+                  onPlay={togglePlay}
+                  onStop={stopVideo}
+                  onSeek={seekVideo}
+                  onLoop={(videoLoop) => updateLook({ videoLoop })}
+                  onMute={(videoMuted) => updateLook({ videoMuted })}
+                />
+                <DockDivider />
+              </>
+            )}
+            {/* A video isn't enlarged, so it has no wand. */}
+            {onUpscale && !actOn.video && (
               <DockButton
                 onClick={() => onUpscale(actIndex)}
                 disabled={upscaling}
@@ -1612,6 +1699,125 @@ interface LayerViewProps {
   waitingSince?: number;
   /** Shown in the picture's top right corner: made or enlarged with AI. */
   aiMark?: NonNullable<ImageEntry["ai"]>;
+  /** Plays the video over its still. */
+  video?: VideoBinding;
+}
+
+/** The video shown in the viewer and how it plays; its controls are in the bar of buttons. */
+interface VideoBinding {
+  src: string;
+  autoplay: boolean;
+  loop: boolean;
+  muted: boolean;
+  ref: React.MutableRefObject<HTMLVideoElement | null>;
+  /** Called whenever it starts, stops, moves on or learns its length. */
+  onState: (video: HTMLVideoElement) => void;
+}
+
+/** A video in the size and frame of the picture under it. */
+function VideoLayer({ video, radius }: { video: VideoBinding; radius: React.CSSProperties["borderRadius"] }) {
+  const { ref, loop, muted, onState } = video;
+  // Set on the element itself, as React leaves `muted` alone after the first render.
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.loop = loop;
+    ref.current.muted = muted;
+  }, [ref, loop, muted]);
+  const update = (e: React.SyntheticEvent<HTMLVideoElement>) => onState(e.currentTarget);
+  return (
+    <video
+      ref={(el) => {
+        ref.current = el;
+        if (el) {
+          el.muted = muted;
+          el.loop = loop;
+        }
+      }}
+      src={video.src}
+      autoPlay={video.autoplay}
+      playsInline
+      preload="auto"
+      onPlay={update}
+      onPause={update}
+      onEnded={update}
+      onTimeUpdate={update}
+      onLoadedMetadata={update}
+      onSeeked={update}
+      className="absolute inset-0 block size-full object-contain"
+      style={{ borderRadius: radius }}
+    />
+  );
+}
+
+/** Play, stop, where in the video, loop and sound, in the bar of buttons while a video is shown. */
+function VideoControls({
+  playback,
+  loop,
+  muted,
+  onPlay,
+  onStop,
+  onSeek,
+  onLoop,
+  onMute,
+}: {
+  playback: { playing: boolean; time: number; duration: number };
+  loop: boolean;
+  muted: boolean;
+  onPlay: () => void;
+  onStop: () => void;
+  onSeek: (time: number) => void;
+  onLoop: (loop: boolean) => void;
+  onMute: (muted: boolean) => void;
+}) {
+  const { playing, time, duration } = playback;
+  return (
+    <>
+      <DockButton
+        onClick={onPlay}
+        pressed={playing}
+        title={playing ? "Pausa (mellanslag)" : "Spela upp (mellanslag)"}
+        label={playing ? "Pausa" : "Spela upp"}
+      >
+        {playing ? <Pause className="fill-current" /> : <Play className="fill-current" />}
+      </DockButton>
+      <DockButton onClick={onStop} title="Stoppa och gå till början" label="Stoppa">
+        <Square className="fill-current" />
+      </DockButton>
+      <label className="flex items-center gap-2 px-1 text-xs tabular-nums">
+        <span className="sr-only">Var i videon</span>
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.05}
+          value={Math.min(time, duration || 0)}
+          disabled={!duration}
+          onChange={(e) => onSeek(Number(e.target.value))}
+          className="h-1 w-40 cursor-pointer accent-current"
+          aria-valuetext={`${formatDuration(time)} av ${formatDuration(duration)}`}
+        />
+        <span className="w-[5.5rem] text-current/80">
+          {formatDuration(time)} / {formatDuration(duration)}
+        </span>
+      </label>
+      <DockButton
+        onClick={() => onLoop(!loop)}
+        pressed={loop}
+        title={loop ? "Sluta spela om: videon stannar när den är slut" : "Spela om: börja om när videon är slut"}
+        label="Spela om"
+      >
+        <Repeat />
+      </DockButton>
+      <DockButton
+        onClick={() => onMute(!muted)}
+        pressed={!muted}
+        title={muted ? "Slå på ljudet" : "Stäng av ljudet"}
+        label={muted ? "Slå på ljudet" : "Stäng av ljudet"}
+      >
+        {muted ? <VolumeX /> : <Volume2 />}
+      </DockButton>
+    </>
+  );
 }
 
 /** One picture with its frame, centered on the stage, coming in or going out. */
@@ -1629,6 +1835,7 @@ function LayerView({
   panning,
   waitingSince,
   aiMark,
+  video,
 }: LayerViewProps) {
   const [entered, setEntered] = useState(!animate);
   useEffect(() => {
@@ -1677,13 +1884,20 @@ function LayerView({
           ...motion,
         }}
       >
-        <img
-          src={layer.src}
-          alt={layer.alt}
-          draggable={false}
-          className="block size-full object-contain"
-          style={{ borderRadius: radius.inner }}
-        />
+        {layer.src && (
+          <img
+            src={layer.src}
+            alt={layer.alt}
+            draggable={false}
+            className="block size-full object-contain"
+            style={{ borderRadius: radius.inner }}
+          />
+        )}
+        {video && (
+          <div className="absolute" style={{ inset: framing.padding ?? 0 }}>
+            <VideoLayer video={video} radius={radius.inner} />
+          </div>
+        )}
         {shadow === "inset" && (
           <div
             className="absolute"

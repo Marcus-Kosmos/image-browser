@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, FileWarning, FolderMinus, Heart, ImageOff, Trash2 } from "lucide-react";
+import { Check, FileWarning, FolderMinus, Heart, ImageOff, Play, Trash2 } from "lucide-react";
 import { AiMark, aiMarkTitle } from "./AiMark";
-import type { ImageEntry } from "@/lib/api";
+import { originalUrl, type ImageEntry } from "@/lib/api";
 import { INSET_SHADOW, frameStyle } from "@/lib/frame";
 import type { Tag } from "@/lib/filter";
 import type { LayoutBox } from "@/lib/layout";
@@ -9,7 +9,7 @@ import type { Series } from "@/lib/library";
 import { useRevealOnView } from "@/lib/reveal";
 import type { Frame, ImageSettings, ImageSize, Shadow, TileReveal } from "@/lib/settings";
 import { GRID_THUMB_SIZE, requestThumbnail } from "@/lib/thumbnails";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import type { HeadingKind } from "./HeadingDialog";
 import { HeadingText } from "./HeadingText";
 import { ImageMenu } from "./ImageMenu";
@@ -100,7 +100,16 @@ export const ImageTile = memo(function ImageTile({
   const picture = useRef<HTMLImageElement>(null);
   useParallax(ref, picture, root, reveal === "parallax" && loaded);
 
-  useEffect(() => requestThumbnail(image, GRID_THUMB_SIZE, setUrl), [image]);
+  // A video Quick Look can't make a still of shows its own first frame instead.
+  const [ownFrame, setOwnFrame] = useState(false);
+  useEffect(() => {
+    setOwnFrame(false);
+    return requestThumbnail(image, GRID_THUMB_SIZE, setUrl, () => {
+      if (!image.video) return;
+      setOwnFrame(true);
+      setUrl(originalUrl(image));
+    });
+  }, [image]);
 
   // Wait for the thumbnail too, so the effect plays on the picture rather than an empty box.
   const shown = inView && (loaded || reveal === "none" || !!image.gone);
@@ -177,6 +186,16 @@ export const ImageTile = memo(function ImageTile({
               <span className="font-medium">Bilden är borta</span>
               <span>Flyttad eller borttagen utanför appen</span>
             </span>
+          ) : url && ownFrame ? (
+            <video
+              src={`${url}#t=0.1`}
+              preload="metadata"
+              muted
+              playsInline
+              onLoadedData={() => setLoadedUrl(url)}
+              className="pointer-events-none size-full object-cover transition-opacity duration-200"
+              style={{ opacity: loaded ? 1 : 0 }}
+            />
           ) : url && (
             <img
               ref={picture}
@@ -197,6 +216,16 @@ export const ImageTile = memo(function ImageTile({
           />
         )}
         {waitingSince !== undefined && <WaitingRing since={waitingSince} compact />}
+        {image.video && !image.gone && (
+          <span
+            className="pointer-events-none absolute right-1.5 bottom-1.5 flex h-6 items-center gap-1 rounded-md bg-black/55 px-1.5 text-xs font-medium text-white tabular-nums"
+            style={{ marginRight: framing.padding, marginBottom: framing.padding }}
+            title="Video"
+          >
+            <Play className="size-3 fill-current" aria-hidden />
+            {image.duration !== undefined && formatDuration(image.duration)}
+          </span>
+        )}
         {image.changed && (
           <span
             className={cn(

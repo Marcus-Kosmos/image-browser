@@ -105,6 +105,11 @@ export function ViewerLookMenu({ settings, onChange }: ViewerLookMenuProps) {
             label="Behåll zoom när du bläddrar"
           />
           <Toggle checked={settings.rounded} onChange={(rounded) => onChange({ rounded })} label="Rundade hörn" />
+          <Toggle
+            checked={settings.videoAutoplay}
+            onChange={(videoAutoplay) => onChange({ videoAutoplay })}
+            label="Spela upp videor direkt"
+          />
           <div className="my-1 h-px bg-white/10" />
           <div className="px-2 pt-1 pb-1.5 text-xs font-medium text-white/60">Fästa bilder (P)</div>
           <div role="radiogroup" aria-label="Fästa bilder" className="flex flex-col">

@@ -181,12 +181,50 @@ fn quality_for(size: u32) -> u8 {
 /// fall back to the built-in decoder.
 #[cfg(target_os = "macos")]
 fn render(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
+    if crate::video::is_video(src) {
+        return render_video(src, size, quality, out);
+    }
     render_with_sips(src, size, quality, out)
         .or_else(|_| render_with_image(src, size, quality, out))
 }
 
+/// A still from the video, made by Quick Look (`qlmanage`, the same one Finder uses for its previews), then
+/// turned into a JPEG by `sips`.
+#[cfg(target_os = "macos")]
+fn render_video(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
+    let failed = || format!("Kunde inte göra en stillbild av {}", src.display());
+    let work = out.with_extension("ql");
+    let _ = fs::remove_dir_all(&work);
+    fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+    let made = (|| {
+        let status = std::process::Command::new("/usr/bin/qlmanage")
+            .args(["-t", "-s", &size.to_string(), "-o"])
+            .arg(&work)
+            .arg(src)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map_err(|e| e.to_string())?;
+        // It names the still after the file, with .png added.
+        let still = fs::read_dir(&work)
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.extension().is_some_and(|e| e == "png"));
+        match still {
+            Some(still) if status.success() => render_with_sips(&still, size, quality, out),
+            _ => Err(failed()),
+        }
+    })();
+    let _ = fs::remove_dir_all(&work);
+    made
+}
+
 #[cfg(not(target_os = "macos"))]
 fn render(src: &Path, size: u32, quality: u8, out: &Path) -> Result<(), String> {
+    if crate::video::is_video(src) {
+        return Err(format!("Ingen stillbild av videon {}", src.display()));
+    }
     render_with_image(src, size, quality, out)
 }
 

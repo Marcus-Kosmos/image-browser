@@ -36,6 +36,8 @@ export function requestThumbnail(
   image: ImageEntry,
   size: number,
   onReady: (url: string) => void,
+  /** Called when no thumbnail could be made, such as a still of a video Quick Look can't read. */
+  onError?: () => void,
 ): () => void {
   const key = `${image.path}|${image.modified}|${size}`;
   const cached = cache.get(key);
@@ -53,7 +55,9 @@ export function requestThumbnail(
           cache.set(key, url);
           if (!cancelled) onReady(url);
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!cancelled) onError?.();
+        })
         .finally(() => {
           active--;
           pump();

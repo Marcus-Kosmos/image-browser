@@ -7,6 +7,7 @@ mod publish;
 mod scan;
 mod thumbs;
 mod upscale;
+mod video;
 mod web;
 
 use std::path::PathBuf;
