@@ -10,6 +10,9 @@ Byggd med [Tauri 2](https://tauri.app), React, Tailwind och shadcn/ui med Lucide
 - Öppna en mapp (⌘O), gå till överordnad mapp (⌘↑) och undermappar, läs in igen (⌘R)
 - Pussel-layout med reglage för storlek på förhandsvisningar
 - Snabba miniatyrer som cachas; på macOS skapas de med `sips`, så HEIC och RAW fungerar
+- Videor (.mov, .mp4, .m4v) visas som rutor med en stillbild (gjord av Quick Look) och längden i hörnet. I helskärm
+  spelas de upp direkt, tyst och om och om igen; knappraden har spela/pausa, stoppa, tidslinje, spela om och ljud.
+  "Spela upp videor direkt" stängs av i Visning-menyn. Rubriker och texter fungerar som på bilder.
 - Klicka på en bild för att visa den stort, bläddra med ← och → (mjuk övertoning), stäng med Esc
 - Flytta bilder till papperskorgen (⌫ eller papperskorgsikonen), med bekräftelse. Kryssa i "Fråga inte igen"
   för att slänga med ett klick; frågan slås på igen under Utseende (paletten)

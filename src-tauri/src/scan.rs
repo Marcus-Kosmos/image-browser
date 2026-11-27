@@ -22,6 +22,12 @@ pub struct ImageEntry {
     /// Its metadata says it was made or changed by AI, in Imagime or elsewhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai: Option<crate::aimark::AiKind>,
+    /// A video rather than a still picture.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub video: bool,
+    /// A video's length in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -65,11 +71,16 @@ pub fn sort_dropped(paths: &[PathBuf]) -> Dropped {
             if !is_package(path) {
                 dropped.folders.push(text);
             }
-        } else if is_image(path) {
+        } else if is_media(path) {
             dropped.images.push(text);
         }
     }
     dropped
+}
+
+/// A picture or a video the app shows.
+pub fn is_media(path: &Path) -> bool {
+    is_image(path) || crate::video::is_video(path)
 }
 
 pub fn is_image(path: &Path) -> bool {
@@ -115,9 +126,11 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
             }
             continue;
         }
-        if !is_image(&path) {
+        let video = crate::video::is_video(&path);
+        if !video && !is_image(&path) {
             continue;
         }
+        let duration = if video { crate::video::info(&path).map(|i| i.duration) } else { None };
         // Files we cannot read the dimensions of are skipped rather than failing the whole folder.
         let Some((width, height)) = display_dimensions(&path) else { continue };
         let modified = meta
@@ -133,7 +146,9 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
             height,
             size: meta.len(),
             modified,
-            ai: crate::aimark::ai_kind(&path),
+            ai: if video { None } else { crate::aimark::ai_kind(&path) },
+            video,
+            duration,
         });
     }
 
@@ -151,6 +166,10 @@ fn scan_dir(dir: &Path, recursive: bool, images: &mut Vec<ImageEntry>) -> std::i
 }
 
 pub fn display_dimensions(path: &Path) -> Option<(u32, u32)> {
+    if crate::video::is_video(path) {
+        // A video whose header can't be read is still listed, as a widescreen one.
+        return Some(crate::video::info(path).map(|i| (i.width, i.height)).unwrap_or((1920, 1080)));
+    }
     // imagesize only reads the header; fall back to a full decoder for unusual files.
     let (w, h) = match imagesize::size(path) {
         Ok(size) => (size.width as u32, size.height as u32),

@@ -214,6 +214,12 @@ export interface ViewerSettings {
   collections: boolean;
   /** The bar of buttons under the picture stays shown, instead of hiding until the mouse comes near. */
   dockPinned: boolean;
+  /** A video starts playing as soon as it is shown. */
+  videoAutoplay: boolean;
+  /** A video starts over when it ends. */
+  videoLoop: boolean;
+  /** Videos play without sound. */
+  videoMuted: boolean;
 }
 
 export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
@@ -231,6 +237,9 @@ export const DEFAULT_VIEWER_SETTINGS: ViewerSettings = {
   screen: "margins",
   collections: false,
   dockPinned: false,
+  videoAutoplay: true,
+  videoLoop: true,
+  videoMuted: true,
 };
 
 const STORAGE = "image-browser:viewer";

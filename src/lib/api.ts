@@ -12,6 +12,10 @@ export interface ImageEntry {
   modified: number;
   /** Its metadata says it was made or changed by AI: enlarged in Imagime, or marked so by another program. */
   ai?: "imagime" | "other";
+  /** A video (.mov, .mp4, .m4v) rather than a still picture; its thumbnail is a still from it. */
+  video?: boolean;
+  /** A video's length in seconds. */
+  duration?: number;
   /** When it was put in the favorites or a series (ms), for those lists. */
   added?: number;
   /** In Favoriter or a series, but moved or deleted outside the app since. Not saved. */
@@ -29,8 +33,10 @@ export interface FolderListing {
 /** Outside Tauri (plain `npm run dev` in a browser) the app runs against generated demo images. */
 const demo = !isTauri();
 
-/** Picture files the open dialogs show, the same ones a folder is read for. */
+/** Picture and video files the open dialogs show, the same ones a folder is read for. */
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp"];
+/** Videos the Mac plays without converting them: QuickTime and MPEG-4 (H.264, HEVC, ProRes). */
+const VIDEO_EXTENSIONS = ["mov", "mp4", "m4v"];
 
 /** Lets the user pick pictures in a dialog that shows them as thumbnails, with Quick Look on space. */
 export async function pickImages(title = "Välj en bild att visa. Mappen den ligger i öppnas."): Promise<string[]> {
@@ -38,7 +44,7 @@ export async function pickImages(title = "Välj en bild att visa. Mappen den lig
   const result = await open({
     multiple: true,
     title,
-    filters: [{ name: "Bilder", extensions: IMAGE_EXTENSIONS }],
+    filters: [{ name: "Bilder och videor", extensions: [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS] }],
   });
   if (result === null) return [];
   return Array.isArray(result) ? result : [result];
@@ -76,10 +82,14 @@ export async function thumbnailUrl(image: ImageEntry, size: number): Promise<str
   return convertFileSrc(file);
 }
 
-/** URL of the file itself, for zooming in beyond the largest thumbnail. */
+/** URL of the file itself, for zooming in beyond the largest thumbnail, or for playing a video. */
 export function originalUrl(image: ImageEntry): string {
+  if (demo && image.video) return demoVideoUrl;
   return demo ? demoImage(image) : convertFileSrc(image.path);
 }
+
+/** In the browser demo, a video file put next to the app (public/demo.mp4) stands in for every video, if there is one. */
+const demoVideoUrl = "/demo.mp4";
 
 export interface Dropped {
   folders: string[];
@@ -89,7 +99,7 @@ export interface Dropped {
 /** Splits paths dropped from Finder into folders and image files; anything else is left out. */
 export async function sortDropped(paths: string[]): Promise<Dropped> {
   if (demo) {
-    const isImage = (p: string) => /\.(jpe?g|png|heic|webp|gif|tiff?)$/i.test(p);
+    const isImage = (p: string) => /\.(jpe?g|png|heic|webp|gif|tiff?|mov|mp4|m4v)$/i.test(p);
     return { folders: paths.filter((p) => !p.includes(".")), images: paths.filter(isImage) };
   }
   return invoke<Dropped>("sort_dropped", { paths });
@@ -389,6 +399,11 @@ function demoListing(path: string): FolderListing {
       ...(i % 9 === 4 && { ai: "imagime" as const }),
       ...(i % 9 === 7 && { ai: "other" as const }),
     };
+  }).map((img, i) => {
+    // A few stand in for videos.
+    if (i % 11 !== 2) return img;
+    const name = img.name.replace(/\.jpg$/, ".mov");
+    return { ...img, name, path: img.path.replace(/\.jpg$/, ".mov"), video: true, duration: 14 + i };
   }).filter((img) => !demoTrashed.has(img.path));
   const subfolders = path === "/Demo/Bilder" ? ["/Demo/Bilder/Resa 2025", "/Demo/Bilder/Studio"] : [];
   return { path, images, subfolders };
