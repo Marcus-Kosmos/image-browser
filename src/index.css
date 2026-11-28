@@ -130,6 +130,8 @@ body {
     height 0.35s ease-out;
 }
 body.reordering,
+body.sidebar-carrying,
+body.sidebar-carrying *,
 body.reordering * {
   cursor: grabbing !important;
   user-select: none;
