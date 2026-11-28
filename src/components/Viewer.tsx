@@ -1671,9 +1671,9 @@ function NavButton({ side, disabled, onClick, style }: NavButtonProps) {
       style={style}
       title={label}
       aria-label={label}
-      className={`absolute top-1/2 z-20 ${side === "left" ? "left-2" : "right-2"} flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
+      className={`absolute top-1/2 z-20 ${side === "left" ? "left-2" : "right-2"} flex h-32 w-16 -translate-y-1/2 items-center justify-center rounded-2xl text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
     >
-      <Icon className="size-6" />
+      <Icon className="size-10" strokeWidth={1.5} />
     </button>
   );
 }
