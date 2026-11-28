@@ -27,6 +27,12 @@
       "assetProtocol": { "enable": true, "scope": ["**"] }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": ["https://github.com/Marcus-Kosmos/image-browser/releases/latest/download/latest.json"]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],

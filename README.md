@@ -194,6 +194,24 @@ Bygget signeras med ett eget certifikat ("Imagime Self-Signed") när repots heml
 signaturen är densamma i varje version kommer macOS ihåg vilka mappar appen fått öppna, i
 stället för att fråga igen efter varje uppdatering. Utan hemligheterna blir bygget osignerat.
 
+### Uppdateringar inifrån appen
+
+Imagime söker själv efter en ny version när den startar (och högst var halvtimme när fönstret kommer
+fram igen) och visar då "Imagime 0.1.N finns" med knappen **Uppdatera**. Menyn **Imagime → Sök efter
+uppdateringar…** visar samma sak, och listar också **testversioner**: en för varje öppen pull request,
+så att en ändring kan provas innan den slås ihop. En version som appen hämtar själv märks inte som
+nedladdad av macOS, så den öppnas utan Gatekeepers frågor. Appen måste ligga i Program.
+
+Varje bygge numreras `0.1.<körning>`. Bygget på `main` publiceras som en release (`v0.1.N`, med
+`latest.json`, `Imagime.app.tar.gz` och `.dmg`), en pull request som en pre-release `test-pr-<nummer>`
+som tas bort när pull requesten stängs. Det kräver tre hemligheter i repot:
+
+- `TAURI_SIGNING_PRIVATE_KEY`: innehållet i den privata nyckeln från `npx @tauri-apps/cli signer generate`
+- `IMAGIME_UPDATER_PUBKEY`: innehållet i den publika nyckeln (`.pub`), som byggs in i appen
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: bara om nyckeln har ett lösenord
+
+Utan dem byggs appen som förut, men kan inte uppdatera sig själv.
+
 ## Utveckla
 
 Kräver Node 22, Rust och Xcode Command Line Tools.

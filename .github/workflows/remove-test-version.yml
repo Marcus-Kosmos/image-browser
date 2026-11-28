@@ -1,0 +1,19 @@
+name: Remove test version
+
+# A pull request's test version (see build.yml) goes away when the pull request is merged or closed.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the pre-release and its tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: test-pr-${{ github.event.pull_request.number }}
+        run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
