@@ -171,6 +171,8 @@ describe("finding moved pictures again", () => {
     const lib = relinkFolders({ ...EMPTY_LIBRARY, recent: [["/a/Resa"]], places: [{ id: "p", name: "P", folders: ["/a/Resa", "/x"], recursive: false }] }, folders);
     expect(lib.recent).toEqual([["/c/Resa"]]);
     expect(lib.places![0].folders).toEqual(["/c/Resa", "/x"]);
+  });
+});
 
 describe("moveSeries", () => {
   const lib = ["A", "B", "C"].reduce((l, n) => createSeries(l, n, n, []), EMPTY_LIBRARY);
