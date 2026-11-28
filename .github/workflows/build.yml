@@ -29,10 +29,16 @@ jobs:
   macos-app:
     runs-on: macos-latest
     needs: test
+    permissions:
+      contents: write # to publish the build as a release the app can update itself from
     env:
       # Same certificate on every build, so macOS remembers folder permissions between versions.
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      # Updates: the private key signs each update, the public key is built into the app to check them.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      IMAGIME_UPDATER_PUBKEY: ${{ secrets.IMAGIME_UPDATER_PUBKEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,10 +53,48 @@ jobs:
       - name: Import signing certificate
         if: env.MACOS_CERTIFICATE != ''
         run: scripts/import-signing-cert.sh
-      - run: npm run tauri build -- --target universal-apple-darwin --bundles dmg --config src-tauri/tauri.macos-upscale.json
+      - name: Number this build
+        # Every build gets its own version (0.1.<run>), so the app can tell which one is newer. Builds for
+        # pull requests share the counter, so a test version is always newer than the one before it.
+        run: |
+          echo "VERSION=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$IMAGIME_UPDATER_PUBKEY" ]; then updater=true; else updater=false; fi
+          echo "UPDATER=$updater" >> "$GITHUB_ENV"
+          printf '{"version":"0.1.%s","bundle":{"createUpdaterArtifacts":%s}}\n' "${{ github.run_number }}" "$updater" > "$RUNNER_TEMP/build-version.json"
+      - run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg --config src-tauri/tauri.macos-upscale.json --config "$RUNNER_TEMP/build-version.json"
       - name: Show signature
         run: codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/macos/Imagime.app 2>&1 | grep -E 'Identifier|Authority|Signature' || true
       - uses: actions/upload-artifact@v4
         with:
           name: Imagime-macOS
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+      - name: Publish for the app's updates
+        # main: a release the app offers by itself. Pull request: a pre-release named after it, which can
+        # be tried from "Sök efter uppdateringar…" and is removed when the pull request is closed.
+        if: env.UPDATER == 'true' && github.event_name != 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          archive="$bundle/macos/Imagime.app.tar.gz"
+          dmg=$(ls "$bundle"/dmg/*.dmg | head -1)
+          if [ -n "$PR_NUMBER" ]; then
+            tag="test-pr-$PR_NUMBER"; title="$PR_TITLE"; notes="$PR_TITLE"; target="$PR_SHA"
+            kind=(--prerelease --latest=false)
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          else
+            tag="v$VERSION"; title="Imagime $VERSION"; target="$GITHUB_SHA"
+            notes=$(printf '%s\n' "$COMMIT_MESSAGE" | sed '/^Merge pull request/d;/^[[:space:]]*$/d' | head -1)
+            kind=(--latest)
+          fi
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Imagime.app.tar.gz"
+          jq -n --arg v "$VERSION" --arg notes "$notes" --arg sig "$(cat "$archive.sig")" --arg url "$url" \
+            '{version: $v, notes: $notes, pub_date: (now | todate),
+              platforms: {"darwin-aarch64": {signature: $sig, url: $url}, "darwin-x86_64": {signature: $sig, url: $url}}}' \
+            > latest.json
+          gh release create "$tag" --target "$target" --title "$title" --notes "$notes ($VERSION)" "${kind[@]}" \
+            latest.json "$archive" "$dmg"

@@ -7,6 +7,7 @@ mod publish;
 mod relink;
 mod scan;
 mod thumbs;
+mod updates;
 mod upscale;
 mod video;
 mod web;
@@ -302,10 +303,42 @@ async fn confirm_owner(reason: String) -> Result<bool, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Looks for a newer Imagime (or the test version `tag`); see updates.rs.
+#[tauri::command]
+async fn check_update(
+    app: tauri::AppHandle,
+    tag: Option<String>,
+    any_version: bool,
+) -> Result<Option<updates::Found>, String> {
+    updates::check(&app, tag, any_version).await
+}
+
+/// Installs the version found by `check_update` and restarts into it.
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    updates::install(app).await
+}
+
+/// Whether this build can update itself (builds from GitHub can).
+#[tauri::command]
+fn can_update() -> bool {
+    updates::enabled()
+}
+
+/// Pull request builds that can be tried before they are merged.
+#[tauri::command]
+async fn test_versions() -> Result<Vec<updates::TestVersion>, String> {
+    tauri::async_runtime::spawn_blocking(updates::test_versions)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().pubkey(updates::PUBKEY).build())
+        .manage(updates::Pending::default())
         .invoke_handler(tauri::generate_handler![
             scan_folder,
             thumbnail,
@@ -330,7 +363,11 @@ pub fn run() {
             reveal_in_finder,
             file_states,
             content_hashes,
-            locate_moved
+            locate_moved,
+            check_update,
+            install_update,
+            can_update,
+            test_versions
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.
@@ -339,6 +376,8 @@ pub fn run() {
             if let Ok(cache) = app.path().app_cache_dir() {
                 std::thread::spawn(move || thumbs::tidy(&cache.join("thumbs"), thumbs::CACHE_LIMIT));
             }
+            #[cfg(target_os = "macos")]
+            updates::add_menu_item(app)?;
             let config = app.config().app.windows.first().cloned().ok_or("Fönsterinställningar saknas")?;
             let handle = app.handle().clone();
             let window = tauri::WebviewWindowBuilder::from_config(app, &config)?

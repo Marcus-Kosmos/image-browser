@@ -16,6 +16,8 @@ import { Viewer } from "@/components/Viewer";
 import { DropOverlay } from "@/components/DropOverlay";
 import { UpscaleDialog, type UpscaleChoice } from "@/components/UpscaleDialog";
 import { PublishDialog } from "@/components/PublishDialog";
+import { UpdateDialog } from "@/components/UpdateDialog";
+import { useUpdateCheck } from "@/lib/updates";
 import {
   confirmOwner,
   onFileDrop,
@@ -162,6 +164,8 @@ export default function App() {
   };
   const [headingEdit, setHeadingEdit] = useState<{ index: number; kind: HeadingKind } | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  /** The update dialog; `installNow` when opened from the toast's "Uppdatera". */
+  const [updates, setUpdates] = useState<{ installNow: boolean } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => readStored(STORAGE_SIDEBAR) !== "false");
   const { library, change: changeLibrary } = useLibrary();
   const [view, setView] = useState<LibraryView>(() => {
@@ -228,6 +232,15 @@ export default function App() {
   const reveal = useCallback(
     (paths: string[]) => revealInFinder(paths).catch((e) => showToast(String(e), "error")),
     [showToast],
+  );
+
+  useUpdateCheck(
+    (update) =>
+      showToast(`Imagime ${update.version} finns.`, "success", {
+        label: "Uppdatera",
+        run: () => setUpdates({ installNow: true }),
+      }),
+    () => setUpdates({ installNow: false }),
   );
 
   const itemName = useCallback(
@@ -1324,7 +1337,7 @@ export default function App() {
             images[i] && updateImage(imageKey(images[i]), { texts: texts.length ? texts : undefined })
           }
           shadow={settings.shadow}
-          paused={trashAsk !== null || shortcutsOpen || upscaleFor !== null}
+          paused={trashAsk !== null || shortcutsOpen || upscaleFor !== null || updates !== null}
         />
       )}
       {(() => {
@@ -1367,6 +1380,7 @@ export default function App() {
         onSaveLocal={savePageLocally}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <UpdateDialog open={updates !== null} installNow={updates?.installNow} onClose={() => setUpdates(null)} />
       {dropping && <DropOverlay into={dropInto?.name ?? null} />}
       {ready && <ReadyPreview ready={ready} onOpen={openReady} onDismiss={() => setReady(null)} />}
       <Toast key={toast?.id} toast={toast} onDone={() => setToast(null)} raised={selectedImages.length > 0} />
