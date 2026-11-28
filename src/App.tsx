@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, type EmptyKind } from "@/components/EmptyState";
@@ -548,6 +548,32 @@ export default function App() {
       setViewerIndex(images.length === 0 ? null : images.length - 1);
     }
   }, [viewerIndex, images.length]);
+  // The viewer stays on its picture when the list changes under it, e.g. when an enlarged copy is read
+  // in before it: the index alone would then point at the neighbouring picture.
+  const viewerShows = useRef<{ images: ImageEntry[]; index: number | null; path: string | null }>({
+    images,
+    index: null,
+    path: null,
+  });
+  useLayoutEffect(() => {
+    const was = viewerShows.current;
+    if (viewerIndex !== null && was.path && images !== was.images && viewerIndex === was.index) {
+      const at = images[viewerIndex]?.path;
+      if (at !== was.path) {
+        const i = images.findIndex((img) => img.path === was.path);
+        if (i >= 0) {
+          viewerShows.current = { images, index: i, path: was.path };
+          setViewerIndex(i);
+          return;
+        }
+      }
+    }
+    viewerShows.current = {
+      images,
+      index: viewerIndex,
+      path: viewerIndex !== null ? (images[viewerIndex]?.path ?? null) : null,
+    };
+  }, [images, viewerIndex]);
 
   const onToggleFavorite = useCallback(
     (index: number) => changeLibrary((lib) => toggleFavorite(lib, images[index])),
