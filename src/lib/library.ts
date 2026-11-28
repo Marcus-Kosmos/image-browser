@@ -178,6 +178,65 @@ export function removeImage(library: Library, path: string): Library {
   };
 }
 
+/** The file name at the end of a path. */
+const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+/**
+ * Points pictures that were found somewhere else at their new place, in the favorites and
+ * every series. A picture already listed at its new place keeps that entry instead.
+ */
+export function relinkImages(library: Library, moved: Map<string, string>): Library {
+  if (moved.size === 0) return library;
+  const relink = (list: ImageEntry[]) => {
+    if (!list.some((img) => moved.has(img.path))) return list;
+    const there = new Set(list.map((img) => img.path));
+    return list.flatMap((img) => {
+      const to = moved.get(img.path);
+      if (!to) return [img];
+      if (there.has(to)) return [];
+      there.add(to);
+      return [{ ...img, path: to, name: fileName(to) }];
+    });
+  };
+  return {
+    ...library,
+    favorites: relink(library.favorites),
+    series: library.series.map((s) => {
+      const images = relink(s.images);
+      return images === s.images ? s : { ...s, images };
+    }),
+  };
+}
+
+/** Points remembered folders and saved places at where their folders are now. */
+export function relinkFolders(library: Library, moved: Map<string, string>): Library {
+  if (moved.size === 0) return library;
+  const relink = (folders: string[]) => [...new Set(folders.map((f) => moved.get(f) ?? f))];
+  return {
+    ...library,
+    recent: (library.recent ?? []).map(relink),
+    places: (library.places ?? []).map((p) => ({ ...p, folders: relink(p.folders) })),
+  };
+}
+
+/**
+ * The folders that moved as a whole: every picture that left a folder turned up in one and the
+ * same other folder.
+ */
+export function movedFolders(moved: Map<string, string>): Map<string, string> {
+  const parent = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
+  const seen = new Map<string, string | null>();
+  for (const [from, to] of moved) {
+    const a = parent(from);
+    const b = parent(to);
+    const before = seen.get(a);
+    seen.set(a, before === undefined || before === b ? b : null);
+  }
+  const folders = new Map<string, string>();
+  for (const [from, to] of seen) if (to && to !== from) folders.set(from, to);
+  return folders;
+}
+
 /** Name for a new series that doesn't clash with an existing one: "Resa", "Resa 2", ... */
 export function uniqueSeriesName(library: Library, base: string) {
   const names = new Set(library.series.map((s) => s.name));

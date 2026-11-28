@@ -46,7 +46,7 @@ const PACKAGE_EXTENSIONS: &[&str] = &[
     "sparsebundle",
 ];
 
-fn is_package(path: &Path) -> bool {
+pub fn is_package(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| PACKAGE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))

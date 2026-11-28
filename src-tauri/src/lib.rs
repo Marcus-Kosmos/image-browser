@@ -4,6 +4,7 @@ mod cloud;
 mod fonts;
 mod popup;
 mod publish;
+mod relink;
 mod scan;
 mod thumbs;
 mod upscale;
@@ -180,6 +181,17 @@ async fn content_hashes(paths: Vec<String>) -> Result<Vec<Option<String>>, Strin
     tauri::async_runtime::spawn_blocking(move || scan::content_hashes(&paths)).await.map_err(|e| e.to_string())
 }
 
+/// Where pictures the library lost track of are now: looked for with Spotlight, or inside `folder` when given.
+#[tauri::command]
+async fn locate_moved(wanted: Vec<relink::Wanted>, folder: Option<String>) -> Result<Vec<Option<String>>, String> {
+    tauri::async_runtime::spawn_blocking(move || match folder {
+        Some(folder) => relink::locate_in(std::path::Path::new(&folder), &wanted),
+        None => relink::locate(&wanted),
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Shows the pictures in Finder, selected in their folders.
 #[tauri::command]
 fn reveal_in_finder(paths: Vec<String>) -> Result<(), String> {
@@ -317,7 +329,8 @@ pub fn run() {
             show_bigger_pics,
             reveal_in_finder,
             file_states,
-            content_hashes
+            content_hashes,
+            locate_moved
         ])
         // The main window is made here rather than from the config alone, so that it can open bigger.pics
         // in a window still linked to it.

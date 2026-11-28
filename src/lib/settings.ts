@@ -158,5 +158,43 @@ export function useFolderSettings(folder: string | null) {
     [folder],
   );
 
-  return { settings, update, updateImage };
+  /** Reads the settings again, after something outside this hook changed what is stored. */
+  const reload = useCallback(() => setSettings(folder ? loadSettings(folder) : DEFAULT_SETTINGS), [folder]);
+
+  return { settings, update, updateImage, reload };
+}
+
+/**
+ * Carries stored settings along when pictures and folders turn up somewhere else: the favorites
+ * and series key their pictures by full path, and each folder keeps settings under its own path.
+ */
+export function moveStoredSettings(libraryKeys: string[], moved: Map<string, string>, movedFolders: Map<string, string>) {
+  try {
+    for (const name of libraryKeys) {
+      const raw = localStorage.getItem(key(name));
+      if (!raw) continue;
+      const stored = JSON.parse(raw) as FolderSettings;
+      if (!stored.images) continue;
+      let touched = false;
+      const images: Record<string, ImageSettings> = {};
+      for (const [path, own] of Object.entries(stored.images)) {
+        const to = moved.get(path);
+        if (to && !(to in stored.images)) touched = true;
+        images[to && !(to in stored.images) ? to : path] = own;
+      }
+      if (touched) localStorage.setItem(key(name), JSON.stringify({ ...stored, images }));
+    }
+    // Folder settings key a single folder's pictures by name, so they move as they are.
+    if (movedFolders.size === 0) return;
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
+    for (const stored of keys) {
+      if (!stored?.startsWith(key(""))) continue;
+      const folders = stored.slice(key("").length).split("\n");
+      if (!folders.some((f) => movedFolders.has(f))) continue;
+      const target = key(folders.map((f) => movedFolders.get(f) ?? f).join("\n"));
+      if (localStorage.getItem(target) === null) localStorage.setItem(target, localStorage.getItem(stored)!);
+    }
+  } catch {
+    // Settings are a convenience; the pictures are found again all the same.
+  }
 }

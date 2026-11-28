@@ -339,6 +339,23 @@ export async function fileStates(paths: string[]): Promise<(number | null)[] | n
   return invoke<(number | null)[]>("file_states", { paths });
 }
 
+/**
+ * Where pictures that are gone from their place are now, recognised by file name and size:
+ * looked for across the Mac with Spotlight, or only inside `folder` when one is given.
+ */
+export async function locateMoved(images: ImageEntry[], folder?: string): Promise<(string | null)[]> {
+  if (demo || images.length === 0) return images.map(() => null);
+  const wanted = images.map(({ path, name, size }) => ({ path, name, size }));
+  return invoke<(string | null)[]>("locate_moved", { wanted, folder: folder ?? null });
+}
+
+/** Lets the user point at the folder that pictures were moved to. */
+export async function pickMovedFolder(): Promise<string | null> {
+  if (demo) return null;
+  const result = await open({ directory: true, multiple: false, title: "Välj mappen som bilderna flyttats till" });
+  return typeof result === "string" ? result : null;
+}
+
 /** Shows the files in Finder, selected in their folders. */
 export async function revealInFinder(paths: string[]): Promise<void> {
   if (demo) throw "Visa i Finder finns bara i Mac-appen.";
