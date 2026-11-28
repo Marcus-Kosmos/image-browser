@@ -61,6 +61,7 @@ import {
   forgetFolders,
   itemKey,
   moveInSeries,
+  moveSeries,
   privacyOf,
   removeFromFavorites,
   removeFromSeries,
@@ -562,6 +563,37 @@ export default function App() {
     },
     [library, changeLibrary, showToast],
   );
+
+  /**
+   * A folder row dragged from the sidebar onto the series list: with `into`, its pictures go into
+   * that series; otherwise they become a new series named after the folder, placed at `at`.
+   */
+  const folderToSeries = async (paths: string[], recursive: boolean, into: string | null, at: number) => {
+    const sorted = [...new Set(paths)].sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
+    const results = await Promise.allSettled(sorted.map((p) => scanFolder(p, recursive)));
+    const found = [
+      ...new Map(
+        results.flatMap((r) => (r.status === "fulfilled" ? r.value.images : [])).map((img) => [img.path, img]),
+      ).values(),
+    ];
+    const label = sorted.length === 1 ? folderName(sorted[0]) : `${sorted.length} mappar`;
+    if (results.every((r) => r.status === "rejected")) {
+      showToast(`Kunde inte läsa ${label}. Mappen kan ha flyttats.`, "error");
+      return;
+    }
+    if (found.length === 0) {
+      showToast(`Det finns inga bilder i ${label}.`);
+      return;
+    }
+    if (into) return addTo(`series:${into}`, found);
+    const id = crypto.randomUUID();
+    const name = uniqueSeriesName(library, label);
+    changeLibrary((lib) => {
+      const made = createSeries(lib, id, name, found);
+      return moveSeries(made, made.series.length - 1, at);
+    });
+    showToast(`Serien ${name} skapades med ${found.length === 1 ? "bilden" : `${found.length} bilder`}.`);
+  };
 
   const onDropOnLibrary = useCallback(
     (indices: number[], target: string) => {
@@ -1101,6 +1133,9 @@ export default function App() {
             onCopyAll={(from, id) => addTo(`series:${id}`, libraryImages(from))}
             onCopyAllToNew={(from, name) => newSeriesWith(name, libraryImages(from))}
             newSeriesName={uniqueSeriesName(library, "Ny serie")}
+            onMoveSeries={(from, to) => changeLibrary((lib) => moveSeries(lib, from, to))}
+            onFolderToSeries={(paths, recursive, into, at) => void folderToSeries(paths, recursive, into, at)}
+            includeSubfolders={includeSubfolders}
           />
         )}
         <div className="relative flex min-w-0 flex-1 flex-col">

@@ -9,6 +9,7 @@ import {
   forgetFolders,
   rememberFolders,
   moveInSeries,
+  moveSeries,
   privacyOf,
   setPrivacy,
   removeFromFavorites,
@@ -130,5 +131,24 @@ describe("library", () => {
     const lib = createSeries(EMPTY_LIBRARY, "p", "Pussel", [a, b], look);
     expect(lib.series[0].look).toEqual(look);
     expect(createSeries(EMPTY_LIBRARY, "q", "Utan", [a]).series[0]).not.toHaveProperty("look");
+  });
+});
+
+describe("moveSeries", () => {
+  const lib = ["A", "B", "C"].reduce((l, n) => createSeries(l, n, n, []), EMPTY_LIBRARY);
+  const names = (l: typeof lib) => l.series.map((s) => s.name);
+
+  it("moves a series before the one now at the target", () => {
+    expect(names(moveSeries(lib, 2, 0))).toEqual(["C", "A", "B"]);
+    expect(names(moveSeries(lib, 0, 2))).toEqual(["B", "A", "C"]);
+  });
+
+  it("moves a series last when the target is the end", () => {
+    expect(names(moveSeries(lib, 0, 3))).toEqual(["B", "C", "A"]);
+  });
+
+  it("leaves the order alone when dropped where it was", () => {
+    expect(moveSeries(lib, 1, 1)).toBe(lib);
+    expect(moveSeries(lib, 1, 2)).toBe(lib);
   });
 });

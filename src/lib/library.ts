@@ -112,6 +112,20 @@ export function createSeries(
   return { ...library, series: [...library.series, created] };
 }
 
+/**
+ * Moves the series at `from` so that it lands before the series now at `to`;
+ * `to` equal to the number of series moves it last.
+ */
+export function moveSeries(library: Library, from: number, to: number): Library {
+  if (from < 0 || from >= library.series.length) return library;
+  const target = Math.max(0, Math.min(to, library.series.length)) - (to > from ? 1 : 0);
+  if (target === from) return library;
+  const series = [...library.series];
+  const [moved] = series.splice(from, 1);
+  series.splice(target, 0, moved);
+  return { ...library, series };
+}
+
 function updateSeries(library: Library, id: string, change: (s: Series) => Series): Library {
   return { ...library, series: library.series.map((s) => (s.id === id ? change(s) : s)) };
 }
