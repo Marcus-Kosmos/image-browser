@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { ImageEntry } from "./api";
 import {
   EMPTY_LIBRARY,
+  movedFolders,
+  relinkFolders,
+  relinkImages,
   addToFavorites,
   addToSeries,
   createSeries,
@@ -130,5 +133,42 @@ describe("library", () => {
     const lib = createSeries(EMPTY_LIBRARY, "p", "Pussel", [a, b], look);
     expect(lib.series[0].look).toEqual(look);
     expect(createSeries(EMPTY_LIBRARY, "q", "Utan", [a]).series[0]).not.toHaveProperty("look");
+  });
+});
+
+describe("finding moved pictures again", () => {
+  const img = (path: string) => ({ path, name: path.split("/").pop()!, width: 1, height: 1, size: 1, modified: 1 });
+
+  it("points favorites and series at the new place, keeping order", () => {
+    let lib = createSeries(EMPTY_LIBRARY, "s", "Resa", [img("/a/Resa/1.jpg"), img("/b/x.jpg"), img("/a/Resa/2.jpg")]);
+    lib = addToFavorites(lib, [img("/a/Resa/2.jpg")]);
+    const moved = new Map([
+      ["/a/Resa/1.jpg", "/c/Resa 2/1.jpg"],
+      ["/a/Resa/2.jpg", "/c/Resa 2/2.jpg"],
+    ]);
+    const next = relinkImages(lib, moved);
+    expect(next.series[0].images.map((i) => i.path)).toEqual(["/c/Resa 2/1.jpg", "/b/x.jpg", "/c/Resa 2/2.jpg"]);
+    expect(next.favorites.map((i) => i.path)).toEqual(["/c/Resa 2/2.jpg"]);
+  });
+
+  it("drops the old entry when the picture is already listed at its new place", () => {
+    const lib = createSeries(EMPTY_LIBRARY, "s", "Resa", [img("/a/1.jpg"), img("/c/1.jpg")]);
+    const next = relinkImages(lib, new Map([["/a/1.jpg", "/c/1.jpg"]]));
+    expect(next.series[0].images.map((i) => i.path)).toEqual(["/c/1.jpg"]);
+  });
+
+  it("moves a folder only when all its pictures went to one place", () => {
+    const folders = movedFolders(
+      new Map([
+        ["/a/Resa/1.jpg", "/c/Resa/1.jpg"],
+        ["/a/Resa/2.jpg", "/c/Resa/2.jpg"],
+        ["/a/Mix/1.jpg", "/d/1.jpg"],
+        ["/a/Mix/2.jpg", "/e/2.jpg"],
+      ]),
+    );
+    expect([...folders]).toEqual([["/a/Resa", "/c/Resa"]]);
+    const lib = relinkFolders({ ...EMPTY_LIBRARY, recent: [["/a/Resa"]], places: [{ id: "p", name: "P", folders: ["/a/Resa", "/x"], recursive: false }] }, folders);
+    expect(lib.recent).toEqual([["/c/Resa"]]);
+    expect(lib.places![0].folders).toEqual(["/c/Resa", "/x"]);
   });
 });

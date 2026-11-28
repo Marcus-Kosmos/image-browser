@@ -35,6 +35,8 @@ import {
   revealInFinder,
   showBiggerPics,
   fileStates,
+  locateMoved,
+  pickMovedFolder,
   expectBiggerPicsDownload,
   writeWebPage,
   type ImageEntry,
@@ -77,8 +79,11 @@ import {
   type LibraryItem,
   type LibraryView,
   type Privacy,
+  relinkImages,
+  relinkFolders,
+  movedFolders,
 } from "@/lib/library";
-import { saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
+import { moveStoredSettings, saveSettings, useFolderSettings, type FolderSettings } from "@/lib/settings";
 import { useBackgroundTheme } from "@/lib/theme";
 import type { ViewerSettings } from "@/lib/viewer";
 import { openBiggerPics, upscaleWithBiggerPics } from "@/lib/biggerpics";
@@ -186,6 +191,7 @@ export default function App() {
     settings,
     update: updateSettings,
     updateImage,
+    reload: reloadSettings,
   } = useFolderSettings(inFolders ? (listing ? viewKey : null) : viewKey);
   useBackgroundTheme(settings.background, settings.text, settings.accent);
   // File names can repeat across folders: one folder keys settings by the path inside it
@@ -334,7 +340,6 @@ export default function App() {
       // Ignore a corrupt value; the user just picks a folder again.
     }
     // Only on start; later loads are triggered by the user.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const parent = folders.length === 1 ? parentFolder(folders[0]) : null;
@@ -406,6 +411,60 @@ export default function App() {
     () => new Set([...onDisk].filter(([, modified]) => modified === null).map(([path]) => path)),
     [onDisk],
   );
+
+  // Pictures in Favoriter or a series that are gone are looked for once with Spotlight, by name and
+  // size, and again each time the app comes back to the front (a folder may have been unzipped meanwhile).
+  const lostPictures = useMemo(() => {
+    const lost = new Map<string, ImageEntry>();
+    for (const img of [...library.favorites, ...library.series.flatMap((s) => s.images)]) {
+      if (onDisk.get(img.path) === null) lost.set(img.path, img);
+    }
+    return [...lost.values()];
+  }, [library, onDisk]);
+  /** Points the library at where lost pictures turned up; says how many were found. */
+  const relink = useCallback(
+    (lost: ImageEntry[], found: (string | null)[]) => {
+      const moved = new Map<string, string>();
+      lost.forEach((img, i) => found[i] && moved.set(img.path, found[i]!));
+      if (moved.size === 0) return 0;
+      // Remembered folders follow only when they are gone themselves.
+      const folders = new Map([...movedFolders(moved)].filter(([from]) => typeof onDisk.get(from) !== "number"));
+      moveStoredSettings(["library:favorites", ...library.series.map((s) => `library:series:${s.id}`)], moved, folders);
+      changeLibrary((lib) => relinkFolders(relinkImages(lib, moved), folders));
+      reloadSettings();
+      const place = new Set([...moved.values()].map((p) => folderName(parentFolder(p) ?? p)));
+      showToast(
+        `${moved.size === 1 ? "Hittade en flyttad bild" : `Hittade ${moved.size} flyttade bilder`}${place.size === 1 ? ` i ${[...place][0]}` : ""}.`,
+        "success",
+        { label: "Visa i Finder", run: () => void reveal([...moved.values()].slice(0, 1)) },
+      );
+      return moved.size;
+    },
+    [library.series, onDisk, changeLibrary, reloadSettings, showToast, reveal],
+  );
+  const looked = useRef(new Set<string>());
+  useEffect(() => {
+    const forget = () => looked.current.clear();
+    window.addEventListener("focus", forget);
+    return () => window.removeEventListener("focus", forget);
+  }, []);
+  useEffect(() => {
+    const lost = lostPictures.filter((img) => !looked.current.has(img.path));
+    if (lost.length === 0) return;
+    lost.forEach((img) => looked.current.add(img.path));
+    locateMoved(lost)
+      .then((found) => relink(lost, found))
+      .catch(() => {});
+    // Only a new set of lost pictures starts a search, not every change of the library.
+  }, [lostPictures]);
+  /** Asks where the lost pictures went and looks for them there, and in the folders inside it. */
+  const locateLost = useCallback(async () => {
+    const folder = await pickMovedFolder();
+    if (!folder) return;
+    const found = await locateMoved(lostPictures, folder).catch(() => null);
+    const count = found ? relink(lostPictures, found) : 0;
+    if (count === 0) showToast("Hittade inga av de borttappade bilderna i den mappen.", "error");
+  }, [lostPictures, relink, showToast]);
 
   const shownImages = useMemo(() => {
     if (locked) return [];
@@ -1145,7 +1204,7 @@ export default function App() {
               imageKey={imageKey}
               rowHeight={rowHeight}
               settings={settings}
-              onOpen={setViewerIndex}
+              onOpen={(i) => (images[i]?.gone ? void locateLost() : setViewerIndex(i))}
               onTrash={requestTrash}
               onRemove={series ? (i) => images[i] && takeOutOfSeries([images[i]]) : undefined}
               onChangeImage={updateImage}

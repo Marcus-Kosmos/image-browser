@@ -158,8 +158,8 @@ export const ImageTile = memo(function ImageTile({
         <button
           className="block size-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           data-tile
-          // A picture that is gone can still be selected, to be taken out, but there is nothing to open.
-          onClick={(e) => (image.gone && !e.metaKey && !e.shiftKey ? undefined : onOpen(box.index, e))}
+          // A picture that is gone opens nothing; a click asks where it went instead.
+          onClick={(e) => onOpen(box.index, e)}
           onPointerDown={(e) => onDragStart(box.index, e)}
           onKeyDown={(e) => {
             if (reorderable && e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
@@ -185,6 +185,7 @@ export const ImageTile = memo(function ImageTile({
               <ImageOff className="size-6" aria-hidden />
               <span className="font-medium">Bilden är borta</span>
               <span>Flyttad eller borttagen utanför appen</span>
+              <span className="mt-1 underline underline-offset-2">Klicka för att leta upp mappen</span>
             </span>
           ) : url && ownFrame ? (
             <video
