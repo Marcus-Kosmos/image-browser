@@ -12,6 +12,7 @@ import {
   forgetFolders,
   rememberFolders,
   moveInSeries,
+  moveSeries,
   privacyOf,
   setPrivacy,
   removeFromFavorites,
@@ -170,5 +171,22 @@ describe("finding moved pictures again", () => {
     const lib = relinkFolders({ ...EMPTY_LIBRARY, recent: [["/a/Resa"]], places: [{ id: "p", name: "P", folders: ["/a/Resa", "/x"], recursive: false }] }, folders);
     expect(lib.recent).toEqual([["/c/Resa"]]);
     expect(lib.places![0].folders).toEqual(["/c/Resa", "/x"]);
+
+describe("moveSeries", () => {
+  const lib = ["A", "B", "C"].reduce((l, n) => createSeries(l, n, n, []), EMPTY_LIBRARY);
+  const names = (l: typeof lib) => l.series.map((s) => s.name);
+
+  it("moves a series before the one now at the target", () => {
+    expect(names(moveSeries(lib, 2, 0))).toEqual(["C", "A", "B"]);
+    expect(names(moveSeries(lib, 0, 2))).toEqual(["B", "A", "C"]);
+  });
+
+  it("moves a series last when the target is the end", () => {
+    expect(names(moveSeries(lib, 0, 3))).toEqual(["B", "C", "A"]);
+  });
+
+  it("leaves the order alone when dropped where it was", () => {
+    expect(moveSeries(lib, 1, 1)).toBe(lib);
+    expect(moveSeries(lib, 1, 2)).toBe(lib);
   });
 });
