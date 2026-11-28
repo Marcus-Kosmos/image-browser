@@ -21,6 +21,29 @@ static TARGET: Mutex<Option<PathBuf>> = Mutex::new(None);
 /// Where each download in progress goes, by address, and the original it enlarges.
 static DOWNLOADS: Mutex<Option<HashMap<String, (PathBuf, PathBuf)>>> = Mutex::new(None);
 
+/// Runs in every frame of the bigger.pics window; acts only in the upscaler's own frame, where the
+/// "Send this back to …" button (`.returnTo`) appears on each finished picture.
+const SEND_BACK_BY_ITSELF: &str = r#"
+(() => {
+  if (location.hostname !== "app.bigger.pics") return;
+  let sent = false;
+  const press = () => {
+    if (sent) return;
+    const button = [...document.querySelectorAll(".returnTo")].find((b) => !b.hidden && b.offsetParent !== null);
+    if (!button) return;
+    sent = true;
+    // A moment for the page to finish wiring the button up.
+    setTimeout(() => button.click(), 300);
+  };
+  const watch = () => {
+    new MutationObserver(press).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+    setInterval(press, 1000);
+  };
+  if (document.documentElement) watch();
+  else document.addEventListener("DOMContentLoaded", watch);
+})();
+"#;
+
 /// Names the picture sent to bigger.pics, or none when the app no longer waits for it.
 pub fn set_target(original: Option<PathBuf>) {
     *TARGET.lock().unwrap() = original;
@@ -117,6 +140,9 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
         // It works behind the app's window: there is nothing to do in it until the picture is enlarged.
         .focused(false)
         .on_download(on_download)
+        // bigger.pics only sends the picture back when "Send this back" is clicked; Mark asked for it to
+        // come back by itself, so the button is clicked as soon as it shows up.
+        .initialization_script_for_all_frames(SEND_BACK_BY_ITSELF)
         // The page can bring its window forward when it has loaded, which may be well after it opened.
         .on_page_load(|window, payload| {
             if payload.event() == PageLoadEvent::Finished {
